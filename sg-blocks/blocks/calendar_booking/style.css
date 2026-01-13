@@ -1,0 +1,51 @@
+.blk-calendar{
+  --acc: var(--accent, #7C5CFF);
+  --onAcc: var(--onAccent, #fff);
+  --text: var(--text, #fff);
+  --chipBg: var(--surface2, #20232b);
+  --radius: 12px;
+  --gap: 8px;
+}
+.blk-calendar .cal-card{
+  border:1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255,255,255,.03);
+}
+/* Month bar */
+.blk-calendar .cal-monthbar{ display:flex; align-items:center; justify-content:space-between; gap: var(--gap); margin: 8px 0 4px; }
+.blk-calendar .cal-monthbar .nav{ border:1px solid rgba(255,255,255,.16); background: var(--chipBg); color: var(--text); border-radius: var(--radius); padding:4px 10px; cursor:pointer; }
+.blk-calendar .month-title{ font-weight:600; opacity:.9 }
+/* Week header & month grid */
+.blk-calendar .cal-weekhead{ display:grid; grid-template-columns: repeat(7,1fr); gap: var(--gap); opacity:.65; font-size:.9em; margin-bottom:6px; }
+.blk-calendar .cal-weekhead > div{ text-align:center; }
+.blk-calendar .cal-month{ display:grid; grid-template-columns: repeat(7,1fr); gap: var(--gap); margin-bottom: 10px; }
+.blk-calendar .day{ padding:10px; text-align:center; border-radius: var(--radius); background: var(--chipBg); color: var(--text); cursor:pointer; user-select:none; border:1px solid rgba(255,255,255,.12); }
+.blk-calendar .day.disabled{ opacity:.35; filter:grayscale(1); cursor:default; }
+.blk-calendar .day.today{ outline: 2px dashed rgba(255,255,255,.25); }
+.blk-calendar .day.is-active{ background: var(--acc); color: var(--onAcc); }
+/* Groups with border */
+.blk-calendar .cal-group{ border:1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 10px; margin-top: 10px; }
+.blk-calendar .cal-group__head{ font-weight: 600; opacity: .9; margin-bottom: 8px; }
+/* Durations */
+.blk-calendar .cal-durations{ display:flex; flex-wrap:wrap; gap: var(--gap); }
+.blk-calendar .chip{ padding:6px 10px; border-radius: var(--radius); border:1px solid rgba(255,255,255,.16); background: var(--chipBg); color: var(--text); cursor:pointer; user-select:none; }
+.blk-calendar .chip.is-active{ background: var(--acc); color: var(--onAcc); }
+/* Services list with toggles */
+.blk-calendar .services-list{ display:flex; flex-direction:column; gap:10px; }
+.blk-calendar .service-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid rgba(255,255,255,.12); border-radius: var(--radius); background: var(--chipBg); }
+.blk-calendar .srv-title{ opacity:.95; }
+.blk-calendar .srv-switch{ position:relative; width:44px; height:24px; border-radius:999px; background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); cursor:pointer; }
+.blk-calendar .srv-switch::after{ content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition: all .18s ease; }
+.blk-calendar .srv-switch.is-on{ background: var(--acc); border-color: transparent; }
+.blk-calendar .srv-switch.is-on::after{ left:22px; background: var(--onAcc); }
+/* Slots */
+.blk-calendar .cal-slots{ display:flex; flex-wrap:wrap; gap: var(--gap); }
+.blk-calendar .slot{ padding:8px 10px; border:1px solid rgba(255,255,255,.16); border-radius: var(--radius); background: var(--chipBg); color: var(--text); cursor:pointer; }
+.blk-calendar .slot.is-active{ background: var(--acc); color: var(--onAcc); }
+/* Buttons */
+.blk-calendar .cal-actions{ display:flex; margin-top: 10px; }
+.blk-calendar .cal-actions .btn{ width: 100%; }
+.blk-calendar .btn{ padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); background: var(--chipBg); color: var(--text); cursor: pointer; }
+.blk-calendar .btn--primary{ background: var(--acc); color: var(--onAcc); border-color: transparent; font-weight: 700; letter-spacing: .2px; }
+.blk-calendar .btn--ghost{ background: rgba(255,255,255,.06); }

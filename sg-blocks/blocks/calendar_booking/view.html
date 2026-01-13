@@ -1,0 +1,44 @@
+<section class="blk blk-calendar">
+  <div class="cal-card">
+    <div class="blk-head">
+      <div class="blk-title" data-title></div>
+    </div>
+
+    <div class="cal-monthbar">
+      <button type="button" class="nav prev" aria-label="Предыдущий месяц">‹</button>
+      <div class="month-title" data-month-title></div>
+      <button type="button" class="nav next" aria-label="Следующий месяц">›</button>
+    </div>
+
+    <div class="cal-weekhead">
+      <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+    </div>
+    <div class="cal-month"></div>
+
+    <!-- Длительности -->
+    <div class="cal-group">
+      <div class="cal-group__head" data-dur-title>Длительность</div>
+      <div class="cal-durations"></div>
+    </div>
+
+    <!-- Услуги со свитчами -->
+    <div class="cal-group cal-services" data-services-wrap>
+      <div class="cal-group__head" data-srv-title>Услуги</div>
+      <div class="services-list" data-services></div>
+    </div>
+
+    <!-- Слоты -->
+    <div class="cal-group">
+      <div class="cal-group__head" data-slots-title>Свободные слоты</div>
+      <div class="cal-slots"></div>
+    </div>
+
+    <!-- Кнопки -->
+    <div class="cal-actions cal-actions--book">
+      <button class="btn btn--primary cal-book" data-book-text>Забронировать</button>
+    </div>
+    <div class="cal-actions cal-actions--hold">
+      <button class="btn btn--ghost cal-hold" data-hold-text>Держать слот</button>
+    </div>
+  </div>
+</section>
