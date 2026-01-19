@@ -49,23 +49,4 @@
 }
 
 
-{
-  "key": "sales_qr",
-  "title": "Продажи: QR клиента",
-  "category": "Лояльность / Продажи",
-  "tags": ["all","sales","qr","loyalty"],
-  "version": "1.0.0",
-  "files": {
-    "runtime": "sales_qr/runtime.js",
-    "view": "sales_qr/view.html",
-    "style": "sales_qr/style.css",
-    "block": "sales_qr/block.json"
-  },
-  "defaults": {
-    "title": "Ваш QR для оплаты",
-    "sub": "Покажите кассиру при оплате",
-    "hint": "ID клиента",
-    "cashback_percent": 10,
-    "token_ttl_sec": 300
-  }
-}
+
