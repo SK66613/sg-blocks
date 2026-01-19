@@ -1,0 +1,13 @@
+{
+  "title": "QR клиента (продажи/кэшбек)",
+  "category": "loyalty",
+  "tags": ["qr", "sales", "cashback"],
+  "version": "1.0.0",
+  "defaults": {
+    "title": "Мой QR для кассы",
+    "subtitle": "Покажите кассиру при оплате",
+    "ttl_sec": 300,
+    "refresh_sec": 60,
+    "cashback_percent": 10
+  }
+}
