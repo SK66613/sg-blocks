@@ -1,13 +1,23 @@
 {
-  "title": "QR клиента (продажи/кэшбек)",
-  "category": "loyalty",
-  "tags": ["qr", "sales", "cashback"],
+  "id": "sales_qr",
+  "type": "htmlEmbed",
+  "title": "Продажи: QR клиента",
+  "category": "Лояльность / Продажи",
+  "tags": ["all", "sales", "qr", "loyalty"],
   "version": "1.0.0",
+  "template": "view.html",
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  },
   "defaults": {
-    "title": "Мой QR для кассы",
-    "subtitle": "Покажите кассиру при оплате",
-    "ttl_sec": 300,
-    "refresh_sec": 60,
-    "cashback_percent": 10
+    "title": "Ваш QR для оплаты",
+    "sub": "Покажите кассиру при оплате",
+    "cashback_percent": 10,
+    "token_ttl_sec": 300,
+    "refresh_every_sec": 60,
+    "show_copy": true,
+    "show_refresh": true,
+    "bot_username": ""
   }
 }
