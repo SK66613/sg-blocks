@@ -1,13 +1,12 @@
 // sales_qr/runtime.js
-// - export function mount(el, props, ctx)
-// - mount может вернуть cleanup()
+// export function mount(rootEl, props, ctx) -> cleanup()
 
 function $(root, sel){ return root.querySelector(sel); }
 function safeNum(x, def){ const n = Number(x); return Number.isFinite(n) ? n : def; }
 
 function getPublicId(ctx){
   const c = ctx || {};
-  const pid = c.publicId || c.appPublicId || c.public_id || '';
+  const pid = c.publicId || c.appPublicId || c.public_id || c.app_public_id || '';
   if (pid) return String(pid);
   try{
     const parts = String(location.pathname||'').split('/').filter(Boolean);
@@ -25,15 +24,33 @@ function getInitData(){
 }
 
 async function drawQr(canvas, fallbackEl, text){
+  // Делаем QR максимально резким: фиксируем CSS size и рисуем с DPR
+  const cssSize = 260; // можно 240-320, но 260 обычно отлично сканируется
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+  canvas.style.width = cssSize + 'px';
+  canvas.style.height = cssSize + 'px';
+  canvas.width = Math.round(cssSize * dpr);
+  canvas.height = Math.round(cssSize * dpr);
+
   try{
     const ctx2 = canvas.getContext('2d');
+    ctx2.setTransform(1,0,0,1,0,0);
     ctx2.clearRect(0,0,canvas.width,canvas.height);
   }catch(_){}
 
-  const imgUrl = `https://quickchart.io/qr?size=${canvas.width}&text=${encodeURIComponent(text)}`;
+  // QuickChart QR: добавляем margin + высокий EC level
+  // ВАЖНО: size даём в CSS-пикселях, а рисуем через DPR в canvas
+  const imgUrl =
+    `https://quickchart.io/qr?` +
+    `size=${encodeURIComponent(String(cssSize))}` +
+    `&margin=1&ecLevel=H` +
+    `&text=${encodeURIComponent(text)}`;
+
   try{
     const img = new Image();
     img.crossOrigin = 'anonymous';
+
     const ok = await new Promise((resolve)=>{
       img.onload = ()=> resolve(true);
       img.onerror = ()=> resolve(false);
@@ -43,13 +60,16 @@ async function drawQr(canvas, fallbackEl, text){
     if (ok){
       fallbackEl.style.display = 'none';
       canvas.style.display = 'block';
+
       const ctx2 = canvas.getContext('2d');
-      ctx2.drawImage(img, 0,0, canvas.width, canvas.height);
+      // Рисуем чётко в canvas с DPR
+      ctx2.imageSmoothingEnabled = false;
+      ctx2.drawImage(img, 0, 0, canvas.width, canvas.height);
       return true;
     }
   }catch(_){}
 
-  // fallback: текст
+  // fallback: просто текст, чтобы хоть что-то работало
   try{
     canvas.style.display = 'none';
     fallbackEl.style.display = 'block';
@@ -61,11 +81,11 @@ async function drawQr(canvas, fallbackEl, text){
 async function postJSON(url, data){
   const r = await fetch(url, {
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{ 'content-type':'application/json' },
     body: JSON.stringify(data || {})
   });
   const j = await r.json().catch(()=>null);
-  if (!r.ok) {
+  if (!r.ok){
     const msg = (j && (j.error || j.message)) ? String(j.error || j.message) : ('HTTP_' + r.status);
     throw new Error(msg);
   }
@@ -80,6 +100,7 @@ export function mount(rootEl, props={}, ctx={}){
   const descEl   = $(root, '[data-sq-desc]');
   const cbEl     = $(root, '[data-sq-cb]');
   const statusEl = $(root, '[data-sq-status]');
+  const debugEl  = $(root, '[data-sq-debug]');     // добавь в view.html (ниже скажу)
   const canvas   = $(root, '[data-sq-canvas]');
   const fallback = $(root, '[data-sq-fallback]');
 
@@ -100,19 +121,16 @@ export function mount(rootEl, props={}, ctx={}){
   const btnRefreshText = String(props.btn_refresh ?? 'Обновить');
   const btnCopyText    = String(props.btn_copy ?? 'Скопировать');
 
-  // UI: скрываем если пусто
-  if (titleEl){
-    if (title) { titleEl.textContent = title; titleEl.style.display=''; }
-    else { titleEl.style.display='none'; }
+  function setTextOrHide(el, txt){
+    if (!el) return;
+    if (txt) { el.textContent = txt; el.style.display = ''; }
+    else { el.style.display = 'none'; }
   }
-  if (subEl){
-    if (subtitle) { subEl.textContent = subtitle; subEl.style.display=''; }
-    else { subEl.style.display='none'; }
-  }
-  if (descEl){
-    if (description) { descEl.textContent = description; descEl.style.display=''; }
-    else { descEl.style.display='none'; }
-  }
+
+  setTextOrHide(titleEl, title);
+  setTextOrHide(subEl, subtitle);
+  setTextOrHide(descEl, description);
+
   if (cbEl) cbEl.textContent = `${cashback}%`;
 
   if (btnRefresh){
@@ -131,48 +149,57 @@ export function mount(rootEl, props={}, ctx={}){
   function setStatus(s){
     if (statusEl) statusEl.textContent = String(s||'');
   }
+  function setDebug(s){
+    if (debugEl) debugEl.textContent = String(s||'');
+  }
 
   async function refresh(){
     if (inFlight) return;
     inFlight = true;
+
     try{
       const publicId = getPublicId(ctx);
       if (!publicId){
         setStatus('Не найден publicId приложения');
+        setDebug('');
         return;
       }
 
       const initData = getInitData();
       if (!initData){
         setStatus('Откройте в Telegram для реального QR');
-        // демо
         lastLink = `sale_demo_${publicId}`;
+        setDebug(lastLink);
         await drawQr(canvas, fallback, lastLink);
         return;
       }
 
       setStatus('Обновляем QR…');
 
-      // сервер вернет уже правильный deep_link в твоего бота
       const r = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/sales/token`, {
         init_data: initData,
         ttl_sec: ttlSec
       });
 
-      const deep = r && r.deep_link ? String(r.deep_link) : '';
+      // ВАЖНО: берём deep_link как приоритет (это URL на t.me)
+      const deep = r && (r.deep_link || r.deepLink || r.link) ? String(r.deep_link || r.deepLink || r.link) : '';
       const token = r && r.token ? String(r.token) : '';
+
       if (!deep && !token){
         setStatus('Нет token/deep_link от сервера');
+        setDebug(JSON.stringify(r||{}));
         return;
       }
 
       lastLink = deep || token;
+      setDebug(lastLink);
 
       const ok = await drawQr(canvas, fallback, lastLink);
       setStatus(ok ? 'QR готов' : 'Показали ссылку текстом');
-    } catch (e){
+    }catch(e){
       setStatus('Ошибка: ' + (e && e.message ? e.message : 'ERR'));
-    } finally {
+      setDebug('');
+    }finally{
       inFlight = false;
     }
   }
@@ -180,15 +207,15 @@ export function mount(rootEl, props={}, ctx={}){
   function onClick(e){
     const t = e.target && e.target.closest ? e.target.closest('[data-sq-act]') : null;
     if (!t) return;
-    const act = t.getAttribute('data-sq-act');
 
-    if (act === 'refresh') {
+    const act = t.getAttribute('data-sq-act');
+    if (act === 'refresh'){
       e.preventDefault();
       refresh();
       return;
     }
 
-    if (act === 'copy') {
+    if (act === 'copy'){
       e.preventDefault();
       if (!lastLink) return;
       try{
@@ -202,7 +229,6 @@ export function mount(rootEl, props={}, ctx={}){
 
   root.addEventListener('click', onClick);
 
-  // старт
   refresh();
   timer = setInterval(refresh, refreshEvery * 1000);
 
