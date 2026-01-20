@@ -1,0 +1,27 @@
+<section class="sq" data-sq>
+  <div class="sq-head">
+    <div class="sq-title" data-sq-title>Ваш QR для оплаты</div>
+    <div class="sq-sub" data-sq-sub>Покажите кассиру при оплате</div>
+  </div>
+
+  <div class="sq-card">
+    <div class="sq-qrbox">
+      <canvas class="sq-qr" width="240" height="240" data-sq-canvas></canvas>
+      <div class="sq-qr-fallback" data-sq-fallback style="display:none;"></div>
+    </div>
+
+    <div class="sq-meta">
+      <div class="sq-cb">Кэшбэк: <b data-sq-cb>10%</b> монетами</div>
+      <div class="sq-status" data-sq-status>Готовим QR…</div>
+    </div>
+
+    <div class="sq-actions">
+      <button class="sq-btn" type="button" data-sq-act="refresh">Обновить</button>
+      <button class="sq-btn sq-btn--primary" type="button" data-sq-act="copy">Скопировать ссылку</button>
+    </div>
+
+    <div class="sq-foot">
+      Кассир сканирует QR → откроется бот → введёт сумму покупки → начислим кэшбэк.
+    </div>
+  </div>
+</section>
