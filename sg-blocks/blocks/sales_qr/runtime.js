@@ -164,10 +164,10 @@ export function mount(rootEl, props={}, ctx={}){
       // ОЖИДАЕМЫЙ эндпоинт (ты добавишь в воркер):
       // POST /api/public/app/:publicId/sales/token
       // body: { init_data, ttl_sec }
-      const r = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/sales/token`, {
-        init_data: initData,
-        ttl_sec: ttlSec
-      });
+const r = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/sales/token`, {
+  init_data: initData
+});
+
 
       const token = r && r.token ? String(r.token) : '';
       if (!token){
