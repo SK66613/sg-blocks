@@ -1,23 +1,22 @@
-{
-  "id": "sales_qr",
-  "type": "htmlEmbed",
-  "title": "Продажи: QR клиента",
-  "category": "Лояльность / Продажи",
-  "tags": ["all", "sales", "qr", "loyalty"],
-  "version": "1.0.0",
-  "template": "view.html",
-  "assets": {
-    "css": ["style.css"],
-    "js": ["runtime.js"]
-  },
-  "defaults": {
-    "title": "Ваш QR для оплаты",
-    "sub": "Покажите кассиру при оплате",
-    "cashback_percent": 10,
-    "token_ttl_sec": 300,
-    "refresh_every_sec": 60,
-    "show_copy": true,
-    "show_refresh": true,
-    "bot_username": ""
-  }
+"defaults": {
+  "title": "Ваш QR для оплаты",
+  "subtitle": "Покажите кассиру при оплате",
+  "description": "",
+  "cashback_percent": 10,
+  "ttl_sec": 300,
+  "refresh_sec": 60,
+
+  "show_copy": true,
+  "show_refresh": true,
+
+  "btn_refresh": "Обновить",
+  "btn_copy": "Скопировать ссылку",
+
+  "cashier1_tg_id": "",
+  "cashier2_tg_id": "",
+  "cashier3_tg_id": "",
+  "cashier4_tg_id": "",
+  "cashier5_tg_id": "",
+
+  "bot_username": ""
 }
