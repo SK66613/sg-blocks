@@ -1,0 +1,29 @@
+.blk-shop-stars{ padding: 0; }
+.ss-card{
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--card, #fff);
+  box-shadow: 0 10px 30px rgba(0,0,0,.10);
+}
+.ss-img{
+  height: 160px;
+  background: #f2f3f5;
+  background-size: cover;
+  background-position: center;
+}
+.ss-body{ padding: 14px; display:flex; flex-direction:column; gap:10px; }
+.ss-title{ font-weight: 700; font-size: 16px; line-height: 1.2; }
+.ss-desc{ font-size: 13px; line-height: 1.35; opacity:.8; }
+.ss-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.ss-price{ font-weight: 800; font-size: 15px; }
+.ss-btn{
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--brand, #2b6cff);
+  color: #fff;
+}
+.ss-btn:disabled{ opacity:.6; cursor: default; }
+.ss-hint{ font-size: 12px; opacity:.8; }
