@@ -9,9 +9,19 @@ function getPublicId(ctx){
   const c = ctx || {};
   const pid = c.publicId || c.appPublicId || c.public_id || c.app_public_id || '';
   if (pid) return String(pid);
+
+  // ✅ как в sales_qr: достаём из /m/<publicId>
+  try{
+    const parts = String(location.pathname||'').split('/').filter(Boolean);
+    const i = parts.indexOf('m');
+    if (i >= 0 && parts[i+1]) return parts[i+1];
+  }catch(_){}
+
+  // резерв (если вдруг где-то прокинул)
   const w = globalThis || window;
   return String(w.__APP_PUBLIC_ID__ || w.APP_PUBLIC_ID || '').trim();
 }
+
 
 function getTgUser(ctx){
   const c = ctx || {};
