@@ -1,9 +1,10 @@
-// --- helpers ---
+// shop_stars_product/runtime.js
+// export function mount(rootEl, props, ctx) -> cleanup()
+
 function $(root, sel){ return root.querySelector(sel); }
 function setText(el, v){ if (el) el.textContent = (v==null?'':String(v)); }
 function setHidden(el, hid){ if (el) el.hidden = !!hid; }
 
-// ===== NEW: getAppId from preview url (?app_id=...) =====
 function getAppIdFromUrl(){
   try{
     const sp = new URLSearchParams(String(location.search||''));
@@ -12,12 +13,12 @@ function getAppIdFromUrl(){
   return '';
 }
 
-function getPublicId(ctx){
+function getPublicIdFast(ctx){
   const c = ctx || {};
   const pid = c.publicId || c.appPublicId || c.public_id || c.app_public_id || '';
   if (pid) return String(pid);
 
-  // ✅ published runtime: /m/<publicId>
+  // published runtime: /m/<publicId>
   try{
     const parts = String(location.pathname||'').split('/').filter(Boolean);
     const i = parts.indexOf('m');
@@ -29,17 +30,42 @@ function getPublicId(ctx){
   return String(w.__APP_PUBLIC_ID__ || w.APP_PUBLIC_ID || '').trim();
 }
 
+async function resolvePublicIdSmart(ctx){
+  const pid = getPublicIdFast(ctx);
+  if (pid) return pid;
+
+  const appId = getAppIdFromUrl();
+  if (!appId) return '';
+
+  const cacheKey = 'sg:publicId:' + appId;
+  try{
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) return String(cached);
+  }catch(_){}
+
+  // IMPORTANT: /api/app/:id exists in your worker and returns { ok:true, publicId, ... }
+  const r = await fetch(`/api/app/${encodeURIComponent(appId)}`, { credentials:'include' });
+  const j = await r.json().catch(()=>null);
+
+  const p2 = (j && j.ok && (j.publicId || (j.app && j.app.publicId))) ? String(j.publicId || j.app.publicId) : '';
+  if (p2){
+    try{ sessionStorage.setItem(cacheKey, p2); }catch(_){}
+    return p2;
+  }
+  return '';
+}
+
 function getTgUser(ctx){
   const c = ctx || {};
   if (c.tg && c.tg.id) return { id: c.tg.id, username: c.tg.username || '' };
   if (c.tg_user && c.tg_user.id) return { id: c.tg_user.id, username: c.tg_user.username || '' };
+
   const tg = (globalThis.Telegram && globalThis.Telegram.WebApp) ? globalThis.Telegram.WebApp : null;
   const u = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
   if (u && u.id) return { id: u.id, username: u.username || '' };
   return null;
 }
 
-// ✅ IMPORTANT: credentials include (чтобы /api/app/:id работал в конструкторе по cookie)
 async function postJSON(url, body){
   const r = await fetch(url, {
     method:'POST',
@@ -53,35 +79,6 @@ async function postJSON(url, body){
     throw new Error(msg);
   }
   return j;
-}
-
-// ===== NEW: resolve publicId in preview via /api/app/:appId =====
-async function resolvePublicIdSmart(ctx){
-  // 1) try normal ways
-  const pid = getPublicId(ctx);
-  if (pid) return pid;
-
-  // 2) preview mode: ?app_id=...
-  const appId = getAppIdFromUrl();
-  if (!appId) return '';
-
-  // cache (session) to avoid extra fetches
-  const cacheKey = 'sg:publicId:' + appId;
-  try{
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return String(cached);
-  }catch(_){}
-
-  // fetch app -> publicId (endpoint exists in твоём воркере)
-  // /api/app/:id returns { ok:true, publicId, ... } :contentReference[oaicite:1]{index=1}
-  const r = await fetch(`/api/app/${encodeURIComponent(appId)}`, { credentials:'include' });
-  const j = await r.json().catch(()=>null);
-  const p2 = (j && j.ok && (j.publicId || (j.app && j.app.publicId))) ? String(j.publicId || j.app.publicId) : '';
-  if (p2){
-    try{ sessionStorage.setItem(cacheKey, p2); }catch(_){}
-    return p2;
-  }
-  return '';
 }
 
 export function mount(rootEl, props={}, ctx={}){
@@ -113,8 +110,7 @@ export function mount(rootEl, props={}, ctx={}){
   setText(buyBtn, btnText);
 
   if (imgEl){
-    if (photoUrl) imgEl.style.backgroundImage = `url('${photoUrl}')`;
-    else imgEl.style.backgroundImage = '';
+    imgEl.style.backgroundImage = photoUrl ? `url('${photoUrl}')` : '';
   }
 
   function setHint(t){
@@ -122,8 +118,6 @@ export function mount(rootEl, props={}, ctx={}){
     setText(hintEl, t || '');
     setHidden(hintEl, !t);
   }
-
-  let destroyed = false;
 
   async function onBuy(e){
     e.preventDefault();
@@ -144,7 +138,7 @@ export function mount(rootEl, props={}, ctx={}){
 
       const j = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/stars/create`, {
         tg_user: tgUser,
-        title: title,
+        title,
         description: description || 'Оплата звёздами в Telegram',
         photo_url: photoUrl,
         items: [{ product_id: productId, title, stars, qty }]
@@ -154,15 +148,14 @@ export function mount(rootEl, props={}, ctx={}){
       if (!link) throw new Error('NO_INVOICE_LINK');
 
       tg.openInvoice(link, (status)=>{
-        // statuses: paid / cancelled / failed / pending (depends client)
         if (status === 'paid') setHint(txtOK);
         else if (status === 'cancelled') setHint(txtCancel);
         else if (status === 'failed') setHint(txtFail);
-        else setHint(status || '');
+        else setHint(status || 'Ожидание…');
       });
 
     }catch(err){
-      setHint(String(err && err.message ? err.message : err));
+      setHint('Ошибка: ' + (err?.message || String(err)));
     }finally{
       buyBtn && (buyBtn.disabled = false);
     }
@@ -170,8 +163,7 @@ export function mount(rootEl, props={}, ctx={}){
 
   buyBtn && buyBtn.addEventListener('click', onBuy);
 
-  return ()=>{
-    destroyed = true;
+  return function cleanup(){
     buyBtn && buyBtn.removeEventListener('click', onBuy);
   };
 }
