@@ -1,15 +1,11 @@
 {
-  "version": "2026.01.13-1149",
+  "version": "2026.01.21-2031",
   "blocks": [
     {
       "key": "calendar_booking",
       "title": "Календарь: запись",
       "category": "Виджеты / Календарь",
-      "tags": [
-        "all",
-        "booking",
-        "calendar"
-      ],
+      "tags": ["all", "booking", "calendar"],
       "version": "1.4.0",
       "files": {
         "runtime": "calendar_booking/runtime.js",
@@ -20,23 +16,13 @@
       "defaults": {
         "title": "Записаться на консультацию",
         "view": "month",
-        "allowed_minutes": [
-          30,
-          60,
-          90
-        ],
+        "allowed_minutes": [30, 60, 90],
         "defaultDuration": 60,
         "slot_step_min": 30,
         "dur_title": "Длительность",
         "slots_title": "Свободные слоты",
         "srv_title": "Услуги",
-        "services": [
-          "Консультация",
-          "",
-          "",
-          "",
-          ""
-        ],
+        "services": ["Консультация", "", "", "", ""],
         "text_ok": "Забронировать",
         "text_hold": "Держать слот",
         "show_book": true,
@@ -49,12 +35,7 @@
       "key": "sales_qr",
       "title": "Продажи: QR клиента",
       "category": "Лояльность / Продажи",
-      "tags": [
-        "all",
-        "sales",
-        "qr",
-        "loyalty"
-      ],
+      "tags": ["all", "sales", "qr", "loyalty"],
       "version": "1.0.0",
       "files": {
         "runtime": "sales_qr/runtime.js",
@@ -67,6 +48,31 @@
         "sub": "Покажите кассиру при оплате",
         "cashback_percent": 10,
         "token_ttl_sec": 300
+      }
+    },
+    {
+      "key": "shop_stars_product",
+      "title": "Магазин: товар за Stars",
+      "category": "Магазин / Оплата",
+      "tags": ["all", "shop", "product", "stars", "payments"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "shop_stars_product/runtime.js",
+        "view": "shop_stars_product/view.html",
+        "style": "shop_stars_product/style.css",
+        "block": "shop_stars_product/block.json"
+      },
+      "defaults": {
+        "title": "Товар",
+        "description": "Оплата звёздами в Telegram",
+        "product_id": "product_1",
+        "photo_url": "",
+        "stars": 50,
+        "qty": 1,
+        "btn_text": "Купить за ⭐",
+        "success_text": "✅ Оплачено!",
+        "cancel_text": "Отменено",
+        "fail_text": "Ошибка оплаты"
       }
     }
   ]
