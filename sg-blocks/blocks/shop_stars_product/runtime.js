@@ -1,27 +1,33 @@
-// shop_stars_product/runtime.js
-// export function mount(rootEl, props, ctx) -> cleanup()
-
+// --- helpers ---
 function $(root, sel){ return root.querySelector(sel); }
 function setText(el, v){ if (el) el.textContent = (v==null?'':String(v)); }
 function setHidden(el, hid){ if (el) el.hidden = !!hid; }
+
+// ===== NEW: getAppId from preview url (?app_id=...) =====
+function getAppIdFromUrl(){
+  try{
+    const sp = new URLSearchParams(String(location.search||''));
+    return String(sp.get('app_id') || sp.get('appId') || sp.get('id') || '').trim();
+  }catch(_){}
+  return '';
+}
 
 function getPublicId(ctx){
   const c = ctx || {};
   const pid = c.publicId || c.appPublicId || c.public_id || c.app_public_id || '';
   if (pid) return String(pid);
 
-  // ✅ как в sales_qr: достаём из /m/<publicId>
+  // ✅ published runtime: /m/<publicId>
   try{
     const parts = String(location.pathname||'').split('/').filter(Boolean);
     const i = parts.indexOf('m');
     if (i >= 0 && parts[i+1]) return parts[i+1];
   }catch(_){}
 
-  // резерв (если вдруг где-то прокинул)
+  // reserve globals
   const w = globalThis || window;
   return String(w.__APP_PUBLIC_ID__ || w.APP_PUBLIC_ID || '').trim();
 }
-
 
 function getTgUser(ctx){
   const c = ctx || {};
@@ -33,10 +39,12 @@ function getTgUser(ctx){
   return null;
 }
 
+// ✅ IMPORTANT: credentials include (чтобы /api/app/:id работал в конструкторе по cookie)
 async function postJSON(url, body){
   const r = await fetch(url, {
     method:'POST',
     headers:{ 'content-type':'application/json' },
+    credentials: 'include',
     body: JSON.stringify(body || {})
   });
   const j = await r.json().catch(()=>null);
@@ -45,6 +53,35 @@ async function postJSON(url, body){
     throw new Error(msg);
   }
   return j;
+}
+
+// ===== NEW: resolve publicId in preview via /api/app/:appId =====
+async function resolvePublicIdSmart(ctx){
+  // 1) try normal ways
+  const pid = getPublicId(ctx);
+  if (pid) return pid;
+
+  // 2) preview mode: ?app_id=...
+  const appId = getAppIdFromUrl();
+  if (!appId) return '';
+
+  // cache (session) to avoid extra fetches
+  const cacheKey = 'sg:publicId:' + appId;
+  try{
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) return String(cached);
+  }catch(_){}
+
+  // fetch app -> publicId (endpoint exists in твоём воркере)
+  // /api/app/:id returns { ok:true, publicId, ... } :contentReference[oaicite:1]{index=1}
+  const r = await fetch(`/api/app/${encodeURIComponent(appId)}`, { credentials:'include' });
+  const j = await r.json().catch(()=>null);
+  const p2 = (j && j.ok && (j.publicId || (j.app && j.app.publicId))) ? String(j.publicId || j.app.publicId) : '';
+  if (p2){
+    try{ sessionStorage.setItem(cacheKey, p2); }catch(_){}
+    return p2;
+  }
+  return '';
 }
 
 export function mount(rootEl, props={}, ctx={}){
@@ -93,7 +130,7 @@ export function mount(rootEl, props={}, ctx={}){
     e.stopPropagation();
     setHint('');
 
-    const publicId = getPublicId(ctx);
+    const publicId = await resolvePublicIdSmart(ctx);
     if (!publicId) { setHint('NO_APP_PUBLIC_ID'); return; }
 
     const tgUser = getTgUser(ctx);
@@ -117,17 +154,15 @@ export function mount(rootEl, props={}, ctx={}){
       if (!link) throw new Error('NO_INVOICE_LINK');
 
       tg.openInvoice(link, (status)=>{
-        if (destroyed) return;
+        // statuses: paid / cancelled / failed / pending (depends client)
         if (status === 'paid') setHint(txtOK);
         else if (status === 'cancelled') setHint(txtCancel);
         else if (status === 'failed') setHint(txtFail);
-        else setHint('Ожидание…');
+        else setHint(status || '');
       });
 
     }catch(err){
-      if (destroyed) return;
-      console.error('[shop_stars_product] buy error', err);
-      setHint('Ошибка: ' + (err && err.message ? err.message : String(err)));
+      setHint(String(err && err.message ? err.message : err));
     }finally{
       buyBtn && (buyBtn.disabled = false);
     }
@@ -135,7 +170,7 @@ export function mount(rootEl, props={}, ctx={}){
 
   buyBtn && buyBtn.addEventListener('click', onBuy);
 
-  return function cleanup(){
+  return ()=>{
     destroyed = true;
     buyBtn && buyBtn.removeEventListener('click', onBuy);
   };
