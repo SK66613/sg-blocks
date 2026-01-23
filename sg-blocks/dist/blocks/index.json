@@ -5,11 +5,7 @@
       "key": "calendar_booking",
       "title": "Календарь: запись",
       "category": "Виджеты / Календарь",
-      "tags": [
-        "all",
-        "booking",
-        "calendar"
-      ],
+      "tags": ["all", "booking", "calendar"],
       "version": "1.4.0",
       "files": {
         "runtime": "calendar_booking/runtime.js",
@@ -20,23 +16,13 @@
       "defaults": {
         "title": "Записаться на консультацию",
         "view": "month",
-        "allowed_minutes": [
-          30,
-          60,
-          90
-        ],
+        "allowed_minutes": [30, 60, 90],
         "defaultDuration": 60,
         "slot_step_min": 30,
         "dur_title": "Длительность",
         "slots_title": "Свободные слоты",
         "srv_title": "Услуги",
-        "services": [
-          "Консультация",
-          "",
-          "",
-          "",
-          ""
-        ],
+        "services": ["Консультация", "", "", "", ""],
         "text_ok": "Забронировать",
         "text_hold": "Держать слот",
         "show_book": true,
@@ -49,10 +35,7 @@
       "key": "infoCard",
       "title": "Инфо карточка с кнопкой",
       "category": "Карточки",
-      "tags": [
-        "all",
-        "card"
-      ],
+      "tags": ["all", "card"],
       "version": "1.0.0",
       "files": {
         "runtime": "infoCard/runtime.js",
@@ -75,10 +58,7 @@
       "key": "infoCardChevron",
       "title": "Инфо карточка со стрелкой",
       "category": "Карточки",
-      "tags": [
-        "all",
-        "card"
-      ],
+      "tags": ["all", "card"],
       "version": "1.0.0",
       "files": {
         "runtime": "infoCardChevron/runtime.js",
@@ -100,10 +80,7 @@
       "key": "infoCardPlain",
       "title": "Инфо карточка (кликабельное изображение)",
       "category": "Карточки",
-      "tags": [
-        "all",
-        "card"
-      ],
+      "tags": ["all", "card"],
       "version": "1.0.0",
       "files": {
         "runtime": "infoCardPlain/runtime.js",
@@ -126,11 +103,7 @@
       "key": "promo",
       "title": "Промо слайдер",
       "category": "Маркетинг",
-      "tags": [
-        "all",
-        "promo",
-        "slider"
-      ],
+      "tags": ["all", "promo", "slider"],
       "version": "1.0.0",
       "files": {
         "runtime": "promo/runtime.js",
@@ -141,27 +114,9 @@
       "defaults": {
         "interval": 4000,
         "slides": [
-          {
-            "img": "",
-            "action": "link",
-            "link": "#play",
-            "sheet_id": "",
-            "sheet_path": ""
-          },
-          {
-            "img": "",
-            "action": "link",
-            "link": "#bonuses",
-            "sheet_id": "",
-            "sheet_path": ""
-          },
-          {
-            "img": "",
-            "action": "link",
-            "link": "#tournament",
-            "sheet_id": "",
-            "sheet_path": ""
-          }
+          { "img": "", "action": "link", "link": "#play", "sheet_id": "", "sheet_path": "" },
+          { "img": "", "action": "link", "link": "#bonuses", "sheet_id": "", "sheet_path": "" },
+          { "img": "", "action": "link", "link": "#tournament", "sheet_id": "", "sheet_path": "" }
         ]
       }
     },
@@ -169,12 +124,7 @@
       "key": "sales_qr",
       "title": "Продажи: QR клиента",
       "category": "Лояльность / Продажи",
-      "tags": [
-        "all",
-        "sales",
-        "qr",
-        "loyalty"
-      ],
+      "tags": ["all", "sales", "qr", "loyalty"],
       "version": "1.0.1",
       "files": {
         "runtime": "sales_qr/runtime.js",
@@ -205,13 +155,7 @@
       "key": "shop_stars_product",
       "title": "Магазин: товар за Stars",
       "category": "Магазин / Оплата",
-      "tags": [
-        "all",
-        "shop",
-        "product",
-        "stars",
-        "payments"
-      ],
+      "tags": ["all", "shop", "product", "stars", "payments"],
       "version": "1.0.0",
       "files": {
         "runtime": "shop_stars_product/runtime.js",
@@ -236,10 +180,7 @@
       "key": "spacer",
       "title": "Отступ",
       "category": "Базовые",
-      "tags": [
-        "all",
-        "layout"
-      ],
+      "tags": ["all", "layout"],
       "version": "1.0.0",
       "files": {
         "runtime": "spacer/runtime.js",
@@ -247,136 +188,107 @@
         "style": "spacer/style.css",
         "block": "spacer/block.json"
       },
-      "defaults": {
-        "size": 16
+      "defaults": { "size": 16 }
+    },
+    {
+      "key": "gamesList",
+      "title": "Игры: список с кнопками",
+      "category": "Универсальные",
+      "tags": ["all", "games", "list"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "gamesList/runtime.js",
+        "view": "gamesList/view.html",
+        "style": "gamesList/style.css",
+        "block": "gamesList/block.json"
       },
-      {
-    "key": "gamesList",
-    "title": "Игры: список с кнопками",
-    "category": "Универсальные",
-    "tags": [
-      "all",
-      "games",
-      "list"
-    ],
-    "version": "1.0.0",
-    "files": {
-      "runtime": "gamesList/runtime.js",
-      "view": "gamesList/view.html",
-      "style": "gamesList/style.css",
-      "block": "gamesList/block.json"
+      "defaults": {
+        "title": "Игры",
+        "cards": [
+          {
+            "icon": "beer/img/game1.png",
+            "title": "Bumblebee",
+            "sub": "Долети до нас и получи приз",
+            "btn": "Играть",
+            "action": "link",
+            "link": "#play_bumble",
+            "sheet_id": "",
+            "sheet_path": ""
+          },
+          {
+            "icon": "beer/img/game2.png",
+            "title": "Night Racing",
+            "sub": "Катайся и прокачивай тачку",
+            "btn": "Играть",
+            "action": "link",
+            "link": "#play_racing",
+            "sheet_id": "",
+            "sheet_path": ""
+          }
+        ]
+      }
     },
-    "defaults": {
-      "title": "Игры",
-      "cards": [
-        {
-          "icon": "beer/img/game1.png",
-          "title": "Bumblebee",
-          "sub": "Долети до нас и получи приз",
-          "btn": "Играть",
-          "action": "link",
-          "link": "#play_bumble",
-          "sheet_id": "",
-          "sheet_path": ""
-        },
-        {
-          "icon": "beer/img/game2.png",
-          "title": "Night Racing",
-          "sub": "Катайся и прокачивай тачку",
-          "btn": "Играть",
-          "action": "link",
-          "link": "#play_racing",
-          "sheet_id": "",
-          "sheet_path": ""
-        }
-      ]
-    }
-  },
-  {
-    "key": "profile_header",
-    "title": "Профиль — шапка",
-    "category": "Универсальные / Профиль",
-    "tags": [
-      "all",
-      "profile"
-    ],
-    "version": "1.0.0",
-    "files": {
-      "runtime": "profile_header/runtime.js",
-      "view": "profile_header/view.html",
-      "style": "profile_header/style.css",
-      "block": "profile_header/block.json"
+    {
+      "key": "profile_header",
+      "title": "Профиль — шапка",
+      "category": "Универсальные / Профиль",
+      "tags": ["all", "profile"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "profile_header/runtime.js",
+        "view": "profile_header/view.html",
+        "style": "profile_header/style.css",
+        "block": "profile_header/block.json"
+      },
+      "defaults": { "title": "Dem Demov", "text": "@Demov_Dem" }
     },
-    "defaults": {
-      "title": "Dem Demov",
-      "text": "@Demov_Dem"
-    }
-  },
-  {
-    "key": "profile_achievements",
-    "title": "Профиль — достижения",
-    "category": "Универсальные / Профиль",
-    "tags": [
-      "all",
-      "profile"
-    ],
-    "version": "1.0.0",
-    "files": {
-      "runtime": "profile_achievements/runtime.js",
-      "view": "profile_achievements/view.html",
-      "style": "profile_achievements/style.css",
-      "block": "profile_achievements/block.json"
+    {
+      "key": "profile_achievements",
+      "title": "Профиль — достижения",
+      "category": "Универсальные / Профиль",
+      "tags": ["all", "profile"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "profile_achievements/runtime.js",
+        "view": "profile_achievements/view.html",
+        "style": "profile_achievements/style.css",
+        "block": "profile_achievements/block.json"
+      },
+      "defaults": {
+        "title": "🎯 Мои достижения",
+        "best_label": "Шмель — лучший счёт",
+        "pass_label": "Паспорт — штампы",
+        "last_label": "Последний штамп",
+        "refs_label": "Мои рефералы"
+      }
     },
-    "defaults": {
-      "title": "🎯 Мои достижения",
-      "best_label": "Шмель — лучший счёт",
-      "pass_label": "Паспорт — штампы",
-      "last_label": "Последний штамп",
-      "refs_label": "Мои рефералы"
-    }
-  },
-  {
-    "key": "profile_tournament",
-    "title": "Профиль — турнир",
-    "category": "Универсальные / Профиль",
-    "tags": [
-      "all",
-      "profile",
-      "tournament"
-    ],
-    "version": "1.0.0",
-    "files": {
-      "runtime": "profile_tournament/runtime.js",
-      "view": "profile_tournament/view.html",
-      "style": "profile_tournament/style.css",
-      "block": "profile_tournament/block.json"
+    {
+      "key": "profile_tournament",
+      "title": "Профиль — турнир",
+      "category": "Универсальные / Профиль",
+      "tags": ["all", "profile", "tournament"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "profile_tournament/runtime.js",
+        "view": "profile_tournament/view.html",
+        "style": "profile_tournament/style.css",
+        "block": "profile_tournament/block.json"
+      },
+      "defaults": { "title": "🏆 Турнир", "text": "" }
     },
-    "defaults": {
-      "title": "🏆 Турнир",
-      "text": ""
-    }
-  },
-  {
-    "key": "profile_recent_prizes",
-    "title": "Профиль — последние призы",
-    "category": "Универсальные / Профиль",
-    "tags": [
-      "all",
-      "profile",
-      "prizes"
-    ],
-    "version": "1.0.0",
-    "files": {
-      "runtime": "profile_recent_prizes/runtime.js",
-      "view": "profile_recent_prizes/view.html",
-      "style": "profile_recent_prizes/style.css",
-      "block": "profile_recent_prizes/block.json"
-    },
-    "defaults": {
-      "title": "🎁 Последние призы",
-      "text": ""
-    }
-  }
+    {
+      "key": "profile_recent_prizes",
+      "title": "Профиль — последние призы",
+      "category": "Универсальные / Профиль",
+      "tags": ["all", "profile", "prizes"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "profile_recent_prizes/runtime.js",
+        "view": "profile_recent_prizes/view.html",
+        "style": "profile_recent_prizes/style.css",
+        "block": "profile_recent_prizes/block.json"
+      },
+      "defaults": { "title": "🎁 Последние призы", "text": "" }
     }
   ]
 }
