@@ -1,0 +1,27 @@
+<div class="blk-beer">
+  <div class="card page-title">
+    <h2 class="h1">{{h1}}</h2>
+    <p class="muted-sm">{{sub}}</p>
+  </div>
+
+  <div class="card bonus-card">
+    <div class="bonus-head">
+      <div class="picked-pill muted">{{pill}}</div>
+    </div>
+
+    <div class="bonus-wheel" aria-live="polite">
+      <div class="wheel-track">
+        <button class="bonus"><img src="{{img1}}" alt=""><span>{{t1}}</span></button>
+        <button class="bonus"><img src="{{img2}}" alt=""><span>{{t2}}</span></button>
+        <button class="bonus"><img src="{{img3}}" alt=""><span>{{t3}}</span></button>
+        <button class="bonus"><img src="{{img4}}" alt=""><span>{{t4}}</span></button>
+      </div>
+      <div class="wheel-center"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="button">{{spin}}</button>
+      <button class="btn btn-primary" type="button" disabled>{{claim}}</button>
+    </div>
+  </div>
+</div>

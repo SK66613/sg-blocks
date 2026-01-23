@@ -1,0 +1,25 @@
+{
+  "id": "beerHero",
+  "title": "Beer: Hero",
+  "category": "Beer / Главная",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "title": "Craft Beer Club",
+    "text": "Собирай штампы, крути колесо, получай призы",
+    "img": "img/beer_hero.jpg"
+  },
+  "schema": [],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "beer",
+    "all"
+  ]
+}
