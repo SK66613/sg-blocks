@@ -3,39 +3,26 @@ function loadScript(src){
     const s = document.createElement('script');
     s.src = src;
     s.onload = ()=>res();
-    s.onerror = (e)=>rej(e);
+    s.onerror = rej;
     document.head.appendChild(s);
   });
 }
 
-export async function mount(el, props, ctx){
-  el.innerHTML = `
-    <div class="flappy-wrap">
-      <div class="flappy-host" data-game-host></div>
-    </div>
-  `;
+export async function mount(el, props){
+  el.innerHTML = `<div class="flappy-host" data-game-host></div>`;
 
-  const base = new URL('./games/flappy/', import.meta.url).toString();
-  window.__SG_FLAPPY_BASE__ = base;
+  // base для ассетов внутри блока
+  const base = new URL('./games/flappy/', location.origin + location.pathname).toString();
+  // ⚠️ ВАЖНО: так нельзя в общем виде, поэтому делаем проще:
+  // base считаем от runtime.js:
+  const runtimeUrl = (document.currentScript && document.currentScript.src) || '';
+  const blockBase = runtimeUrl.replace(/\/runtime\.js(\?.*)?$/,'/');
+  window.__SG_FLAPPY_BASE__ = blockBase + 'games/flappy/';
 
-  // грузим как в исходнике
-  await loadScript(new URL('./games/runtime.js', import.meta.url).toString());
-  await loadScript(new URL('./games/flappy/flappy.mount.js', import.meta.url).toString());
-
-  // ждём пока игра зарегистрируется
-  let tries = 0;
-  while (!(window.GAMES && window.GAMES.flappy) && tries < 50){
-    await new Promise(r=>setTimeout(r, 50));
-    tries++;
-  }
+  await loadScript(blockBase + 'games/runtime.js');
+  await loadScript(blockBase + 'games/flappy/flappy.mount.js');
 
   if (window.mountGame){
     window.mountGame('flappy', el.querySelector('[data-game-host]'), props || {});
-  } else {
-    console.error('[flappy] mountGame not found');
   }
-}
-
-export function unmount(el){
-  el.innerHTML = '';
 }
