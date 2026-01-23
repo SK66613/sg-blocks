@@ -1,0 +1,120 @@
+{
+  "id": "beer_home_start_list",
+  "title": "Beer: Список (3 пункта)",
+  "category": "Beer / Списки",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "head": "С чего начать",
+    "i1_icon": "img/pasport.png",
+    "i1_title": "Паспорт стилей",
+    "i1_sub": "Собери 6 штампов — подарок",
+    "i1_sheet_id": "passport",
+    "i1_sheet_path": "",
+    "i2_icon": "img/casino-chips.png",
+    "i2_title": "Викторина",
+    "i2_sub": "Проверь свои пивные знания",
+    "i2_sheet_id": "trivia",
+    "i2_sheet_path": "",
+    "i3_icon": "img/fren.png",
+    "i3_title": "Пригласи друзей",
+    "i3_sub": "Дарим +100 монет за друга",
+    "i3_sheet_id": "ref",
+    "i3_sheet_path": ""
+  },
+  "schema": [
+    {
+      "key": "head",
+      "label": "Заголовок списка",
+      "ui": "text"
+    },
+    {
+      "key": "i1_icon",
+      "label": "1) Иконка",
+      "ui": "image"
+    },
+    {
+      "key": "i1_title",
+      "label": "1) Заголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i1_sub",
+      "label": "1) Подзаголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i1_sheet_id",
+      "label": "1) ID шторки",
+      "ui": "text"
+    },
+    {
+      "key": "i1_sheet_path",
+      "label": "1) Путь страницы-шторки",
+      "ui": "text"
+    },
+    {
+      "key": "i2_icon",
+      "label": "2) Иконка",
+      "ui": "image"
+    },
+    {
+      "key": "i2_title",
+      "label": "2) Заголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i2_sub",
+      "label": "2) Подзаголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i2_sheet_id",
+      "label": "2) ID шторки",
+      "ui": "text"
+    },
+    {
+      "key": "i2_sheet_path",
+      "label": "2) Путь страницы-шторки",
+      "ui": "text"
+    },
+    {
+      "key": "i3_icon",
+      "label": "3) Иконка",
+      "ui": "image"
+    },
+    {
+      "key": "i3_title",
+      "label": "3) Заголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i3_sub",
+      "label": "3) Подзаголовок",
+      "ui": "text"
+    },
+    {
+      "key": "i3_sheet_id",
+      "label": "3) ID шторки",
+      "ui": "text"
+    },
+    {
+      "key": "i3_sheet_path",
+      "label": "3) Путь страницы-шторки",
+      "ui": "text"
+    }
+  ],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "home",
+    "beer",
+    "all"
+  ]
+}

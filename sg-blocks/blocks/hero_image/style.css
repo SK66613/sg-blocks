@@ -1,0 +1,2 @@
+.blk-hero-img{ padding:12px; }
+.blk-hero-img__pic{ width:100%; display:block; border-radius: var(--blk-hero-img-radius,16px); }

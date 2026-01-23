@@ -1,0 +1,26 @@
+{
+  "id": "media_row_cta",
+  "title": "Картинка + текст + кнопка",
+  "category": "Списки",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "img": "",
+    "title": "Заголовок",
+    "text": "Короткое описание",
+    "label": "Начать",
+    "action": "none",
+    "sheet_id": "",
+    "sheet_path": ""
+  },
+  "template": "view.html",
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "thumb": "thumb.svg"
+}

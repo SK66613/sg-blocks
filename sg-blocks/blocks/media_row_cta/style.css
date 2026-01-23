@@ -1,0 +1,8 @@
+.blk-row{ display:flex; gap:12px; align-items:center; padding:12px; border-radius:16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+.blk-row__imgwrap{ width:56px; height:56px; flex:0 0 56px; border-radius:14px; overflow:hidden; background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; }
+.blk-row__img{ width:100%; height:100%; object-fit:cover; display:block; }
+.blk-row__mid{ flex:1; min-width:0; }
+.blk-row__title{ font-weight:700; font-size:14px; line-height:1.2; }
+.blk-row__text{ margin-top:4px; font-size:12px; opacity:.8; line-height:1.25; }
+.blk-row__btn{ flex:0 0 auto; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:rgba(124,92,255,.18); color:#fff; font-weight:700; cursor:pointer; }
+.blk-row__btn:active{ transform:translateY(1px); }
