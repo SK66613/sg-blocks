@@ -2,22 +2,18 @@
   "id": "flappyGame",
   "title": "Игра: Flappy",
   "category": "Игры",
-  "tags": [
-    "all",
-    "games",
-    "flappy"
-  ],
+  "tags": ["all","games","flappy"],
   "version": "1.0.0",
-  "type": "game",
+  "type": "htmlEmbed",
+  "template": "view.html",
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  },
   "defaults": {
     "key": "flappy",
     "autostart": true,
     "min_h": 520,
     "difficulty": "normal"
-  },
-  "files": {
-    "view": "view.html",
-    "style": "style.css",
-    "runtime": "runtime.js"
   }
 }
