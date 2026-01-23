@@ -1,0 +1,53 @@
+{
+  "id": "beerStartList",
+  "title": "Beer: Стартовые карточки",
+  "category": "Beer / Главная",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "title": "С чего начать",
+    "cards": [
+      {
+        "icon": "img/pasport.png",
+        "title": "Паспорт стилей",
+        "sub": "Собери 6 штампов — подарок",
+        "link": "#passport",
+        "action": "link",
+        "sheet_id": "",
+        "sheet_path": ""
+      },
+      {
+        "icon": "img/casino-chips.png",
+        "title": "Викторина",
+        "sub": "Проверь свои пивные знания",
+        "link": "#quiz",
+        "action": "link",
+        "sheet_id": "",
+        "sheet_path": ""
+      },
+      {
+        "icon": "img/friends.png",
+        "title": "Пригласи друзей",
+        "sub": "Дарим +100 монет за друга",
+        "link": "#invite",
+        "action": "link",
+        "sheet_id": "",
+        "sheet_path": ""
+      }
+    ]
+  },
+  "schema": [],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "beer",
+    "all",
+    "cards"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "beerInviteFriends",
+  "title": "Beer: Пригласи друзей",
+  "category": "Beer / Рефералы",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "title": "Пригласи друзей",
+    "text": "За друга — +100 монет. За 3 друзей — мини-дегустация.",
+    "link": "https://t.me/your_bot?start=invite",
+    "primary": "Скопировать",
+    "secondary": "Поделиться"
+  },
+  "schema": [],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "beer",
+    "all",
+    "referrals"
+  ]
+}
