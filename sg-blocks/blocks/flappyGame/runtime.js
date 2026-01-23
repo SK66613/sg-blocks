@@ -1,69 +1,41 @@
-// flappyGame runtime for SG Blocks (library)
-// Mounts original game from build-apps preview/games/* inside the block folder.
-let _loaded = false;
-
-async function ensureLoaded(){
-  if (_loaded) return;
-  // base for assets referenced from flappy.mount.js
-  window.__SG_FLAPPY_BASE__ = new URL('./games/flappy/', import.meta.url).toString();
-
-  // original global helpers + game registry
-  await import(new URL('./games/runtime.js', import.meta.url).toString());
-  // registers window.GAMES.flappy
-  await import(new URL('./games/flappy/flappy.mount.js', import.meta.url).toString());
-
-  _loaded = true;
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = ()=>res();
+    s.onerror = (e)=>rej(e);
+    document.head.appendChild(s);
+  });
 }
 
-export async function mount(el, props = {}, ctx = {}){
-  await ensureLoaded();
+export async function mount(el, props, ctx){
+  el.innerHTML = `
+    <div class="flappy-wrap">
+      <div class="flappy-host" data-game-host></div>
+    </div>
+  `;
 
-  // ensure host exists
-  let host = el.querySelector('[data-game-host]') || el.querySelector('.game-host');
-  if (!host){
-    host = document.createElement('div');
-    host.className = 'game-host';
-    host.dataset.gameHost = '';
-    el.appendChild(host);
+  const base = new URL('./games/flappy/', import.meta.url).toString();
+  window.__SG_FLAPPY_BASE__ = base;
+
+  // грузим как в исходнике
+  await loadScript(new URL('./games/runtime.js', import.meta.url).toString());
+  await loadScript(new URL('./games/flappy/flappy.mount.js', import.meta.url).toString());
+
+  // ждём пока игра зарегистрируется
+  let tries = 0;
+  while (!(window.GAMES && window.GAMES.flappy) && tries < 50){
+    await new Promise(r=>setTimeout(r, 50));
+    tries++;
   }
 
-  const key = props.key ? String(props.key) : 'flappy';
-
-  // set min height if provided
-  const mh = Number(props.min_h || props.minHeight || 520);
-  host.style.minHeight = mh + 'px';
-
-  // cleanup previous
-  try{ host.__cleanup && host.__cleanup(); }catch(_){}
-  host.__cleanup = null;
-
-  // mount
-  let cleanup = null;
-  try{
-    if (window.mountGame){
-      cleanup = window.mountGame(key, host, { ctx, props }) || null;
-    } else if (window.GAMES && window.GAMES[key] && typeof window.GAMES[key].mount === 'function'){
-      cleanup = window.GAMES[key].mount(host, { ctx, props }) || null;
-    } else {
-      host.innerHTML = '<div class="card">Игра не подключена: ' + key + '</div>';
-    }
-  }catch(e){
-    console.error('[flappyGame] mount error', e);
-    host.innerHTML = '<div class="card">Ошибка запуска игры</div>';
+  if (window.mountGame){
+    window.mountGame('flappy', el.querySelector('[data-game-host]'), props || {});
+  } else {
+    console.error('[flappy] mountGame not found');
   }
-
-  host.__cleanup = (typeof cleanup === 'function') ? cleanup : null;
-
-  return () => {
-    try{ host.__cleanup && host.__cleanup(); }catch(_){}
-    host.__cleanup = null;
-  };
 }
 
 export function unmount(el){
-  const host = el.querySelector('[data-game-host]') || el.querySelector('.game-host');
-  if (host){
-    try{ host.__cleanup && host.__cleanup(); }catch(_){}
-    host.__cleanup = null;
-  }
+  el.innerHTML = '';
 }
