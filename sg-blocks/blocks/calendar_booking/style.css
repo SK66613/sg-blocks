@@ -7,14 +7,16 @@
   --gap: 8px;
 }
 .blk-calendar .cal-card{
-  border:1px solid rgba(255,255,255,.14);
+  border:1px solid var(--card-border, rgba(255,255,255,.14));
+
   border-radius: 16px;
   padding: 14px;
-  background: rgba(255,255,255,.03);
+  background: var(--card-bg, rgba(255,255,255,.03));
+
 }
 /* Month bar */
 .blk-calendar .cal-monthbar{ display:flex; align-items:center; justify-content:space-between; gap: var(--gap); margin: 8px 0 4px; }
-.blk-calendar .cal-monthbar .nav{ border:1px solid rgba(255,255,255,.16); background: var(--chipBg); color: var(--text); border-radius: var(--radius); padding:4px 10px; cursor:pointer; }
+.blk-calendar .cal-monthbar .nav{ border:1px solid var(--card-border, rgba(255,255,255,.16)); background: var(--chipBg); color: var(--text); border-radius: var(--radius); padding:4px 10px; cursor:pointer; }
 .blk-calendar .month-title{ font-weight:600; opacity:.9 }
 /* Week header & month grid */
 .blk-calendar .cal-weekhead{ display:grid; grid-template-columns: repeat(7,1fr); gap: var(--gap); opacity:.65; font-size:.9em; margin-bottom:6px; }
@@ -29,7 +31,7 @@
 .blk-calendar .cal-group__head{ font-weight: 600; opacity: .9; margin-bottom: 8px; }
 /* Durations */
 .blk-calendar .cal-durations{ display:flex; flex-wrap:wrap; gap: var(--gap); }
-.blk-calendar .chip{ padding:6px 10px; border-radius: var(--radius); border:1px solid rgba(255,255,255,.16); background: var(--chipBg); color: var(--text); cursor:pointer; user-select:none; }
+.blk-calendar .chip{ padding:6px 10px; border-radius: var(--radius); border:1px solid var(--card-border, rgba(255,255,255,.16)); background: var(--chipBg); color: var(--text); cursor:pointer; user-select:none; }
 .blk-calendar .chip.is-active{ background: var(--acc); color: var(--onAcc); }
 /* Services list with toggles */
 .blk-calendar .services-list{ display:flex; flex-direction:column; gap:10px; }
@@ -41,7 +43,7 @@
 .blk-calendar .srv-switch.is-on::after{ left:22px; background: var(--onAcc); }
 /* Slots */
 .blk-calendar .cal-slots{ display:flex; flex-wrap:wrap; gap: var(--gap); }
-.blk-calendar .slot{ padding:8px 10px; border:1px solid rgba(255,255,255,.16); border-radius: var(--radius); background: var(--chipBg); color: var(--text); cursor:pointer; }
+.blk-calendar .slot{ padding:8px 10px; border:1px solid var(--card-border, rgba(255,255,255,.16)); border-radius: var(--radius); background: var(--chipBg); color: var(--text); cursor:pointer; }
 .blk-calendar .slot.is-active{ background: var(--acc); color: var(--onAcc); }
 /* Buttons */
 .blk-calendar .cal-actions{ display:flex; margin-top: 10px; }
