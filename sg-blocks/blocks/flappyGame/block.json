@@ -1,0 +1,20 @@
+{
+  "key": "flappyGame",
+  "title": "Игра: Flappy",
+  "category": "Игры",
+  "tags": [
+    "all",
+    "games",
+    "flappy"
+  ],
+  "version": "1.0.1",
+  "defaults": {
+    "key": "flappy",
+    "autostart": true,
+    "min_h": 520,
+    "difficulty": "normal",
+    "bird_mode": "default",
+    "bird_img": "",
+    "shield_img": ""
+  }
+}
