@@ -1,11 +1,15 @@
 {
-  "version": "2026.01.21-2031",
+  "version": "2026.01.23-1214",
   "blocks": [
     {
       "key": "calendar_booking",
       "title": "Календарь: запись",
       "category": "Виджеты / Календарь",
-      "tags": ["all", "booking", "calendar"],
+      "tags": [
+        "all",
+        "booking",
+        "calendar"
+      ],
       "version": "1.4.0",
       "files": {
         "runtime": "calendar_booking/runtime.js",
@@ -16,13 +20,23 @@
       "defaults": {
         "title": "Записаться на консультацию",
         "view": "month",
-        "allowed_minutes": [30, 60, 90],
+        "allowed_minutes": [
+          30,
+          60,
+          90
+        ],
         "defaultDuration": 60,
         "slot_step_min": 30,
         "dur_title": "Длительность",
         "slots_title": "Свободные слоты",
         "srv_title": "Услуги",
-        "services": ["Консультация", "", "", "", ""],
+        "services": [
+          "Консультация",
+          "",
+          "",
+          "",
+          ""
+        ],
         "text_ok": "Забронировать",
         "text_hold": "Держать слот",
         "show_book": true,
@@ -32,11 +46,136 @@
       }
     },
     {
+      "key": "infoCard",
+      "title": "Инфо карточка с кнопкой",
+      "category": "Карточки",
+      "tags": [
+        "all",
+        "card"
+      ],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "infoCard/runtime.js",
+        "view": "infoCard/view.html",
+        "style": "infoCard/style.css",
+        "block": "infoCard/block.json"
+      },
+      "defaults": {
+        "icon": "",
+        "title": "Craft Beer",
+        "sub": "Кто мы, где мы",
+        "btn": "О нас",
+        "action": "link",
+        "link": "#about",
+        "sheet_id": "",
+        "sheet_path": ""
+      }
+    },
+    {
+      "key": "infoCardChevron",
+      "title": "Инфо карточка со стрелкой",
+      "category": "Карточки",
+      "tags": [
+        "all",
+        "card"
+      ],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "infoCardChevron/runtime.js",
+        "view": "infoCardChevron/view.html",
+        "style": "infoCardChevron/style.css",
+        "block": "infoCardChevron/block.json"
+      },
+      "defaults": {
+        "icon": "",
+        "title": "Craft Beer",
+        "sub": "Кто мы, где мы",
+        "action": "link",
+        "link": "#about",
+        "sheet_id": "",
+        "sheet_path": ""
+      }
+    },
+    {
+      "key": "infoCardPlain",
+      "title": "Инфо карточка (кликабельное изображение)",
+      "category": "Карточки",
+      "tags": [
+        "all",
+        "card"
+      ],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "infoCardPlain/runtime.js",
+        "view": "infoCardPlain/view.html",
+        "style": "infoCardPlain/style.css",
+        "block": "infoCardPlain/block.json"
+      },
+      "defaults": {
+        "icon": "",
+        "title": "Craft Beer",
+        "sub": "Кто мы, где мы",
+        "imgSide": "left",
+        "action": "none",
+        "link": "",
+        "sheet_id": "",
+        "sheet_path": ""
+      }
+    },
+    {
+      "key": "promo",
+      "title": "Промо слайдер",
+      "category": "Маркетинг",
+      "tags": [
+        "all",
+        "promo",
+        "slider"
+      ],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "promo/runtime.js",
+        "view": "promo/view.html",
+        "style": "promo/style.css",
+        "block": "promo/block.json"
+      },
+      "defaults": {
+        "interval": 4000,
+        "slides": [
+          {
+            "img": "",
+            "action": "link",
+            "link": "#play",
+            "sheet_id": "",
+            "sheet_path": ""
+          },
+          {
+            "img": "",
+            "action": "link",
+            "link": "#bonuses",
+            "sheet_id": "",
+            "sheet_path": ""
+          },
+          {
+            "img": "",
+            "action": "link",
+            "link": "#tournament",
+            "sheet_id": "",
+            "sheet_path": ""
+          }
+        ]
+      }
+    },
+    {
       "key": "sales_qr",
       "title": "Продажи: QR клиента",
       "category": "Лояльность / Продажи",
-      "tags": ["all", "sales", "qr", "loyalty"],
-      "version": "1.0.0",
+      "tags": [
+        "all",
+        "sales",
+        "qr",
+        "loyalty"
+      ],
+      "version": "1.0.1",
       "files": {
         "runtime": "sales_qr/runtime.js",
         "view": "sales_qr/view.html",
@@ -45,16 +184,34 @@
       },
       "defaults": {
         "title": "Ваш QR для оплаты",
-        "sub": "Покажите кассиру при оплате",
+        "subtitle": "Покажите кассиру при оплате",
+        "description": "",
         "cashback_percent": 10,
-        "token_ttl_sec": 300
+        "ttl_sec": 300,
+        "refresh_sec": 60,
+        "show_copy": true,
+        "show_refresh": true,
+        "btn_copy": "Скопировать",
+        "btn_refresh": "Обновить",
+        "cashier1_tg_id": "",
+        "cashier2_tg_id": "",
+        "cashier3_tg_id": "",
+        "cashier4_tg_id": "",
+        "cashier5_tg_id": "",
+        "bot_username": ""
       }
     },
     {
       "key": "shop_stars_product",
       "title": "Магазин: товар за Stars",
       "category": "Магазин / Оплата",
-      "tags": ["all", "shop", "product", "stars", "payments"],
+      "tags": [
+        "all",
+        "shop",
+        "product",
+        "stars",
+        "payments"
+      ],
       "version": "1.0.0",
       "files": {
         "runtime": "shop_stars_product/runtime.js",
@@ -73,6 +230,25 @@
         "success_text": "✅ Оплачено!",
         "cancel_text": "Отменено",
         "fail_text": "Ошибка оплаты"
+      }
+    },
+    {
+      "key": "spacer",
+      "title": "Отступ",
+      "category": "Базовые",
+      "tags": [
+        "all",
+        "layout"
+      ],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "spacer/runtime.js",
+        "view": "spacer/view.html",
+        "style": "spacer/style.css",
+        "block": "spacer/block.json"
+      },
+      "defaults": {
+        "size": 16
       }
     }
   ]
