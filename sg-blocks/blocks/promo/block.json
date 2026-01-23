@@ -1,0 +1,20 @@
+{
+  "id": "promo",
+  "title": "Промо слайдер",
+  "category": "Маркетинг",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "tags": ["all", "promo", "slider"],
+  "defaults": {
+    "interval": 4000,
+    "slides": [
+      {"img": "", "action": "link", "link": "#play", "sheet_id": "", "sheet_path": ""},
+      {"img": "", "action": "link", "link": "#bonuses", "sheet_id": "", "sheet_path": ""},
+      {"img": "", "action": "link", "link": "#tournament", "sheet_id": "", "sheet_path": ""}
+    ]
+  },
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "infoCard",
+  "title": "Инфо карточка с кнопкой",
+  "category": "Карточки",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "tags": ["all", "card"],
+  "defaults": {
+    "icon": "",
+    "title": "Craft Beer",
+    "sub": "Кто мы, где мы",
+    "btn": "О нас",
+    "action": "link",
+    "link": "#about",
+    "sheet_id": "",
+    "sheet_path": ""
+  },
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "spacer",
+  "title": "Отступ",
+  "category": "Базовые",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "tags": ["all", "layout"],
+  "defaults": {
+    "size": 16
+  },
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  }
+}
