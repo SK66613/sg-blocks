@@ -1,0 +1,36 @@
+{
+  "id": "beer_home_hero",
+  "title": "Beer: Hero",
+  "category": "Beer / Картинки",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "img": "img/beer_hero.jpg",
+    "alt": "Beer"
+  },
+  "schema": [
+    {
+      "key": "img",
+      "label": "Картинка",
+      "ui": "image"
+    },
+    {
+      "key": "alt",
+      "label": "Alt",
+      "ui": "text"
+    }
+  ],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "home",
+    "beer",
+    "all"
+  ]
+}

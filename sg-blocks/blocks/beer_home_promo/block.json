@@ -1,0 +1,81 @@
+{
+  "id": "beer_home_promo",
+  "title": "Beer: Промо",
+  "category": "Beer / Картинки + кнопки",
+  "version": "1.0.0",
+  "type": "htmlEmbed",
+  "defaults": {
+    "icon": "img/beer_cup.png",
+    "title": "Craft Beer",
+    "sub": "Кто мы, где мы",
+    "btn_aria": "Открыть",
+    "action": "sheet",
+    "sheet_id": "intro",
+    "sheet_path": ""
+  },
+  "schema": [
+    {
+      "key": "icon",
+      "label": "Иконка",
+      "ui": "image"
+    },
+    {
+      "key": "title",
+      "label": "Заголовок",
+      "ui": "text"
+    },
+    {
+      "key": "sub",
+      "label": "Подзаголовок",
+      "ui": "text"
+    },
+    {
+      "key": "btn_aria",
+      "label": "ARIA кнопки",
+      "ui": "text"
+    },
+    {
+      "key": "action",
+      "label": "Действие",
+      "ui": "select",
+      "options": [
+        [
+          "none",
+          "Нет"
+        ],
+        [
+          "sheet",
+          "Открыть шторку"
+        ],
+        [
+          "sheet_page",
+          "Открыть страницу-шторку"
+        ]
+      ]
+    },
+    {
+      "key": "sheet_id",
+      "label": "ID шторки",
+      "ui": "text",
+      "hint": "например: intro"
+    },
+    {
+      "key": "sheet_path",
+      "label": "Путь страницы-шторки",
+      "ui": "text"
+    }
+  ],
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "tags": [
+    "home",
+    "beer",
+    "all"
+  ]
+}
