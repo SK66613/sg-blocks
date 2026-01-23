@@ -1,0 +1,54 @@
+.profile-block{
+  padding: var(--section-pad, 0);
+}
+.profile-block .pf-hero{
+  display:flex; align-items:center; gap: 12px;
+  background: var(--card-bg, rgba(255,255,255,.06));
+  border: 1px solid var(--card-bd, rgba(255,255,255,.08));
+  border-radius: var(--radius-xl, 16px);
+  padding: var(--card-pad, 14px);
+}
+.profile-block .pf-ava{
+  width:56px; height:56px; border-radius: 18px; overflow:hidden;
+  background: var(--img-bg, rgba(255,255,255,.06));
+  flex:0 0 auto;
+}
+.profile-block .pf-ava img{ width:100%; height:100%; object-fit:cover; display:block; }
+.profile-block .pf-about{ flex:1 1 auto; min-width:0; }
+.profile-block .pf-name{ font: 700 var(--h3, 16px)/1.2 var(--font, Inter, system-ui); }
+.profile-block .pf-username{ margin-top:4px; opacity:.75; font: 500 var(--sub, 12px)/1.2 var(--font, Inter, system-ui); }
+.profile-block .metric{
+  text-align:right;
+}
+.profile-block .metric__val{
+  font: 800 var(--h2, 18px)/1 var(--font, Inter, system-ui);
+  display:flex; align-items:center; justify-content:flex-end; gap:6px;
+}
+.profile-block .metric__lbl{ opacity:.65; margin-top:6px; font: 500 var(--sub, 12px)/1.2 var(--font, Inter, system-ui); }
+.profile-block .coin-ico{
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--coin-bg, rgba(255,215,0,.35));
+  display:inline-block;
+}
+.profile-block .section-title{
+  font: 700 var(--h3, 16px)/1.2 var(--font, Inter, system-ui);
+  margin: 0 0 var(--gap, 10px);
+}
+.profile-block .metrics{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--gap, 10px); }
+.profile-block .metrics .metric{
+  background: var(--item-bg, rgba(0,0,0,.12));
+  border: 1px solid var(--item-bd, rgba(255,255,255,.06));
+  border-radius: var(--radius-lg, 14px);
+  padding: 12px;
+  text-align:left;
+}
+.profile-block .metrics .metric__val{ justify-content:flex-start; }
+.profile-block .chips{ display:flex; flex-wrap:wrap; gap: 8px; }
+.profile-block .chip{
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg, rgba(255,255,255,.06));
+  border: 1px solid var(--chip-bd, rgba(255,255,255,.08));
+  font: 600 var(--sub, 12px)/1 var(--font, Inter, system-ui);
+}
+.profile-block .chip--muted{ opacity:.65; }

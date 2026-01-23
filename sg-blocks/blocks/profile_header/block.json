@@ -1,0 +1,23 @@
+{
+  "id": "profile_header",
+  "type": "htmlEmbed",
+  "title": "Профиль — шапка",
+  "category": "Универсальные / Профиль",
+  "tags": [
+    "all",
+    "profile"
+  ],
+  "version": "1.0.0",
+  "defaults": {
+    "title": "Dem Demov",
+    "text": "@Demov_Dem"
+  },
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  }
+}

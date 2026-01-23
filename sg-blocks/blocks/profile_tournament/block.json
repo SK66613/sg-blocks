@@ -1,0 +1,24 @@
+{
+  "id": "profile_tournament",
+  "type": "htmlEmbed",
+  "title": "Профиль — турнир",
+  "category": "Универсальные / Профиль",
+  "tags": [
+    "all",
+    "profile",
+    "tournament"
+  ],
+  "version": "1.0.0",
+  "defaults": {
+    "title": "🏆 Турнир",
+    "text": ""
+  },
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  }
+}
