@@ -1,5 +1,5 @@
 {
-  "version": "2026.01.23-1214",
+  "version": "2026.01.23-pack1",
   "blocks": [
     {
       "key": "calendar_booking",
@@ -289,6 +289,349 @@
         "block": "profile_recent_prizes/block.json"
       },
       "defaults": { "title": "🎁 Последние призы", "text": "" }
+    },
+    {
+      "key": "hero_image",
+      "title": "Картинка (Hero)",
+      "category": "Обложки",
+      "tags": [],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "hero_image/runtime.js",
+        "view": "hero_image/view.html",
+        "style": "hero_image/style.css",
+        "block": "hero_image/block.json"
+      },
+      "defaults": { "img": "", "alt": "", "radius": 16 }
+    },
+    {
+      "key": "media_row_cta",
+      "title": "Картинка + текст + кнопка",
+      "category": "Списки",
+      "tags": [],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "media_row_cta/runtime.js",
+        "view": "media_row_cta/view.html",
+        "style": "media_row_cta/style.css",
+        "block": "media_row_cta/block.json"
+      },
+      "defaults": {
+        "img": "",
+        "title": "Заголовок",
+        "text": "Короткое описание",
+        "label": "Начать",
+        "action": "none",
+        "sheet_id": "",
+        "sheet_path": ""
+      }
+    },
+    {
+      "key": "beer_home_hero",
+      "title": "Beer: Hero",
+      "category": "Beer / Картинки",
+      "tags": ["home", "beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beer_home_hero/runtime.js",
+        "view": "beer_home_hero/view.html",
+        "style": "beer_home_hero/style.css",
+        "block": "beer_home_hero/block.json"
+      },
+      "defaults": { "img": "img/beer_hero.jpg", "alt": "Beer" }
+    },
+    {
+      "key": "beer_home_promo",
+      "title": "Beer: Промо",
+      "category": "Beer / Картинки + кнопки",
+      "tags": ["home", "beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beer_home_promo/runtime.js",
+        "view": "beer_home_promo/view.html",
+        "style": "beer_home_promo/style.css",
+        "block": "beer_home_promo/block.json"
+      },
+      "defaults": {
+        "icon": "img/beer_cup.png",
+        "title": "Craft Beer",
+        "sub": "Кто мы, где мы",
+        "btn_aria": "Открыть",
+        "action": "sheet",
+        "sheet_id": "intro",
+        "sheet_path": ""
+      }
+    },
+    {
+      "key": "beer_home_start_list",
+      "title": "Beer: Список (3 пункта)",
+      "category": "Beer / Списки",
+      "tags": ["home", "beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beer_home_start_list/runtime.js",
+        "view": "beer_home_start_list/view.html",
+        "style": "beer_home_start_list/style.css",
+        "block": "beer_home_start_list/block.json"
+      },
+      "defaults": {
+        "head": "С чего начать",
+        "i1_icon": "img/pasport.png",
+        "i1_title": "Паспорт стилей",
+        "i1_sub": "Собери 6 штампов — подарок",
+        "i1_sheet_id": "passport",
+        "i1_sheet_path": "",
+        "i2_icon": "img/casino-chips.png",
+        "i2_title": "Викторина",
+        "i2_sub": "Проверь свои пивные знания",
+        "i2_sheet_id": "trivia",
+        "i2_sheet_path": "",
+        "i3_icon": "img/fren.png",
+        "i3_title": "Пригласи друзей",
+        "i3_sub": "Дарим +100 монет за друга",
+        "i3_sheet_id": "ref",
+        "i3_sheet_path": ""
+      }
+    },
+    {
+      "key": "beer_home_games_list",
+      "title": "Beer: Игры (2-3 карточки)",
+      "category": "Beer / Игры",
+      "tags": ["home", "play", "beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beer_home_games_list/runtime.js",
+        "view": "beer_home_games_list/view.html",
+        "style": "beer_home_games_list/style.css",
+        "block": "beer_home_games_list/block.json"
+      },
+      "defaults": {
+        "head": "Игры",
+        "g1_icon": "img/bumblebee.png",
+        "g1_title": "Bumblebee",
+        "g1_sub": "Лови мёд, избегай ловушек",
+        "g1_sheet_id": "game_bumblebee",
+        "g1_sheet_path": "",
+        "g2_icon": "img/coin.png",
+        "g2_title": "Coin Rush",
+        "g2_sub": "Собирай монеты на скорость",
+        "g2_sheet_id": "game_coin",
+        "g2_sheet_path": "",
+        "g3_icon": "img/trophy.png",
+        "g3_title": "Турнир",
+        "g3_sub": "Соревнуйся с друзьями",
+        "g3_sheet_id": "tournament",
+        "g3_sheet_path": ""
+      }
+    },
+
+    {
+      "key": "beerHero",
+      "title": "Beer: Hero",
+      "category": "Beer / Главная",
+      "tags": ["beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beerHero/runtime.js",
+        "view": "beerHero/view.html",
+        "style": "beerHero/style.css",
+        "block": "beerHero/block.json"
+      },
+      "defaults": {
+        "title": "Craft Beer Club",
+        "text": "Собирай штампы, крути колесо, получай призы",
+        "img": "img/beer_hero.jpg"
+      }
+    },
+    {
+      "key": "beerIntroSlider",
+      "title": "Beer: Слайдер приветствия",
+      "category": "Beer / Онбординг",
+      "tags": ["beer", "all", "slider"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beerIntroSlider/runtime.js",
+        "view": "beerIntroSlider/view.html",
+        "style": "beerIntroSlider/style.css",
+        "block": "beerIntroSlider/block.json"
+      },
+      "defaults": {
+        "slides": [
+          {
+            "title": "Как это работает",
+            "text": "Копите монеты, играя и делая покупки. Обменивайте их на призы в разделе «Бонусы».",
+            "primary": "Продолжить",
+            "ghost": ""
+          },
+          {
+            "title": "Отлично! Погнали",
+            "text": "Первый спин — в подарок. В профиле видны баланс, призы и рефералы. Играй честно, бонусы забирай в магазине.",
+            "primary": "Играть",
+            "ghost": ""
+          }
+        ]
+      }
+    },
+    {
+      "key": "beerStartList",
+      "title": "Beer: Стартовые карточки",
+      "category": "Beer / Главная",
+      "tags": ["beer", "all", "cards"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beerStartList/runtime.js",
+        "view": "beerStartList/view.html",
+        "style": "beerStartList/style.css",
+        "block": "beerStartList/block.json"
+      },
+      "defaults": {
+        "title": "С чего начать",
+        "cards": [
+          {
+            "icon": "img/pasport.png",
+            "title": "Паспорт стилей",
+            "sub": "Собери 6 штампов — подарок",
+            "link": "#passport",
+            "action": "link",
+            "sheet_id": "",
+            "sheet_path": ""
+          },
+          {
+            "icon": "img/casino-chips.png",
+            "title": "Викторина",
+            "sub": "Проверь свои пивные знания",
+            "link": "#quiz",
+            "action": "link",
+            "sheet_id": "",
+            "sheet_path": ""
+          },
+          {
+            "icon": "img/friends.png",
+            "title": "Пригласи друзей",
+            "sub": "Дарим +100 монет за друга",
+            "link": "#invite",
+            "action": "link",
+            "sheet_id": "",
+            "sheet_path": ""
+          }
+        ]
+      }
+    },
+    {
+      "key": "beerInviteFriends",
+      "title": "Beer: Пригласи друзей",
+      "category": "Beer / Рефералы",
+      "tags": ["beer", "all", "referrals"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beerInviteFriends/runtime.js",
+        "view": "beerInviteFriends/view.html",
+        "style": "beerInviteFriends/style.css",
+        "block": "beerInviteFriends/block.json"
+      },
+      "defaults": {
+        "title": "Пригласи друзей",
+        "text": "За друга — +100 монет. За 3 друзей — мини-дегустация.",
+        "link": "https://t.me/your_bot?start=invite",
+        "primary": "Скопировать",
+        "secondary": "Поделиться"
+      }
+    },
+    {
+      "key": "beer_bonus_wheel",
+      "title": "Beer: Колесо бонусов",
+      "category": "Beer / Бонусы",
+      "tags": ["bonuses", "beer", "all"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "beer_bonus_wheel/runtime.js",
+        "view": "beer_bonus_wheel/view.html",
+        "style": "beer_bonus_wheel/style.css",
+        "block": "beer_bonus_wheel/block.json"
+      },
+      "defaults": {
+        "h1": "Бонусы",
+        "sub": "Крути колесо и забирай выпавший подарок. Вращение 100 монет",
+        "pill": "Нажми «Крутануть»",
+        "spin": "Крутануть",
+        "claim": "Забрать",
+        "img1": "img/beer_cup.png",
+        "t1": "Кружка",
+        "img2": "img/tshirt.png",
+        "t2": "Футболка",
+        "img3": "img/pistachio.png",
+        "t3": "Фисташки",
+        "img4": "img/bonus4.png",
+        "t4": "Скидка"
+      }
+    },
+
+    {
+      "key": "leaderboard",
+      "title": "Турнир",
+      "category": "Игры / Турнир",
+      "tags": ["all", "games", "leaderboard", "tournament"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "leaderboard/runtime.js",
+        "view": "leaderboard/view.html",
+        "style": "leaderboard/style.css",
+        "block": "leaderboard/block.json"
+      },
+      "defaults": { "title": "Bumblebee", "text": "Турнирная таблица" }
+    },
+    {
+      "key": "stylesPassport",
+      "title": "Паспорт стилей",
+      "category": "Лояльность / Паспорт",
+      "tags": ["all", "loyalty", "passport", "styles"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "stylesPassport/runtime.js",
+        "view": "stylesPassport/view.html",
+        "style": "stylesPassport/style.css",
+        "block": "stylesPassport/block.json"
+      },
+      "defaults": {
+        "title": "Паспорт стилей",
+        "text": "Собирай штампы и получай бонусы"
+      }
+    },
+    {
+      "key": "flappyGame",
+      "title": "Игра: Flappy",
+      "category": "Игры",
+      "tags": ["all", "games", "flappy"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "flappyGame/runtime.js",
+        "view": "flappyGame/view.html",
+        "style": "flappyGame/style.css",
+        "block": "flappyGame/block.json"
+      },
+      "defaults": {
+        "key": "flappy",
+        "autostart": true,
+        "min_h": 520,
+        "difficulty": "normal"
+      }
+    },
+    {
+      "key": "bonusWheel",
+      "title": "Колесо бонусов",
+      "category": "Лояльность / Колесо",
+      "tags": ["all", "loyalty", "wheel", "bonus"],
+      "version": "1.0.0",
+      "files": {
+        "runtime": "bonusWheel/runtime.js",
+        "view": "bonusWheel/view.html",
+        "style": "bonusWheel/style.css",
+        "block": "bonusWheel/block.json"
+      },
+      "defaults": {
+        "title": "Колесо бонусов",
+        "text": "Крути и забирай приз"
+      }
     }
   ]
 }
