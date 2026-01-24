@@ -1,6 +1,6 @@
-// XXXsg-blocks/blocks/game_flappy/runtime.js
+// 1sg-blocks/blocks/game_flappy/runtime.js
 // Порт твоей версии с расширением: кастомные ассеты для щита, монет и труб.
-// export async function mount(root, props, ctx) -> cleanup()
+// export async function mount(root, props = {}, ctx = {}) -> cleanup()
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -17,6 +17,9 @@ export async function mount(root, props = {}, ctx = {}) {
   const clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
   const clamp01 = (v)=> { const n=Number(v); return Number.isFinite(n)? Math.max(0, Math.min(1,n)) : 0; };
   const rand = (a,b)=> a + Math.random()*(b-a);
+
+  // локальный рекорд сразу (нужен для начального HUD)
+  let best = 0; try { best = Number(win.localStorage.getItem('flappy_best')||0) || 0; } catch(_) {}
 
   // ==== BASE ассетов
   const BASE = String(
@@ -46,10 +49,10 @@ export async function mount(root, props = {}, ctx = {}) {
   if (!stage || !birdEl) return ()=>{};
 
   // ==== ассеты (поддержка custom/default)
-  const bird_mode = String(props.bird_mode || 'default');
+  const bird_mode   = String(props.bird_mode   || 'default');
   const shield_mode = String(props.shield_mode || 'default');
-  const coin_mode = String(props.coin_mode || 'default');
-  const pipes_mode = String(props.pipes_mode || 'default');
+  const coin_mode   = String(props.coin_mode   || 'default');
+  const pipes_mode  = String(props.pipes_mode  || 'default');
 
   const ASSETS = {
     bird: {
@@ -69,8 +72,9 @@ export async function mount(root, props = {}, ctx = {}) {
       value: num(props.coin_value, 5)
     },
     pipes: {
-      top: (pipes_mode === 'custom' && props.pipes_top_img) ? props.pipes_top_img : (BASE + 'assets/pipe_top.png'),
-      bottom: (pipes_mode === 'custom' && props.pipes_bottom_img) ? props.pipes_bottom_img : (BASE + 'assets/pipe_bottom.png'),
+      // ВАЖНО: правильные имена пропсов (pipe_top_img / pipe_bottom_img)
+      top: (pipes_mode === 'custom' && props.pipe_top_img) ? props.pipe_top_img : (BASE + 'assets/pipe_top.png'),
+      bottom: (pipes_mode === 'custom' && props.pipe_bottom_img) ? props.pipe_bottom_img : (BASE + 'assets/pipe_bottom.png'),
       width: num(props.pipe_width, 54)
     }
   };
@@ -111,6 +115,13 @@ export async function mount(root, props = {}, ctx = {}) {
     if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage   = `url(${ASSETS.shield.img})`;
   })();
 
+  // показать/скрыть HUD-элементы по флагам настроек
+  const showCoin   = props.show_coin_bar   !== false;
+  const showShield = props.show_shield_bar !== false;
+  if (coinIco && coinIco.parentElement)   coinIco.parentElement.style.display   = showCoin ? '' : 'none';
+  if (coinCnt && coinCnt.parentElement)   coinCnt.parentElement.style.display   = showCoin ? '' : 'none';
+  if (shBar && shBar.parentElement)       shBar.parentElement.style.display     = showShield ? '' : 'none';
+
   // ==== константы
   const WORLD_RECORD   = num(props.leaderboard_world_stub, 200);
   const GRAVITY        = 1800;
@@ -125,6 +136,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
   const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
   const SESSION_MS     = num(props.session_ms, 45000);
+  const AUTOSTART      = !!props.autostart;
 
   const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
   const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
@@ -136,7 +148,6 @@ export async function mount(root, props = {}, ctx = {}) {
   if (diff === 'hard'){  SPEED_X*=1.2;  GAP_MIN*=0.9; GAP_MAX*=0.9; }
 
   // ==== state
-  let best=0; try{ best = Number(win.localStorage.getItem('flappy_best')||0)||0; }catch(_){}
   let running=false, started=false;
   let raf=0, spawnT=Infinity, t0=0;
 
@@ -153,11 +164,17 @@ export async function mount(root, props = {}, ctx = {}) {
   const haptic = (kind='light')=>{
     try{
       if (!TG || !TG.HapticFeedback) return;
-      if (kind==='error') TG.HapticFeedback.notificationOccurred('error');
+      if (kind==='error')   TG.HapticFeedback.notificationOccurred('error');
       else if (kind==='success') TG.HapticFeedback.notificationOccurred('success');
       else TG.HapticFeedback.impactOccurred(kind);
     }catch(_){}
   };
+
+  // начальный HUD
+  if (bestEl)  bestEl.textContent  = String(best || 0);
+  if (worldEl) worldEl.textContent = String(WORLD_RECORD);
+  if (scoreEl) scoreEl.textContent = '0';
+  if (coinCnt) coinCnt.textContent = '0';
 
   // надёжный layout
   function layout(){
@@ -351,13 +368,16 @@ export async function mount(root, props = {}, ctx = {}) {
     started=false; score=0; setScore(0);
     if (hintEl) hintEl.style.display = '';           // «Тапни чтобы начать»
     birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
-    if (barEl) barEl.style.transform = 'scaleX(1)';
+    if (barEl) { barEl.style.transform = 'scaleX(1)'; barEl.style.transformOrigin = 'left center'; }
 
     layout();
     spawnT = Infinity;
 
     if (resBox) resBox.classList.remove('show');
     if (cta)    cta.classList.remove('show');
+
+    // мягкий автозапуск, если включён
+    if (AUTOSTART) setTimeout(()=>{ if (!started) flap(); }, 0);
   }
 
   function tick(){
@@ -436,7 +456,6 @@ export async function mount(root, props = {}, ctx = {}) {
     if (e.target.closest('#fl-cta') || e.target.closest('#fl-result') ||
         e.target.closest('button,a,input,textarea,select')) return;
     if (cta?.classList.contains('show') || resBox?.classList.contains('show')) return;
-
     e.preventDefault();
     flap();
   };
