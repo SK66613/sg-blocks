@@ -1,0 +1,39 @@
+<!-- sg-blocks/blocks/game_flappy/view.html -->
+<section class="blk blk-game-flappy" data-game-host>
+  <div class="flappy is-open" role="dialog" aria-label="Flappy">
+    <div class="flappy__wrap" id="flappy">
+      <div class="fl-hud">
+        <div class="fl-score">Счёт: <span id="fl-score">0</span></div>
+        <div class="fl-bar"><i id="fl-bar"></i></div>
+
+        <div class="fl-stats">
+          <div class="fl-stat">
+            <span class="fl-ico" id="fl-coin-ico"></span>
+            <span id="fl-coin-count">0</span>
+          </div>
+          <div class="fl-stat fl-shield-wrap">
+            <span class="fl-ico" id="fl-shield-ico"></span>
+            <span class="fl-shield-bar"><i id="fl-shield-bar"></i></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ВАЖНО: min-height тянем из props.min_h -->
+      <div class="fl-stage" id="fl-stage" style="min-height: {{min_h}}px">
+        <div class="fl-hint" id="fl-hint">Тапни чтобы начать</div>
+        <div class="fl-bird" id="fl-bird"></div>
+      </div>
+
+      <div class="fl-result" id="fl-result">
+        <div class="fl-card">
+          <div class="fl-cell"><div class="fl-val" id="fl-best">0</div><div class="fl-sub">Лучший</div></div>
+          <div class="fl-cell"><div class="fl-val" id="fl-world">200</div><div class="fl-sub">Мир</div></div>
+        </div>
+      </div>
+
+      <div class="fl-cta" id="fl-cta">
+        <button class="btn">Ещё раз</button>
+      </div>
+    </div>
+  </div>
+</section>
