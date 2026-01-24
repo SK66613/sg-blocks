@@ -1,4 +1,3 @@
-<!-- sg-blocks/blocks/game_flappy/view.html -->
 <section class="blk blk-game-flappy" data-game-host>
   <div class="flappy is-open" role="dialog" aria-label="Flappy">
     <div class="flappy__wrap" id="flappy">
@@ -7,19 +6,18 @@
         <div class="fl-bar"><i id="fl-bar"></i></div>
 
         <div class="fl-stats">
-          <div class="fl-stat">
+          <div class="fl-stat" id="coin-stat">
             <span class="fl-ico" id="fl-coin-ico"></span>
             <span id="fl-coin-count">0</span>
           </div>
-          <div class="fl-stat fl-shield-wrap">
+          <div class="fl-stat fl-shield-wrap" id="shield-stat">
             <span class="fl-ico" id="fl-shield-ico"></span>
             <span class="fl-shield-bar"><i id="fl-shield-bar"></i></span>
           </div>
         </div>
       </div>
 
-      <!-- ВАЖНО: min-height тянем из props.min_h -->
-      <div class="fl-stage" id="fl-stage" style="min-height: {{min_h}}px">
+      <div class="fl-stage" id="fl-stage">
         <div class="fl-hint" id="fl-hint">Тапни чтобы начать</div>
         <div class="fl-bird" id="fl-bird"></div>
       </div>
