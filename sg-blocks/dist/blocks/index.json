@@ -597,25 +597,46 @@
         "text": "Собирай штампы и получай бонусы"
       }
     },
-    {
-      "key": "flappyGame",
-      "title": "Игра: Flappy",
-      "category": "Игры",
-      "tags": ["all", "games", "flappy"],
-      "version": "1.0.0",
-      "files": {
-        "runtime": "flappyGame/runtime.js",
-        "view": "flappyGame/view.html",
-        "style": "flappyGame/style.css",
-        "block": "flappyGame/block.json"
-      },
-      "defaults": {
-        "key": "flappy",
-        "autostart": true,
-        "min_h": 520,
-        "difficulty": "normal"
-      }
-    },
+{
+  "key": "game_flappy",
+  "title": "Игра: Flappy",
+  "category": "Игры",
+  "tags": ["all", "games", "flappy"],
+  "version": "1.0.0",
+  "files": {
+    "runtime": "game_flappy/runtime.js",
+    "view": "game_flappy/view.html",
+    "style": "game_flappy/style.css",
+    "block": "game_flappy/block.json"
+  },
+  "defaults": {
+    "title": "Flappy",
+    "autostart": false,
+    "min_h": 520,
+    "difficulty": "normal",
+
+    "session_ms": 45000,
+    "bird_mode": "default",
+    "bird_img": "",
+    "shield_img": "",
+    "gap_min": 140,
+    "gap_max": 220,
+    "speed_x": 220,
+    "speed_step": 18,
+    "accel_each_ms": 8000,
+    "coin_value": 5,
+    "coin_prob": 0.55,
+    "shield_prob": 0.25,
+    "shield_cooldown_ms": 9000,
+    "shield_duration_ms": 6000,
+    "safe_floor_pad": 24,
+    "haptics": true,
+    "submit_mode": "daily",
+    "leaderboard_world_stub": 200,
+    "show_coin_bar": true,
+    "show_shield_bar": true
+  }
+},
     {
       "key": "bonusWheel",
       "title": "Колесо бонусов",
