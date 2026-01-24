@@ -1,0 +1,37 @@
+{
+  "id": "game_flappy",
+  "type": "game",
+  "title": "Flappy (мини-игра)",
+  "category": "Игры",
+  "tags": ["game","flappy","arcade"],
+  "version": "1.0.0",
+  "template": "view.html",
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  },
+  "defaults": {
+    "title": "Flappy",
+    "difficulty": "normal",          // easy|normal|hard
+    "session_ms": 45000,             // длительность сессии
+    "bird_mode": "default",          // default|custom
+    "bird_img": "",                  // если custom — URL
+    "shield_img": "",                // кастомный спрайт щита
+    "gap_min": 140,
+    "gap_max": 220,
+    "speed_x": 220,
+    "speed_step": 18,
+    "accel_each_ms": 8000,
+    "coin_value": 5,
+    "coin_prob": 0.55,
+    "shield_prob": 0.25,
+    "shield_cooldown_ms": 9000,
+    "shield_duration_ms": 6000,
+    "safe_floor_pad": 24,
+    "haptics": true,
+    "submit_mode": "daily",          // daily|alltime
+    "leaderboard_world_stub": 200,   // заглушка «мировой рекорд»
+    "show_coin_bar": true,
+    "show_shield_bar": true
+  }
+}

@@ -1,0 +1,309 @@
+/* sg-blocks/blocks/game_flappy/style.css */
+
+/* ---- design tokens (слушаются панели дизайна) ---- */
+.blk-game-flappy{
+  --card: var(--card, #0F172A);
+  --surface: var(--surface, #121A2A);
+  --text: var(--text, #E6F0FF);
+  --muted: var(--muted, #97AAC4);
+  --brand: var(--brand, #7C5CFF);
+  --card-border: var(--card-border, rgba(255,255,255,.08));
+  --shadow-card: var(--shadow-card, 0 12px 30px rgba(0,0,0,.18));
+
+  --r-card: var(--r-card, 16px);
+  --r-btn: var(--r-btn, 14px);
+
+  /* runtime подставляет размеры спрайтов, но дадим дефолты */
+  --bird-w: 56px;
+  --bird-h: 42px;
+  --pipe-w: 54px;
+  --coin-w: 32px;
+  --coin-h: 32px;
+  --pow-w: 34px;
+  --pow-h: 34px;
+
+  /* визуальные мелочи */
+  --hud-gap: 10px;
+  --hud-pad: 12px;
+  --stage-min-h: 360px;
+  --stage-h: 64svh;
+
+  --bar-bg: rgba(255,255,255,.12);
+  --bar-fg: var(--brand);
+
+  --row-bg: rgba(255,255,255,.06);
+  --row-brd: rgba(255,255,255,.12);
+
+  --hint: rgba(255,255,255,.8);
+  --hint-shadow: 0 6px 22px rgba(0,0,0,.3);
+
+  --cta-shadow: 0 10px 26px rgba(0,0,0,.22);
+}
+
+/* ---- root layout ---- */
+.blk-game-flappy .flappy{
+  position: relative;
+  color: var(--text);
+  font: 16px/1.45 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  display: grid;
+  gap: var(--hud-gap);
+}
+
+.blk-game-flappy .flappy__wrap{
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ---- HUD ---- */
+.blk-game-flappy .fl-hud{
+  position: relative;
+  z-index: 30;
+  display: grid;
+  gap: 8px;
+  padding: 0 var(--hud-pad);
+}
+
+.blk-game-flappy .fl-score{
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+.blk-game-flappy .fl-bar{
+  width: 100%;
+  height: 8px;
+  background: var(--bar-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.blk-game-flappy .fl-bar > i{
+  display:block;
+  width:100%;
+  height:100%;
+  transform-origin: left center;
+  background: var(--bar-fg);
+  transform: scaleX(1);
+}
+
+.blk-game-flappy .fl-stats{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.blk-game-flappy .fl-stat{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+  font-weight: 700;
+}
+.blk-game-flappy .fl-ico{
+  width: 18px;
+  height: 18px;
+  background: center/contain no-repeat;
+}
+.blk-game-flappy .fl-shield-bar{
+  display: inline-block;
+  width: 72px;
+  height: 6px;
+  background: var(--bar-bg);
+  border-radius: 999px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.blk-game-flappy .fl-shield-bar > i{
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--brand);
+  transform: scaleX(0);
+}
+
+/* ---- Stage ---- */
+.blk-game-flappy .fl-stage{
+  position: relative;
+  height: var(--stage-h);
+  min-height: var(--stage-min-h);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  user-select: none;
+  touch-action: manipulation;
+}
+.blk-game-flappy .fl-stage.over{
+  filter: saturate(.6);
+}
+
+/* hint */
+.blk-game-flappy .fl-hint{
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%,-50%);
+  color: var(--hint);
+  text-shadow: var(--hint-shadow);
+  font-weight: 800;
+  letter-spacing: .2px;
+  opacity: .95;
+  pointer-events: none;
+  animation: flappy-hint-float 2.4s ease-in-out infinite;
+}
+@keyframes flappy-hint-float{
+  0%,100%{ transform: translate(-50%,-50%) translateY(0); opacity:.95; }
+  50%    { transform: translate(-50%,-50%) translateY(-8px); opacity:.70; }
+}
+
+/* ---- Bird ---- */
+.blk-game-flappy .fl-bird{
+  position: absolute;
+  left: 50%; top: 50%;
+  width: var(--bird-w);
+  height: var(--bird-h);
+  transform: translate(-50%,-50%);
+  border-radius: 12px;
+  background: rgba(255,255,255,.08);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  will-change: transform;
+  transition: filter .18s ease;
+}
+.blk-game-flappy .fl-bird--sprite{
+  background: center/contain no-repeat;
+}
+
+/* shield pulse */
+.blk-game-flappy .fl-bird--shield{
+  box-shadow:
+    0 0 0 0 rgba(124,92,255,.36),
+    0 8px 24px rgba(124,92,255,.28);
+  filter: drop-shadow(0 0 8px rgba(124,92,255,.45));
+  animation: flappy-shield-pulse 1.2s ease-in-out infinite;
+}
+@keyframes flappy-shield-pulse{
+  0%   { box-shadow: 0 0 0 0 rgba(124,92,255,.36), 0 8px 24px rgba(124,92,255,.28); }
+  70%  { box-shadow: 0 0 0 10px rgba(124,92,255,0), 0 8px 24px rgba(124,92,255,.28); }
+  100% { box-shadow: 0 0 0 0 rgba(124,92,255,0), 0 8px 24px rgba(124,92,255,.28); }
+}
+
+/* ---- Pipes ---- */
+.blk-game-flappy .fl-pipe-part{
+  position: absolute;
+  width: var(--pipe-w);
+  background: center/100% 100% no-repeat;
+  will-change: transform, height;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,.25));
+}
+
+/* ---- Coins & Powers ---- */
+.blk-game-flappy .fl-coin,
+.blk-game-flappy .fl-power{
+  position: absolute;
+  width: var(--coin-w);
+  height: var(--coin-h);
+  background: center/contain no-repeat;
+  will-change: transform;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.22));
+}
+
+/* coin spin */
+.blk-game-flappy .fl-coin{
+  animation: flappy-coin-spin 1s linear infinite;
+}
+@keyframes flappy-coin-spin{
+  0%   { transform: translate(-50%,-50%) rotateY(0deg); }
+  50%  { transform: translate(-50%,-50%) rotateY(180deg); }
+  100% { transform: translate(-50%,-50%) rotateY(360deg); }
+}
+
+/* power slight float */
+.blk-game-flappy .fl-power{
+  animation: flappy-power-float 2.4s ease-in-out infinite;
+}
+@keyframes flappy-power-float{
+  0%,100%{ transform: translate(-50%,-50%) translateY(0); }
+  50%    { transform: translate(-50%,-50%) translateY(-6px); }
+}
+
+/* ---- Result overlay ---- */
+.blk-game-flappy .fl-result{
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: 16px;
+}
+.blk-game-flappy .fl-result.show{ display: grid; }
+
+.blk-game-flappy .fl-card{
+  display: grid;
+  grid-auto-flow: column;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-card);
+}
+.blk-game-flappy .fl-cell{
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+.blk-game-flappy .fl-val{
+  font: 24px/1.1 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 800;
+}
+.blk-game-flappy .fl-sub{
+  font: 12px/1.1 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  opacity: .75;
+}
+
+/* ---- CTA ---- */
+.blk-game-flappy .fl-cta{
+  display: none;
+  text-align: center;
+  padding: 6px 0 0;
+}
+.blk-game-flappy .fl-cta.show{ display: block; }
+
+.blk-game-flappy .fl-cta .btn{
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 10px 14px;
+  font-weight: 800;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: var(--cta-shadow);
+  transition: transform .08s ease, filter .16s ease, box-shadow .16s ease;
+}
+.blk-game-flappy .fl-cta .btn:active{
+  transform: translateY(1px) scale(.995);
+  filter: brightness(.96);
+}
+
+/* ---- Motion preferences ---- */
+@media (prefers-reduced-motion: reduce){
+  .blk-game-flappy .fl-hint{ animation: none; }
+  .blk-game-flappy .fl-coin{ animation: none; }
+  .blk-game-flappy .fl-power{ animation: none; }
+  .blk-game-flappy .fl-bird--shield{ animation: none; }
+}
+
+/* ---- Touch tweaks ---- */
+.blk-game-flappy .fl-stage,
+.blk-game-flappy .fl-cta .btn{
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- Accessibility small helpers ---- */
+.blk-game-flappy .fl-result:focus,
+.blk-game-flappy .fl-cta .btn:focus{
+  outline: 2px solid color-mix(in oklab, var(--brand) 70%, white 30%);
+  outline-offset: 2px;
+}
