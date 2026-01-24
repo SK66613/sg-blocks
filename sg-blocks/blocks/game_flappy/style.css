@@ -182,70 +182,60 @@
 .blk-game-flappy .card.list-card.games{ margin-top: var(--gap-block); }
 
 
-/* ---- HUD: строка 1 — счет + статы; строка 2 — прогресс ---- */
-.blk-game-flappy .fl-hud{
+
+
+
+
+/* HUD строка: счёт + монеты + щит */
+.blk-game-flappy .fl-hud {
   position: relative;
   z-index: 30;
   display: grid;
-  grid-template-columns: 1fr auto; /* слева счет, справа статы */
-  grid-template-rows: auto 10px;   /* ВНИЗУ фикс 10px под прогресс */
-  grid-template-areas:
-    "score stats"
-    "bar   bar";
-  align-items: center;
-  gap: 6px 10px;
-  padding: 0 var(--hud-pad);
+  gap: 6px;
+  padding: 6px var(--hud-pad) 0;
 }
 
-/* прогресс всегда второй строкой и виден */
+/* Счёт компактнее и с отступом слева */
+.blk-game-flappy .fl-score {
+  font-weight: 800;
+  font-size: 18px;            /* было крупнее — уменьшаем */
+  letter-spacing: .2px;
+  margin-left: 4px;           /* отступ от левого края */
+}
+
+/* Плашки монет/щита в одну линию со счётом */
+.blk-game-flappy .fl-stats{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ПРОГРЕСС-бар — всегда видим, под строкой HUD */
 .blk-game-flappy .fl-bar{
-  grid-area: bar;
-  height: 10px;
+  grid-column: 1 / -1;
   width: 100%;
-  background: var(--bar-bg);
+  height: 8px;
   border-radius: 999px;
   overflow: hidden;
-  margin-top: 2px;
+  background: var(--bar-bg, rgba(255,255,255,.12)); /* фолбэк */
+  margin: 4px 0 6px;  /* под HUD */
 }
 .blk-game-flappy .fl-bar > i{
   display:block;
   width:100%;
   height:100%;
   transform-origin: left center;
-  background: var(--bar-fg);
   transform: scaleX(1);
+  background: var(--bar-fg, #7C5CFF);              /* фолбэк */
 }
 
-/* счет левее, меньше шрифт, без переноса */
-.blk-game-flappy .fl-score{
-  grid-area: score;
-  font-weight: 800;
-  font-size: 15px;          /* было крупнее — уменьшили */
-  letter-spacing: .2px;
-  white-space: nowrap;
-  justify-self: start;
-  margin-left: 6px;         /* отступ от левого края */
-}
-
-/* монеты/щит справа на одной линии */
-.blk-game-flappy .fl-stats{
-  grid-area: stats;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-self: end;
-}
-
-/* если нет статов (и монеты, и щит выключены) — центрируем счет */
-.blk-game-flappy .fl-hud.no-stats{
-  grid-template-columns: 1fr;     /* одна колонка */
-  grid-template-areas:
-    "score"
-    "bar";
-}
-.blk-game-flappy .fl-hud.no-stats .fl-score{
-  justify-self: center;
+/* Когда монеты/щит выключены — центрируем счёт */
+.blk-game-flappy .fl-hud.no-hud .fl-score{
   margin-left: 0;
+  text-align: center;
+  width: 100%;
+  display: block;
 }
+
 
 
