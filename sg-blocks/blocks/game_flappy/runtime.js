@@ -1,9 +1,8 @@
-// 2sg-blocks/blocks/game_flappy/runtime.js
-// Порт твоей оригинальной превью-игры под формат блока + кастомные ассеты.
-// API: export async function mount(root, props = {}, ctx = {}) -> cleanup()
+// 3sg-blocks/blocks/game_flappy/runtime.js
+// Flappy + кастомные ассеты + лимиты попыток/монет в сутки.
+// export async function mount(root, props = {}, ctx = {}) -> cleanup()
 
 export async function mount(root, props = {}, ctx = {}) {
-  // ==== базовый контекст
   const doc = root.ownerDocument;
   const win = doc.defaultView;
 
@@ -13,7 +12,7 @@ export async function mount(root, props = {}, ctx = {}) {
     (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
     null;
 
-  // ==== helpers
+  // ===== helpers
   const num = (v, d) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : d;
@@ -24,126 +23,162 @@ export async function mount(root, props = {}, ctx = {}) {
     return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
   };
   const rand = (a, b) => a + Math.random() * (b - a);
+  const showToast = (msg, ok=true)=>{
+    try{ if (win.showToast) return win.showToast(msg, ok); }catch(_){}
+    try{ TG?.showPopup?.({message: String(msg)}); }catch(_){}
+    try{ alert(String(msg)); }catch(_){}
+  };
 
-  // ==== базовый URL ассетов блока (.../blocks/game_flappy/)
+  // ===== дневные лимиты (из props)
+  const LIMIT_ATTEMPTS = (()=>{
+    const v = props.limit_attempts_per_day;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : Infinity;
+  })();
+  const LIMIT_COINS = (()=>{
+    const v = props.limit_coins_per_day;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : Infinity;
+  })();
+
+  const GAME_ID = 'flappy';
+  const PUBLIC_ID = String(ctx.public_id || '').trim();
+  const LS_KEY = (() => {
+    const base = `flappy_daily_${GAME_ID}`;
+    return PUBLIC_ID ? `${base}:${PUBLIC_ID}` : base;
+  })();
+
+  function todayKey(){
+    // локальная дата ГГГГММДД
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = (d.getMonth()+1).toString().padStart(2,'0');
+    const day = d.getDate().toString().padStart(2,'0');
+    return `${y}${m}${day}`;
+  }
+
+  function loadDaily(){
+    try{
+      const raw = win.localStorage.getItem(LS_KEY);
+      if (!raw) return { date: todayKey(), attempts: 0, coins: 0 };
+      const j = JSON.parse(raw);
+      if (!j || j.date !== todayKey()) return { date: todayKey(), attempts: 0, coins: 0 };
+      return { date: j.date, attempts: num(j.attempts,0), coins: num(j.coins,0) };
+    }catch(_){
+      return { date: todayKey(), attempts: 0, coins: 0 };
+    }
+  }
+  function saveDaily(st){
+    try{ win.localStorage.setItem(LS_KEY, JSON.stringify(st)); }catch(_){}
+  }
+  function canStartMessage(st){
+    const leftAttempts = LIMIT_ATTEMPTS === Infinity ? Infinity : Math.max(0, LIMIT_ATTEMPTS - st.attempts);
+    const leftCoins    = LIMIT_COINS    === Infinity ? Infinity : Math.max(0, LIMIT_COINS    - st.coins);
+    const msgs = [];
+    if (LIMIT_ATTEMPTS !== Infinity && leftAttempts <= 0) msgs.push('лимит попыток на сегодня исчерпан');
+    if (LIMIT_COINS !== Infinity && leftCoins <= 0) msgs.push('лимит монет на сегодня исчерпан');
+    return msgs.join(' и ');
+  }
+  function canStart(st){
+    if (LIMIT_ATTEMPTS !== Infinity && st.attempts >= LIMIT_ATTEMPTS) return false;
+    if (LIMIT_COINS    !== Infinity && st.coins    >= LIMIT_COINS)    return false;
+    return true;
+  }
+
+  // ===== BASE ассетов
   const BASE = String(
     ctx.base_url ||
       (() => {
-        try {
-          return new URL('./', import.meta.url).href;
-        } catch (_) {
-          return '';
-        }
+        try { return new URL('./', import.meta.url).href; }
+        catch (_) { return ''; }
       })()
   ).replace(/\/?$/, '/');
 
-  // ==== DOM якоря (под твой view.html)
+  // ===== DOM anchors
   const host = root.querySelector('[data-game-host]') || root;
 
-  const stage = host.querySelector('#fl-stage');
+  const stage  = host.querySelector('#fl-stage');
   const birdEl = host.querySelector('#fl-bird');
   const hintEl = host.querySelector('#fl-hint');
 
   const scoreEl = host.querySelector('#fl-score');
-  const bestEl = host.querySelector('#fl-best');
+  const bestEl  = host.querySelector('#fl-best');
   const worldEl = host.querySelector('#fl-world');
 
-  const barEl = host.querySelector('#fl-bar'); // таймер-сессии
+  const barEl   = host.querySelector('#fl-bar');
 
   const coinIco = host.querySelector('#fl-coin-ico');
-  const coinCnt = host.querySelector('#fl-coin-count'); // число монет
+  const coinCnt = host.querySelector('#fl-coin-count');
 
-  const shIco = host.querySelector('#fl-shield-ico');
-  const shBar = host.querySelector('#fl-shield-bar'); // прогресс щита
+  const shIco   = host.querySelector('#fl-shield-ico');
+  const shBar   = host.querySelector('#fl-shield-bar');
 
-  const resBox = host.querySelector('#fl-result');
-  const cta = host.querySelector('#fl-cta');
+  const resBox  = host.querySelector('#fl-result');
+  const cta     = host.querySelector('#fl-cta');
 
-  if (!stage || !birdEl) return () => {};
+  if (!stage || !birdEl) return ()=>{};
 
-  // ==== показа HUD (могут быть выключены в props)
-  try {
-    const coinWrap = coinIco ? coinIco.closest('.fl-stat') : null;
-    const shieldWrap = shIco ? shIco.closest('.fl-stat') : null;
-    if (coinWrap) coinWrap.style.display = props.show_coin_bar === false ? 'none' : '';
+  // HUD on/off
+  try{
+    const coinWrap   = coinIco ? coinIco.closest('.fl-stat') : null;
+    const shieldWrap = shIco  ? shIco.closest('.fl-stat')  : null;
+    if (coinWrap)   coinWrap.style.display   = props.show_coin_bar   === false ? 'none' : '';
     if (shieldWrap) shieldWrap.style.display = props.show_shield_bar === false ? 'none' : '';
-  } catch (_) {}
+  }catch(_){}
 
-  // ==== ассеты (поддержка custom + обратная совместимость имён)
-  // modes — оставлены для совместимости, но логика не жёсткая: если URL загружен, берём его всегда.
-  const bird_mode = String(props.bird_mode || 'default');
+  // ===== ассеты (custom + совместимость pipe_* / pipes_*)
+  const bird_mode   = String(props.bird_mode   || 'default');
   const shield_mode = String(props.shield_mode || 'default');
-  const coin_mode = String(props.coin_mode || 'default');
-  const pipes_mode = String(props.pipes_mode || 'default');
+  const coin_mode   = String(props.coin_mode   || 'default');
+  const pipes_mode  = String(props.pipes_mode  || 'default');
 
-  // Совместимость ключей труб: pipes_top_img/pipes_bottom_img и pipe_top_img/pipe_bottom_img
-  const pipesTopSrc =
-    props.pipes_top_img || props.pipe_top_img || BASE + 'assets/pipe_top.png';
-  const pipesBotSrc =
-    props.pipes_bottom_img || props.pipe_bottom_img || BASE + 'assets/pipe_bottom.png';
+  const pipesTopSrc = props.pipes_top_img || props.pipe_top_img || BASE + 'assets/pipe_top.png';
+  const pipesBotSrc = props.pipes_bottom_img || props.pipe_bottom_img || BASE + 'assets/pipe_bottom.png';
 
   const ASSETS = {
     bird: {
-      img:
-        // если собственный задан — берём вне зависимости от mode
-        props.bird_img ||
-        // иначе default
-        (bird_mode === 'custom' ? '' : BASE + 'assets/bumblebee.png'),
-      w: num(props.bird_w, 56),
-      h: num(props.bird_h, 42)
+      img: props.bird_img || (bird_mode === 'custom' ? '' : BASE + 'assets/bumblebee.png'),
+      w:  num(props.bird_w, 56),
+      h:  num(props.bird_h, 42)
     },
     shield: {
       img: props.shield_img || (shield_mode === 'custom' ? '' : BASE + 'assets/shield.png'),
-      w: num(props.shield_w, 34),
-      h: num(props.shield_h, 34),
+      w:  num(props.shield_w, 34),
+      h:  num(props.shield_h, 34),
       dur_ms: num(props.shield_duration_ms, 6000)
     },
     coin: {
       img: props.coin_img || (coin_mode === 'custom' ? '' : BASE + 'assets/coin.png'),
-      w: num(props.coin_w, 32),
-      h: num(props.coin_h, 32),
+      w:  num(props.coin_w, 32),
+      h:  num(props.coin_h, 32),
       value: num(props.coin_value, 5)
     },
     pipes: {
-      top: pipes_mode === 'custom' ? (props.pipes_top_img || props.pipe_top_img || pipesTopSrc) : pipesTopSrc,
-      bottom: pipes_mode === 'custom' ? (props.pipes_bottom_img || props.pipe_bottom_img || pipesBotSrc) : pipesBotSrc,
+      top:   pipes_mode === 'custom' ? (props.pipes_top_img || props.pipe_top_img || pipesTopSrc) : pipesTopSrc,
+      bottom:pipes_mode === 'custom' ? (props.pipes_bottom_img || props.pipe_bottom_img || pipesBotSrc) : pipesBotSrc,
       width: num(props.pipe_width, 54)
     }
   };
 
-  // Прелоад труб (если не загрузятся, используем простой градиент)
   let pipeSpritesOK = true;
-  await Promise.allSettled(
-    ['top', 'bottom'].map(
-      k =>
-        new Promise(res => {
-          const img = new Image();
-          img.onload = () => res(true);
-          img.onerror = () => {
-            pipeSpritesOK = false;
-            res(false);
-          };
-          img.src = ASSETS.pipes[k];
-        })
-    )
-  );
+  await Promise.allSettled(['top','bottom'].map(k => new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>res(true);
+    img.onerror = ()=>{ pipeSpritesOK = false; res(false); };
+    img.src = ASSETS.pipes[k];
+  })));
 
-  // ==== применяем ассеты в scope host (CSS vars)
-  (function applyAssets() {
+  (function applyAssets(){
     const scope = host;
+    scope.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
+    scope.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
+    scope.style.setProperty('--pipe-w', (ASSETS.pipes.width||54)+'px');
+    scope.style.setProperty('--coin-w', (ASSETS.coin.w||32)+'px');
+    scope.style.setProperty('--coin-h', (ASSETS.coin.h||32)+'px');
+    scope.style.setProperty('--pow-w',  (ASSETS.shield.w||34)+'px');
+    scope.style.setProperty('--pow-h',  (ASSETS.shield.h||34)+'px');
 
-    scope.style.setProperty('--bird-w', (ASSETS.bird.w || 48) + 'px');
-    scope.style.setProperty('--bird-h', (ASSETS.bird.h || 36) + 'px');
-
-    scope.style.setProperty('--pipe-w', (ASSETS.pipes.width || 54) + 'px');
-
-    scope.style.setProperty('--coin-w', (ASSETS.coin.w || 32) + 'px');
-    scope.style.setProperty('--coin-h', (ASSETS.coin.h || 32) + 'px');
-
-    scope.style.setProperty('--pow-w', (ASSETS.shield.w || 34) + 'px');
-    scope.style.setProperty('--pow-h', (ASSETS.shield.h || 34) + 'px');
-
-    if (ASSETS.bird.img) {
+    if (ASSETS.bird.img){
       birdEl.classList.add('fl-bird--sprite');
       birdEl.style.backgroundImage = `url(${ASSETS.bird.img})`;
     } else {
@@ -151,10 +186,10 @@ export async function mount(root, props = {}, ctx = {}) {
       birdEl.style.backgroundImage = '';
     }
     if (coinIco && ASSETS.coin.img) coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
-    if (shIco && ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
+    if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
   })();
 
-  // ==== константы геймплея
+  // ===== константы геймплея
   const WORLD_RECORD = num(props.leaderboard_world_stub, 200);
   const GRAVITY = 1800;
   const FLAP_VELOCITY = -520;
@@ -175,259 +210,215 @@ export async function mount(root, props = {}, ctx = {}) {
 
   // сложность
   const diff = String(props.difficulty || 'normal');
-  if (diff === 'easy') {
-    SPEED_X *= 0.9;
-    GAP_MIN *= 1.1;
-    GAP_MAX *= 1.1;
-  }
-  if (diff === 'hard') {
-    SPEED_X *= 1.2;
-    GAP_MIN *= 0.9;
-    GAP_MAX *= 0.9;
-  }
+  if (diff === 'easy'){ SPEED_X *= 0.9; GAP_MIN *= 1.1; GAP_MAX *= 1.1; }
+  if (diff === 'hard'){ SPEED_X *= 1.2; GAP_MIN *= 0.9; GAP_MAX *= 0.9; }
 
-  // ==== state
-  let best = 0;
-  try {
-    best = Number(win.localStorage.getItem('flappy_best') || 0) || 0;
-  } catch (_) {}
+  // ===== state
+  let best = 0; try { best = Number(win.localStorage.getItem('flappy_best')||0)||0; } catch(_){}
+  let running=false, started=false;
+  let raf=0, spawnT=Infinity, t0=0;
 
-  let running = false;
-  let started = false;
-  let raf = 0;
-  let spawnT = Infinity;
-  let t0 = 0;
+  let w=0,h=0,floorY=0;
+  let birdX=0,birdY=0,birdVY=0;
 
-  let w = 0,
-    h = 0,
-    floorY = 0;
-  let birdX = 0,
-    birdY = 0,
-    birdVY = 0;
+  let pipes=[]; // {x, gapY, gap, topEl, botEl, passed:false}
+  let items=[]; // {type:'coin'|'shield', x,y, el}
 
-  let pipes = []; // {x, gapY, gap, topEl, botEl, passed:false}
-  let items = []; // {type:'coin'|'shield', x,y, el}
-  let lastShieldSpawn = 0;
+  let lastShieldSpawn=0;
+  let score=0, sessionCoinsGained=0;
 
-  let score = 0,
-    coins = 0;
-  let shieldUntil = 0;
+  // дневная статистика
+  let daily = loadDaily();
 
-  const haptic = (kind = 'light') => {
-    try {
+  const haptic = (kind='light')=>{
+    try{
       if (!props.haptics) return;
       if (!TG || !TG.HapticFeedback) return;
-      if (kind === 'error') TG.HapticFeedback.notificationOccurred('error');
-      else if (kind === 'success') TG.HapticFeedback.notificationOccurred('success');
+      if (kind==='error') TG.HapticFeedback.notificationOccurred('error');
+      else if (kind==='success') TG.HapticFeedback.notificationOccurred('success');
       else TG.HapticFeedback.impactOccurred(kind);
-    } catch (_) {}
+    }catch(_){}
   };
 
-  // ==== layout
-  function layout() {
+  // ===== layout & HUD
+  function layout(){
     const r = stage.getBoundingClientRect();
-    let cw = r.width,
-      ch = r.height;
-    if (!ch || ch < 20) {
+    let cw=r.width, ch=r.height;
+    if (!ch || ch<20){
       const cs = win.getComputedStyle(stage);
       ch = parseFloat(cs.height) || parseFloat(cs.minHeight) || 480;
-      cw = parseFloat(cs.width) || 360;
+      cw = parseFloat(cs.width)  || 360;
     }
     w = Math.max(300, Math.round(cw));
     h = Math.max(320, Math.round(ch));
     floorY = h - SAFE_FLOOR_PAD;
 
     birdX = Math.max(60, w * 0.25);
-    if (!started) {
-      birdY = Math.min(
-        floorY - ASSETS.bird.h * 0.5,
-        Math.max(ASSETS.bird.h * 0.5, h * 0.45)
-      );
+    if (!started){
+      birdY = Math.min(floorY - ASSETS.bird.h*0.5, Math.max(ASSETS.bird.h*0.5, h*0.45));
       applyBird();
     }
   }
-  function applyBird() {
-    // позиционируем центровкой через translate(-50%,-50%) в CSS
-    birdEl.style.left = birdX + 'px';
-    birdEl.style.top = birdY + 'px';
-  }
-
-  function setScore(v) {
-    if (scoreEl) scoreEl.textContent = String(v | 0);
-  }
-  function setCoins(v) {
-    if (coinCnt) coinCnt.textContent = String(v | 0);
-  }
-  function setTimeFrac(frac) {
+  function applyBird(){ birdEl.style.left = birdX+'px'; birdEl.style.top = birdY+'px'; }
+  function setScore(v){ if (scoreEl) scoreEl.textContent = String(v|0); }
+  function setCoins(v){ if (coinCnt) coinCnt.textContent = String(v|0); }
+  function setTimeFrac(frac){
     if (!barEl) return;
-    const f = clamp(frac, 0, 1);
+    const f = clamp(frac,0,1);
     barEl.style.transform = `scaleX(${f.toFixed(3)})`;
     barEl.style.transformOrigin = 'left center';
   }
 
-  // ==== трубы / предметы
-  function spawnPipe() {
-    const gap = rand(GAP_MIN, GAP_MAX);
-    const minY = gap * 0.6;
-    const maxY = h - SAFE_FLOOR_PAD - gap * 0.6;
-    const gapY = clamp(rand(minY, maxY), gap * 0.6, h - SAFE_FLOOR_PAD - gap * 0.6);
+  // ===== мир: трубы/предметы
+  function spawnPipe(){
+    const gap  = rand(GAP_MIN, GAP_MAX);
+    const minY = gap*0.6;
+    const maxY = h - SAFE_FLOOR_PAD - gap*0.6;
+    const gapY = clamp(rand(minY, maxY), gap*0.6, h - SAFE_FLOOR_PAD - gap*0.6);
 
     const top = doc.createElement('div');
     const bot = doc.createElement('div');
     top.className = 'fl-pipe-part';
     bot.className = 'fl-pipe-part';
 
-    if (pipeSpritesOK) {
+    if (pipeSpritesOK){
       top.style.background = `url(${ASSETS.pipes.top}) center/100% 100% no-repeat`;
       bot.style.background = `url(${ASSETS.pipes.bottom}) center/100% 100% no-repeat`;
     } else {
-      // fallback если спрайт недоступен
-      const grad = 'linear-gradient(180deg,#6BFF7A,#1ED760)';
+      const grad='linear-gradient(180deg,#6BFF7A,#1ED760)';
       top.style.background = grad;
       bot.style.background = grad;
     }
 
-    stage.appendChild(top);
-    stage.appendChild(bot);
+    stage.appendChild(top); stage.appendChild(bot);
 
-    const p = {
-      x: w + (ASSETS.pipes.width || 54),
-      gapY,
-      gap,
-      topEl: top,
-      botEl: bot,
-      passed: false
-    };
-    pipes.push(p);
-    positionPipe(p);
+    const p = { x: w + (ASSETS.pipes.width||54), gapY, gap, topEl: top, botEl: bot, passed:false };
+    pipes.push(p); positionPipe(p);
 
-    // монета
-    if (Math.random() < COIN_PROB) {
+    // coin
+    if (Math.random() < COIN_PROB){
       const c = doc.createElement('div');
       c.className = 'fl-coin';
       if (ASSETS.coin.img) c.style.backgroundImage = `url(${ASSETS.coin.img})`;
-      c.style.width = (ASSETS.coin.w || 32) + 'px';
-      c.style.height = (ASSETS.coin.h || 32) + 'px';
+      c.style.width  = (ASSETS.coin.w||32)+'px';
+      c.style.height = (ASSETS.coin.h||32)+'px';
       stage.appendChild(c);
-      const it = { type: 'coin', x: p.x + 200, y: gapY, el: c };
-      items.push(it);
-      positionItem(it);
+      const it = { type:'coin', x: p.x + 200, y: gapY, el: c };
+      items.push(it); positionItem(it);
     }
 
-    // щит (с КД)
-    if (performance.now() - lastShieldSpawn > SH_CD && Math.random() < SHIELD_PROB) {
+    // shield (с КД)
+    if (performance.now() - lastShieldSpawn > SH_CD && Math.random() < props.shield_prob){
       const s = doc.createElement('div');
       s.className = 'fl-power';
       if (ASSETS.shield.img) s.style.backgroundImage = `url(${ASSETS.shield.img})`;
-      s.style.width = (ASSETS.shield.w || 34) + 'px';
-      s.style.height = (ASSETS.shield.h || 34) + 'px';
+      s.style.width  = (ASSETS.shield.w||34)+'px';
+      s.style.height = (ASSETS.shield.h||34)+'px';
       stage.appendChild(s);
-      const it = {
-        type: 'shield',
-        x: p.x + 300,
-        y: clamp(gapY - gap * 0.35, 30, floorY - 30),
-        el: s
-      };
-      items.push(it);
-      positionItem(it);
+      const it = { type:'shield', x: p.x + 300, y: clamp(gapY - gap*0.35, 30, floorY-30), el: s };
+      items.push(it); positionItem(it);
       lastShieldSpawn = performance.now();
     }
   }
-  function positionPipe(p) {
-    const pipeW = ASSETS.pipes.width || 54;
-    const th = Math.max(0, p.gapY - p.gap / 2);
-    const bt = Math.min(h, p.gapY + p.gap / 2);
+  function positionPipe(p){
+    const pipeW = (ASSETS.pipes.width||54);
+    const th = Math.max(0, p.gapY - p.gap/2);
+    const bt = Math.min(h, p.gapY + p.gap/2);
 
-    p.topEl.style.left = p.x + 'px';
-    p.topEl.style.top = '0px';
+    p.topEl.style.left   = p.x + 'px';
+    p.topEl.style.top    = '0px';
     p.topEl.style.height = th + 'px';
-    p.topEl.style.width = pipeW + 'px';
+    p.topEl.style.width  = pipeW + 'px';
 
-    p.botEl.style.left = p.x + 'px';
-    p.botEl.style.top = bt + 'px';
+    p.botEl.style.left   = p.x + 'px';
+    p.botEl.style.top    = bt + 'px';
     p.botEl.style.height = Math.max(0, h - bt) + 'px';
-    p.botEl.style.width = pipeW + 'px';
+    p.botEl.style.width  = pipeW + 'px';
   }
-  function positionItem(it) {
+  function positionItem(it){
     it.el.style.left = it.x + 'px';
-    it.el.style.top = it.y + 'px';
+    it.el.style.top  = it.y + 'px';
   }
-  function removePipe(p) {
-    try {
-      p.topEl.remove();
-      p.botEl.remove();
-    } catch (_) {}
-  }
-  function removeItem(it) {
-    try {
-      it.el.remove();
-    } catch (_) {}
-  }
+  function removePipe(p){ try{ p.topEl.remove(); p.botEl.remove(); }catch(_){ } }
+  function removeItem(it){ try{ it.el.remove(); }catch(_){ } }
 
-  // ==== коллизии
-  function rectsOverlap(a, b) {
-    return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
-  }
-  function collidePipe() {
+  // ===== коллизии
+  function rectsOverlap(a,b){ return !(a.right<b.left||a.left>b.right||a.bottom<b.top||a.top>b.bottom); }
+  function collidePipe(){
     const br = birdEl.getBoundingClientRect();
-    for (const p of pipes) {
+    for (const p of pipes){
       if (rectsOverlap(br, p.topEl.getBoundingClientRect())) return true;
       if (rectsOverlap(br, p.botEl.getBoundingClientRect())) return true;
     }
     return false;
   }
 
-  // ==== щит/HUD
-  function hasShield() {
-    return performance.now() < shieldUntil;
-  }
-  function activateShield() {
-    shieldUntil = performance.now() + (ASSETS.shield.dur_ms || 6000);
+  // ===== щит/HUD
+  function hasShield(){ return performance.now() < (shieldUntil||0); }
+  function activateShield(){
+    shieldUntil = performance.now() + (ASSETS.shield.dur_ms||6000);
     birdEl.classList.add('fl-bird--shield');
     updateShieldHud();
   }
-  function updateShieldHud() {
+  function updateShieldHud(){
     if (!shBar) return;
-    if (!hasShield()) {
+    if (!hasShield()){
       shBar.style.transform = 'scaleX(0)';
       shBar.style.transformOrigin = 'left center';
       return;
     }
     const left = shieldUntil - performance.now();
-    const pct = clamp(left / (ASSETS.shield.dur_ms || 6000), 0, 1);
+    const pct  = clamp(left / (ASSETS.shield.dur_ms||6000), 0, 1);
     shBar.style.transform = `scaleX(${pct.toFixed(3)})`;
     shBar.style.transformOrigin = 'left center';
   }
-  function collideItems() {
+  function collideItems(){
     const br = birdEl.getBoundingClientRect();
-    const dead = [];
-    for (let i = 0; i < items.length; i++) {
+    const dead=[];
+    for (let i=0;i<items.length;i++){
       const it = items[i];
       const ir = it.el.getBoundingClientRect();
-      if (rectsOverlap(br, ir)) {
-        if (it.type === 'coin') {
-          coins += ASSETS.coin.value || 1;
-          setCoins(coins);
-          score += 1;
-          setScore(score);
+      if (rectsOverlap(br, ir)){
+        if (it.type==='coin'){
+          const add = ASSETS.coin.value || 1;
+          sessionCoinsGained += add;
+          setCoins(sessionCoinsGained);
+          score += 1; setScore(score);
           haptic('light');
-        } else if (it.type === 'shield') {
-          activateShield();
-          haptic('success');
+        } else if (it.type==='shield'){
+          activateShield(); haptic('success');
         }
-        removeItem(it);
-        dead.push(i);
+        removeItem(it); dead.push(i);
       }
     }
-    for (let i = dead.length - 1; i >= 0; i--) items.splice(dead[i], 1);
+    for (let i=dead.length-1;i>=0;i--) items.splice(dead[i],1);
   }
 
-  // ==== игровой цикл
-  function flap() {
+  // ===== лимит: проверка старта
+  function checkLimitsBeforeStart(){
+    daily = loadDaily(); // на всякий случай обновим
+    if (canStart(daily)) return true;
+
+    const msg = canStartMessage(daily) || 'Лимит на сегодня достигнут';
+    showToast(msg, false);
+    // оставляем экран «тапни чтобы начать»
+    return false;
+  }
+
+  // ===== игровой цикл
+  function flap(){
     if (!running) return;
-    if (!started) {
+
+    if (!started){
+      // перед первым стартом — проверяем лимиты
+      if (!checkLimitsBeforeStart()) return;
+
+      // фиксируем попытку
+      daily.attempts += 1;
+      saveDaily(daily);
+
       started = true;
-      if (hintEl) hintEl.classList.remove('show'), (hintEl.style.display = 'none');
+      if (hintEl){ hintEl.classList.remove('show'); hintEl.style.display='none'; }
       birdVY = FLAP_VELOCITY;
       t0 = performance.now();
       spawnT = t0;
@@ -436,79 +427,65 @@ export async function mount(root, props = {}, ctx = {}) {
       birdVY = FLAP_VELOCITY;
     }
   }
-  function crash() {
-    haptic('error');
-    finish();
-  }
 
-  async function finish() {
+  function crash(){ haptic('error'); finish(); }
+
+  async function finish(){
     running = false;
-    try {
-      win.cancelAnimationFrame(raf);
-    } catch (_) {}
-    if (score > best) {
-      best = score;
-      try {
+    try{ win.cancelAnimationFrame(raf); }catch(_){}
+    // апдейтим «лучший»
+    try{
+      if (score > best){
+        best = score;
         win.localStorage.setItem('flappy_best', String(best));
-      } catch (_) {}
-    }
-    if (bestEl) bestEl.textContent = String(best | 0);
-    if (worldEl) worldEl.textContent = String(num(props.leaderboard_world_stub, 200));
-    if (resBox) resBox.classList.add('show');
-    if (cta) cta.classList.add('show');
+      }
+    }catch(_){}
+    if (bestEl)  bestEl.textContent  = String(best|0);
+    if (worldEl) worldEl.textContent = String(WORLD_RECORD);
 
-    // Сабмит безопасно «не сработает» в превью — ок
-    try {
-      const publicId = String(ctx.public_id || '').trim();
-      if (TG && publicId && (TG.initData || TG.initDataUnsafe)) {
+    // начисляем монеты в дневной счётчик
+    if (sessionCoinsGained > 0){
+      daily = loadDaily();
+      daily.coins = num(daily.coins,0) + sessionCoinsGained;
+      saveDaily(daily);
+    }
+
+    if (resBox) resBox.classList.add('show');
+    if (cta)    cta.classList.add('show');
+
+    // тихий сабмит (в проде сработает)
+    try{
+      const publicId = PUBLIC_ID;
+      if (TG && publicId && (TG.initData || TG.initDataUnsafe)){
         const init_data = TG.initData || '';
         const u = TG.initDataUnsafe && TG.initDataUnsafe.user;
-        if (init_data && u && u.id) {
+        if (init_data && u && u.id){
           const payload = {
-            type: 'game.submit',
+            type:'game.submit',
             init_data,
-            tg_user: {
-              id: u.id,
-              username: u.username || '',
-              first_name: u.first_name || '',
-              last_name: u.last_name || ''
-            },
-            payload: {
-              game_id: 'flappy',
-              mode: String(props.submit_mode || 'daily'),
-              score: Number(score || 0)
-            }
+            tg_user:{ id:u.id, username:u.username||'', first_name:u.first_name||'', last_name:u.last_name||'' },
+            payload:{ game_id: GAME_ID, mode:String(props.submit_mode||'daily'), score:Number(score||0) }
           };
           fetch(`/api/public/app/${encodeURIComponent(publicId)}/event`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload)
-          }).catch(() => {});
+            method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload)
+          }).catch(()=>{});
         }
       }
-    } catch (_) {}
+    }catch(_){}
   }
 
-  function resetScene() {
-    pipes.forEach(removePipe);
-    pipes = [];
-    items.forEach(removeItem);
-    items = [];
+  function resetScene(){
+    pipes.forEach(removePipe); pipes=[];
+    items.forEach(removeItem); items=[];
 
-    coins = 0;
-    setCoins(0);
-    score = 0;
-    setScore(0);
+    sessionCoinsGained = 0; setCoins(0);
+    score = 0; setScore(0);
 
     birdEl.classList.remove('fl-bird--shield');
-    shieldUntil = 0;
-    updateShieldHud();
+    shieldUntil = 0; updateShieldHud();
 
     started = false;
-    if (hintEl) {
-      hintEl.style.display = '';
-      hintEl.classList.add('show');
-    }
+    if (hintEl){ hintEl.style.display=''; hintEl.classList.add('show'); }
     birdVY = 0;
     birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
     setTimeFrac(1);
@@ -517,19 +494,18 @@ export async function mount(root, props = {}, ctx = {}) {
     spawnT = Infinity;
 
     if (resBox) resBox.classList.remove('show');
-    if (cta) cta.classList.remove('show');
+    if (cta)    cta.classList.remove('show');
   }
 
-  function tick() {
+  function tick(){
     const now = performance.now();
-    const dt = Math.min(34, now - (tick._prev || now));
-    tick._prev = now;
+    const dt  = Math.min(34, now - (tick._prev||now)); tick._prev = now;
 
-    if (!started) {
-      // мягкая «левитация» до старта
-      const topLimit = ASSETS.bird.h * 0.5 + 2;
-      const botLimit = (h - SAFE_FLOOR_PAD) - ASSETS.bird.h * 0.5;
-      birdY = clamp(birdY + Math.sin(now / 320) * 0.18, topLimit, botLimit);
+    if (!started){
+      // «левитация» в режиме ожидания
+      const topLimit = ASSETS.bird.h*0.5 + 2;
+      const botLimit = (h - SAFE_FLOOR_PAD) - ASSETS.bird.h*0.5;
+      birdY = clamp(birdY + Math.sin(now/320)*0.18, topLimit, botLimit);
       applyBird();
       updateShieldHud();
       raf = win.requestAnimationFrame(tick);
@@ -537,193 +513,110 @@ export async function mount(root, props = {}, ctx = {}) {
     }
 
     const elapsed = now - t0;
-    setTimeFrac(1 - elapsed / SESSION_MS);
+    setTimeFrac(1 - (elapsed/SESSION_MS));
 
-    // ускорение по времени
     const speed = SPEED_X + Math.floor(elapsed / ACCEL_EACH_MS) * SPEED_STEP;
 
-    // физика птицы
-    birdVY += GRAVITY * (dt / 1000);
-    birdY += birdVY * (dt / 1000);
+    birdVY += GRAVITY * (dt/1000);
+    birdY  += birdVY * (dt/1000);
 
-    // потолок/пол
-    const topLimit = ASSETS.bird.h * 0.5 + 2;
-    const botLimit = (h - SAFE_FLOOR_PAD) - ASSETS.bird.h * 0.5;
-    if (birdY <= topLimit) {
-      birdY = topLimit;
-      birdVY = 0;
-    }
-    if (birdY >= botLimit) {
+    const topLimit = ASSETS.bird.h*0.5 + 2;
+    const botLimit = (h - SAFE_FLOOR_PAD) - ASSETS.bird.h*0.5;
+    if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
+    if (birdY >= botLimit){
       birdY = botLimit;
-      if (!hasShield()) {
-        crash();
-        return;
-      }
-      birdVY = -220; // отскок при активном щите
+      if (!hasShield()){ crash(); return; }
+      birdVY = -220;
     }
 
-    // движение мира
-    const dx = speed * (dt / 1000);
-    for (const p of pipes) {
-      p.x -= dx;
-      positionPipe(p);
-    }
-    for (const it of items) {
-      it.x -= dx;
-      positionItem(it);
-    }
+    const dx = speed * (dt/1000);
+    for (const p of pipes){ p.x -= dx; positionPipe(p); }
+    for (const it of items){ it.x -= dx; positionItem(it); }
 
-    // очки за пролет трубы
-    for (const p of pipes) {
-      if (!p.passed && p.x + (ASSETS.pipes.width || 54) < birdX) {
-        p.passed = true;
-        score += 1;
-        setScore(score);
-        haptic('light');
+    for (const p of pipes){
+      if (!p.passed && p.x + (ASSETS.pipes.width||54) < birdX){
+        p.passed = true; score += 1; setScore(score); haptic('light');
       }
     }
 
-    // GC
-    while (pipes.length && pipes[0].x < -(ASSETS.pipes.width || 54) - 4) {
-      removePipe(pipes[0]);
-      pipes.shift();
-    }
-    while (items.length && items[0].x < -80) {
-      removeItem(items[0]);
-      items.shift();
-    }
+    while (pipes.length && pipes[0].x < -(ASSETS.pipes.width||54)-4){ removePipe(pipes[0]); pipes.shift(); }
+    while (items.length && items[0].x < -80){ removeItem(items[0]); items.shift(); }
 
-    // коллизии
     collideItems();
-    if (collidePipe()) {
-      if (hasShield()) {
-        shieldUntil = 0;
-        birdEl.classList.remove('fl-bird--shield');
-        updateShieldHud();
+    if (collidePipe()){
+      if (hasShield()){
+        shieldUntil = 0; birdEl.classList.remove('fl-bird--shield'); updateShieldHud();
         birdVY = -260;
-      } else {
-        crash();
-        return;
-      }
+      } else { crash(); return; }
     }
 
-    // спавн труб/объектов
-    if (now - spawnT > 1300) {
-      spawnT = now;
-      spawnPipe();
-    }
+    if (now - spawnT > 1300){ spawnT = now; spawnPipe(); }
 
-    // визуальный наклон птицы
-    const ang = clamp((birdVY / 600) * 45, -35, 90);
+    const ang = clamp((birdVY/600)*45, -35, 90);
     birdEl.style.transform = `translate(-50%,-50%) rotate(${ang}deg)`;
 
     applyBird();
     updateShieldHud();
 
-    if (elapsed >= SESSION_MS) {
-      finish();
-      return;
-    }
+    if (elapsed >= SESSION_MS){ finish(); return; }
     raf = win.requestAnimationFrame(tick);
   }
 
-  // ==== input
-  const onPointer = e => {
-    if (
-      e.target.closest('#fl-cta') ||
-      e.target.closest('#fl-result') ||
-      e.target.closest('button,a,input,textarea,select')
-    )
-      return;
+  // ===== input
+  const onPointer = (e)=>{
+    if (e.target.closest('#fl-cta') || e.target.closest('#fl-result') ||
+        e.target.closest('button,a,input,textarea,select')) return;
     if (cta?.classList.contains('show') || resBox?.classList.contains('show')) return;
-
     e.preventDefault();
     flap();
   };
-  stage.addEventListener('pointerdown', onPointer, { passive: false });
-  // гарантируем первый тап даже если кликнут по хосту/хинту
-  host.addEventListener('pointerdown', onPointer, { passive: false, capture: true });
-  hintEl && hintEl.addEventListener('pointerdown', onPointer, { passive: false });
+  stage.addEventListener('pointerdown', onPointer, { passive:false });
+  host.addEventListener('pointerdown', onPointer, { passive:false, capture:true });
+  hintEl && hintEl.addEventListener('pointerdown', onPointer, { passive:false });
 
-  const onKey = e => {
-    if (e.code === 'Space' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      flap();
-    }
+  const onKey = (e)=>{
+    if (e.code==='Space' || e.key==='ArrowUp'){ e.preventDefault(); flap(); }
   };
   doc.addEventListener('keydown', onKey);
 
-  const onCta = e => {
+  const onCta = (e)=>{
     const btn = e.target.closest('.btn');
     if (!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
-    // РЕСТАРТ = возвращаемся в состояние «Тапни чтобы начать»
+    e.preventDefault(); e.stopPropagation();
     resetScene();
     running = true;
-    try {
-      win.cancelAnimationFrame(raf);
-    } catch (_) {}
+    try{ win.cancelAnimationFrame(raf); }catch(_){}
     tick._prev = performance.now();
     raf = win.requestAnimationFrame(tick);
   };
-  cta && cta.addEventListener('pointerdown', onCta, { capture: true, passive: false });
+  cta && cta.addEventListener('pointerdown', onCta, { capture:true, passive:false });
   cta && cta.addEventListener('click', onCta, true);
 
-  // ==== старт
+  // ===== start
   layout();
-  // начальные значения HUD
-  setScore(0);
-  setCoins(0);
-  setTimeFrac(1);
-  if (bestEl) bestEl.textContent = String(best | 0);
+  setScore(0); setCoins(0); setTimeFrac(1);
+  if (bestEl)  bestEl.textContent  = String(best|0);
   if (worldEl) worldEl.textContent = String(WORLD_RECORD);
-  if (hintEl) {
-    hintEl.style.display = '';
-    hintEl.classList.add('show');
-  }
 
-  resetScene(); // гарантировано приводит в «ожидание старта» + левитация
+  resetScene();
   running = true;
   raf = win.requestAnimationFrame(tick);
 
-  // resize-observer
-  const ro = new (win.ResizeObserver || ResizeObserver)(() => layout());
-  try {
-    ro.observe(stage);
-  } catch (_) {}
+  // resize
+  const ro = new (win.ResizeObserver||ResizeObserver)(()=>layout());
+  try{ ro.observe(stage); }catch(_){}
 
-  // ==== cleanup
-  function cleanup() {
-    try {
-      running = false;
-      win.cancelAnimationFrame(raf);
-    } catch (_) {}
-    try {
-      stage.removeEventListener('pointerdown', onPointer);
-    } catch (_) {}
-    try {
-      host.removeEventListener('pointerdown', onPointer, true);
-    } catch (_) {}
-    try {
-      hintEl && hintEl.removeEventListener('pointerdown', onPointer);
-    } catch (_) {}
-    try {
-      doc.removeEventListener('keydown', onKey);
-    } catch (_) {}
-    try {
-      cta && cta.removeEventListener('pointerdown', onCta, true);
-    } catch (_) {}
-    try {
-      cta && cta.removeEventListener('click', onCta, true);
-    } catch (_) {}
-    try {
-      ro.disconnect();
-    } catch (_) {}
-    try {
-      pipes.forEach(removePipe);
-      items.forEach(removeItem);
-    } catch (_) {}
+  // ===== cleanup
+  function cleanup(){
+    try{ running=false; win.cancelAnimationFrame(raf); }catch(_){}
+    try{ stage.removeEventListener('pointerdown', onPointer); }catch(_){}
+    try{ host.removeEventListener('pointerdown', onPointer, true); }catch(_){}
+    try{ hintEl && hintEl.removeEventListener('pointerdown', onPointer); }catch(_){}
+    try{ doc.removeEventListener('keydown', onKey); }catch(_){}
+    try{ cta && cta.removeEventListener('pointerdown', onCta, true); }catch(_){}
+    try{ cta && cta.removeEventListener('click', onCta, true); }catch(_){}
+    try{ ro.disconnect(); }catch(_){}
+    try{ pipes.forEach(removePipe); items.forEach(removeItem); }catch(_){}
   }
   return cleanup;
 }
