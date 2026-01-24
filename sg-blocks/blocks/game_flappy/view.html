@@ -1,3 +1,4 @@
+<!-- sg-blocks/blocks/game_flappy/view.html -->
 <section class="blk blk-game-flappy" data-game-host>
   <div class="flappy is-open" role="dialog" aria-label="Flappy">
     <div class="flappy__wrap" id="flappy">
@@ -17,7 +18,8 @@
         </div>
       </div>
 
-      <div class="fl-stage" id="fl-stage">
+      <!-- ВАЖНО: min-height тянем из props.min_h -->
+      <div class="fl-stage" id="fl-stage" style="min-height: {{min_h}}px">
         <div class="fl-hint" id="fl-hint">Тапни чтобы начать</div>
         <div class="fl-bird" id="fl-bird"></div>
       </div>
