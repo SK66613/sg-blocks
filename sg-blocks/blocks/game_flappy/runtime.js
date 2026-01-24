@@ -1,434 +1,277 @@
 // sg-blocks/blocks/game_flappy/runtime.js
-// Строгий порт оригинала превью-игры под формат блока.
-// API: export async function mount(root, props, ctx){...} -> cleanup()
-
 export async function mount(root, props = {}, ctx = {}){
-  // ==== контекст
   const doc = root.ownerDocument;
   const win = doc.defaultView;
+  const TG = ctx.tg || (win.Telegram && win.Telegram.WebApp) || null;
 
-  const TG =
-    ctx.tg ||
-    (win.Telegram && win.Telegram.WebApp) ||
-    (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
-    null;
-
-  // базовый URL ассетов блока: .../blocks/game_flappy/
-  const BASE = String(ctx.base_url || (()=>{ try{return new URL('./', import.meta.url).href;}catch(_){return '';} })())
-                  .replace(/\/?$/,'/');
-
-  // DOM якоря (под твой view.html)
-  const host    = root.querySelector('[data-game-host]') || root;
-  const stage   = host.querySelector('#fl-stage');
-  const birdEl  = host.querySelector('#fl-bird');
-  const hintEl  = host.querySelector('#fl-hint');
-  const scoreEl = host.querySelector('#fl-score');
-  const barEl   = host.querySelector('#fl-bar');
+  const BASE = String(ctx.base_url || (()=>{try{return new URL('./', import.meta.url).href;}catch(_){return ''}})()).replace(/\/?$/,'/');
+  const host   = root.querySelector('[data-game-host]') || root;
+  const stage  = host.querySelector('#fl-stage');
+  const birdEl = host.querySelector('#fl-bird');
+  const hintEl = host.querySelector('#fl-hint');
+  const scoreEl= host.querySelector('#fl-score');
+  const bestEl = host.querySelector('#fl-best');
+  const worldEl= host.querySelector('#fl-world');
+  const timeBar= host.querySelector('#fl-bar');
+  const resBox = host.querySelector('#fl-result');
+  const cta    = host.querySelector('#fl-cta');
 
   const coinIco = host.querySelector('#fl-coin-ico');
   const coinCnt = host.querySelector('#fl-coin-count');
-  const shIco   = host.querySelector('#fl-shield-ico');
-  const shBar   = host.querySelector('#fl-shield-bar');
+  const shieldI = host.querySelector('#fl-shield-ico');
+  const shieldBar = host.querySelector('#fl-shield-bar');
+  const coinStat = host.querySelector('#coin-stat');
+  const shStat   = host.querySelector('#shield-stat');
 
-  const resBox  = host.querySelector('#fl-result');
-  const bestEl  = host.querySelector('#fl-best');
-  const worldEl = host.querySelector('#fl-world');
-  const cta     = host.querySelector('#fl-cta');
+  if (coinStat && props.show_coin_bar===false) coinStat.style.display='none';
+  if (shStat   && props.show_shield_bar===false) shStat.style.display='none';
 
-  if(!stage || !birdEl){ return ()=>{}; }
+  if (!stage || !birdEl) return ()=>{};
 
-  // ==== ассеты как в оригинале
+  const WORLD_RECORD = num(props.leaderboard_world_stub, 200);
+  const GRAVITY = 1800; const FLAP_VELOCITY = -520;
+  let SPEED_X = num(props.speed_x, 220);
+  const SPEED_STEP = num(props.speed_step, 18);
+  const ACCEL_EACH_MS = num(props.accel_each_ms, 8000);
+  let GAP_MIN = num(props.gap_min, 140);
+  let GAP_MAX = num(props.gap_max, 220);
+  const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
+  const SESSION_MS = num(props.session_ms, 45000);
+  const COIN_VALUE = num(props.coin_value, 5);
+  const COIN_IN_GAP_PROB = clamp01(props.coin_prob ?? 0.55);
+  const SHIELD_PROB = clamp01(props.shield_prob ?? 0.25);
+  const SHIELD_COOLDOWN = num(props.shield_cooldown_ms, 9000);
+  const SHIELD_DURATION = num(props.shield_duration_ms, 6000);
+  const HAPTICS = props.haptics !== false;
+  const SUBMIT_MODE = String(props.submit_mode || 'daily');
+  const DIFF = String(props.difficulty || 'normal');
+
+  if (DIFF==='easy'){ SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
+  if (DIFF==='hard'){ SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
+
   const ASSETS = {
-    bird:   { img: (props.bird_mode==='custom' && props.bird_img) ? props.bird_img : (BASE+'assets/bumblebee.png'),  w:56, h:42 },
-    pipes:  { top: BASE+'assets/pipe_top.png', bottom: BASE+'assets/pipe_bottom.png', width:54 },
-    coin:   { img: BASE+'assets/coin.png',   w:32, h:32, value:5 },
-    shield: { img: BASE+'assets/shield.png', w:34, h:34, dur_ms:6000 }
+    bird: { img: (props.bird_mode==='custom' && props.bird_img) ? props.bird_img : (BASE+'assets/bumblebee.png'), w:56, h:42 },
+    pipes:{ top: BASE+'assets/pipe_top.png', bottom: BASE+'assets/pipe_bottom.png', width:54 },
+    coin:{ img: BASE+'assets/coin.png', w:32, h:32, value:COIN_VALUE },
+    shield:{ img: props.shield_img ? props.shield_img : (BASE+'assets/shield.png'), w:34, h:34, dur_ms:SHIELD_DURATION }
   };
 
-  // ==== применяем ассеты (как у тебя)
-  function applyAssets(){
-    // ВНИМАНИЕ: переменные кладём в scope host, чтобы не ломать чужие блоки
-    const scope = host;
-    scope.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
-    scope.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
-    scope.style.setProperty('--pipe-w',(ASSETS.pipes.width||54)+'px');
-    scope.style.setProperty('--coin-w',(ASSETS.coin.w||32)+'px');
-    scope.style.setProperty('--coin-h',(ASSETS.coin.h||32)+'px');
-    scope.style.setProperty('--pow-w', (ASSETS.shield.w||34)+'px');
-    scope.style.setProperty('--pow-h', (ASSETS.shield.h||34)+'px');
+  host.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
+  host.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
+  host.style.setProperty('--pipe-w',(ASSETS.pipes.width||54)+'px');
+  host.style.setProperty('--coin-w',(ASSETS.coin.w||32)+'px');
+  host.style.setProperty('--coin-h',(ASSETS.coin.h||32)+'px');
+  host.style.setProperty('--pow-w', (ASSETS.shield.w||34)+'px');
+  host.style.setProperty('--pow-h', (ASSETS.shield.h||34)+'px');
+  if (ASSETS.bird.img){ birdEl.classList.add('fl-bird--sprite'); birdEl.style.backgroundImage = `url(${ASSETS.bird.img})`; }
+  if (coinIco && ASSETS.coin.img)   coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
+  if (shieldI && ASSETS.shield.img) shieldI.style.backgroundImage = `url(${ASSETS.shield.img})`;
 
-    if (ASSETS.bird.img){
-      birdEl.classList.add('fl-bird--sprite');
-      birdEl.style.backgroundImage = `url(${ASSETS.bird.img})`;
-    }else{
-      birdEl.classList.remove('fl-bird--sprite');
-      birdEl.style.backgroundImage = '';
-    }
-    if (coinIco && ASSETS.coin.img) coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
-    if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
+  let raf=0, running=false, started=false;
+  let world={w:360,h:480,floorY:456};
+  let bird={x:100,y:200,w:ASSETS.bird.w,h:ASSETS.bird.h,vy:0,alive:true,shieldTill:0,shieldCdTill:0};
+  let pipes=[], coins=[], powers=[];
+  let spawn={nextPipeX:0,minDx:220,maxDx:320};
+  let score=0, coinsTaken=0, best=loadBest(), startedAt=0, timeLeft=SESSION_MS, lastAccelAt=0;
+
+  const ro = new (win.ResizeObserver||ResizeObserver)(layout); try{ ro.observe(stage);}catch(_){}
+  layout();
+
+  setText(scoreEl, score); setText(bestEl, best); setText(worldEl, WORLD_RECORD);
+  if (coinCnt) setText(coinCnt, 0); setTimeBar(1);
+  hide(resBox); show(hintEl); hide(cta);
+
+  function haptic(kind='light'){ try{ if(!HAPTICS||!TG||!TG.HapticFeedback) return;
+    if (kind==='error') TG.HapticFeedback.notificationOccurred('error');
+    else if (kind==='success') TG.HapticFeedback.notificationOccurred('success');
+    else TG.HapticFeedback.impactOccurred('light'); }catch(_){}
   }
 
-  // ==== настройки ИЗ ОРИГИНАЛА превью (важно оставить как есть)
-  const WORLD_RECORD   = Number(props.leaderboard_world_stub) || 200;
-  const GRAVITY        = 1800;
-  const FLAP_VELOCITY  = -520;
-  let   SPEED_X        = 220;
-  const ACCEL_EACH_MS  = 8000;
-  const SPEED_STEP     = 28;
-  const PIPE_SPAWN_MS  = 1300;
-
-  let GAP_MIN = 150, GAP_MAX = 190;
-  const diff = String(props.difficulty||'normal');
-  if (diff==='easy'){ SPEED_X*=0.8; GAP_MIN*=1.2; GAP_MAX*=1.2; }
-  if (diff==='hard'){ SPEED_X*=1.25; GAP_MIN*=0.85; GAP_MAX*=0.85; }
-
-  const GAP_TOP_PAD    = 80;
-  const BIRD_X_FACTOR  = .25;
-  const ROT_UP         = -35, ROT_DOWN = 90;
-  const SAFE_FLOOR_PAD = 6;
-
-  const COIN_IN_GAP_PROB = .9;
-  const SHIELD_PROB      = .18;
-  const SHIELD_COOLDOWN  = 9000;
-
-  const MAGNET_ENABLED   = true;
-  const MAGNET_RADIUS    = 140;
-  const MAGNET_PULL_PX_S = 300;
-
-  // ==== стейт как у тебя
-  let best=0; try{ best = Number(win.localStorage.getItem('flappy_best')||0)||0; }catch(_){}
-  let running=false, started=false;
-  let raf=0, spawnT=Infinity, t0=0;
-  let w=0,h=0, birdX=0, birdY=0, birdVY=0;
-  let pipes=[];   // {x, gapY, gap, topEl, botEl, passed:false}
-  let items=[];   // {type, x,y, el}
-  let lastShieldSpawn=0;
-  let score=0, coins=0;
-  let shieldActive=false, shieldUntil=0;
-
-  const haptic = lvl=>{ try{ TG?.HapticFeedback?.impactOccurred(lvl||'light'); }catch(_){ } };
-  const clamp  = (v,a,b)=> Math.max(a, Math.min(b, v));
-  const rand   = (a,b)=> a + Math.random()*(b-a);
-
-  function layout(){
-    w = stage.clientWidth || 360;
-    h = stage.clientHeight || 480;
-    birdX = w * BIRD_X_FACTOR;
-    if (!started){
-      birdY = h * 0.45;
-      applyBird();
-    }
+  function onPointer(e){
+    if (!started){ start(); return; }
+    if (cta.classList.contains('show') || resBox.classList.contains('show')) return;
+    e.preventDefault(); flap();
   }
-  function applyBird(){ birdEl.style.left = birdX + 'px'; birdEl.style.top = birdY + 'px'; }
-  function setScore(v){ if(scoreEl) scoreEl.textContent = String(v|0); }
-  function setCoins(v){ if(coinCnt) coinCnt.textContent = String(v|0); }
+  stage.addEventListener('pointerdown', onPointer, {passive:false});
+  hintEl && hintEl.addEventListener('pointerdown', onPointer, {passive:false});
 
-  function spawnPipe(){
-    const gap  = rand(GAP_MIN, GAP_MAX);
-    const minY = GAP_TOP_PAD + gap/2;
-    const maxY = h - GAP_TOP_PAD - gap/2;
-    const gapY = rand(minY, maxY);
+  function onKey(e){
+    if (cta.classList.contains('show') || resBox.classList.contains('show')) return;
+    if (e.code==='Space' || e.key==='ArrowUp'){ e.preventDefault(); flap(); }
+  }
+  doc.addEventListener('keydown', onKey);
 
-    const top = doc.createElement('div');
-    const bot = doc.createElement('div');
-    top.className = 'fl-pipe-part';
-    bot.className = 'fl-pipe-part';
-    if (ASSETS.pipes.top && ASSETS.pipes.bottom){
-      top.style.backgroundImage = `url(${ASSETS.pipes.top})`;
-      bot.style.backgroundImage = `url(${ASSETS.pipes.bottom})`;
-    }
-    stage.appendChild(top); stage.appendChild(bot);
+  function onCta(e){
+    const btn = e.target.closest('button.btn');
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    resetScene(); running = true; tick._prev = performance.now(); raf = win.requestAnimationFrame(tick);
+  }
+  cta.addEventListener('click', onCta, true);
 
-    const p = { x: w + (ASSETS.pipes.width||54), gapY, gap, topEl: top, botEl: bot, passed:false };
-    pipes.push(p); positionPipe(p);
+  function start(){
+    started = true; running = true; startedAt = performance.now(); lastAccelAt = startedAt;
+    hide(hintEl); hide(cta); hide(resBox);
+    score=0; coinsTaken=0; setText(scoreEl,score); if (coinCnt) setText(coinCnt,0);
+    SPEED_X = num(props.speed_x, 220); timeLeft = SESSION_MS;
+    resetActors(); tick._prev = performance.now(); raf = win.requestAnimationFrame(tick);
+  }
+  function resetScene(){ started = true; hide(resBox); hide(cta); show(stage); start(); }
+  function resetActors(){
+    pipes.forEach(p=>{p.elTop&&p.elTop.remove(); p.elBot&&p.elBot.remove();});
+    coins.forEach(c=>c.el&&c.el.remove()); powers.forEach(p=>p.el&&p.el.remove());
+    pipes.length=0; coins.length=0; powers.length=0;
+    bird={x:Math.max(60,world.w*0.25),y:world.h*0.5,w:ASSETS.bird.w,h:ASSETS.bird.h,vy:0,alive:true,shieldTill:0,shieldCdTill:0};
+    placeEl(birdEl,bird.x,bird.y,bird.w,bird.h); stage.classList.remove('over');
+    spawn.nextPipeX = world.w + randInt(140, 220);
+  }
+  function flap(){ if(!running||!bird.alive) return; bird.vy = -520; haptic('light'); }
 
-    // coin
-    if (Math.random() < COIN_IN_GAP_PROB){
-      const c = doc.createElement('div');
-      c.className = 'fl-coin';
-      if (ASSETS.coin.img) c.style.backgroundImage = `url(${ASSETS.coin.img})`;
-      stage.appendChild(c);
-      const it = { type:'coin', x: p.x + 200, y: gapY, el: c };
-      items.push(it); positionItem(it);
-    }
-    // shield (с учётом КД)
-    if (Date.now() - lastShieldSpawn > SHIELD_COOLDOWN && Math.random() < SHIELD_PROB){
-      const s = doc.createElement('div');
-      s.className = 'fl-power';
-      if (ASSETS.shield.img) s.style.backgroundImage = `url(${ASSETS.shield.img})`;
-      stage.appendChild(s);
-      const it = { type:'shield', x: p.x + 300, y: gapY - gap*0.35, el: s };
-      items.push(it); positionItem(it);
-      lastShieldSpawn = Date.now();
+  function tick(t){
+    const prev = tick._prev||t; tick._prev=t; let dt=(t-prev)/1000; if(dt>0.05) dt=0.05;
+    if (t-lastAccelAt>=ACCEL_EACH_MS){ SPEED_X+=SPEED_STEP; lastAccelAt=t; }
+    const elapsed = t-startedAt; timeLeft=Math.max(0,SESSION_MS-elapsed); setTimeBar(timeLeft/SESSION_MS);
+    bird.vy+=1800*dt; bird.y+=bird.vy*dt;
+
+    if (bird.y + bird.h*0.5 > world.floorY){ bird.y = world.floorY - bird.h*0.5; collide('ground'); }
+    if (bird.y - bird.h*0.5 < 0){ bird.y = bird.h*0.5; bird.vy = 0; }
+    placeEl(birdEl,bird.x,bird.y,bird.w,bird.h);
+
+    spawnPipes(); stepPipesCoinsPowers(dt);
+    if (timeLeft <= 0){ finish(); return; }
+    if (running) raf = win.requestAnimationFrame(tick);
+  }
+
+  function spawnPipes(){
+    if (pipes.length===0){ spawn.nextPipeX = world.w + randInt(140,220); }
+    const lastX = pipes.length ? pipes[pipes.length-1].x : 0;
+    if (pipes.length===0 || lastX < world.w){
+      if (spawn.nextPipeX <= world.w){
+        const gapH = randInt(GAP_MIN, GAP_MAX);
+        const gapY = randInt(int(gapH*0.6), int(world.h - SAFE_FLOOR_PAD - gapH*0.6));
+        const x = world.w + randInt(160,240);
+
+        const elTop = make('div','fl-pipe-part');
+        const elBot = make('div','fl-pipe-part');
+        elTop.style.backgroundImage = `url(${ASSETS.pipes.top})`;
+        elBot.style.backgroundImage = `url(${ASSETS.pipes.bottom})`;
+        stage.appendChild(elTop); stage.appendChild(elBot);
+
+        const p = {x, gapY, gapH, passed:false, elTop, elBot};
+        pipes.push(p); positionPipe(p);
+
+        if (Math.random() < COIN_IN_GAP_PROB){
+          const cy = gapY; const cx = x + ASSETS.pipes.width*0.5;
+          const el = make('div','fl-coin'); el.style.backgroundImage = `url(${ASSETS.coin.img})`;
+          stage.appendChild(el);
+          coins.push({x:cx, y:cy, w:ASSETS.coin.w, h:ASSETS.coin.h, el, value:COIN_VALUE});
+          placeEl(el,cx,cy,ASSETS.coin.w,ASSETS.coin.h);
+        }
+        if (performance.now() > bird.shieldCdTill && Math.random() < SHIELD_PROB){
+          const py = clamp(gapY + randInt(int(-gapH*0.35), int(gapH*0.35)), 30, world.floorY-30);
+          const px = x + randInt(40,120);
+          const el = make('div','fl-power'); el.style.backgroundImage = `url(${ASSETS.shield.img})`;
+          stage.appendChild(el);
+          powers.push({x:px, y:py, w:ASSETS.shield.w, h:ASSETS.shield.h, el});
+          placeEl(el,px,py,ASSETS.shield.w,ASSETS.shield.h);
+        }
+        spawn.nextPipeX = x + randInt(spawn.minDx, spawn.maxDx);
+      }
     }
   }
   function positionPipe(p){
-    const pipeW = (ASSETS.pipes.width||54);
-    const th = p.gapY - p.gap/2;
-    const bt = p.gapY + p.gap/2;
-    p.topEl.style.left   = p.x + 'px';
-    p.topEl.style.top    = '0px';
-    p.topEl.style.height = th + 'px';
-    p.topEl.style.width  = pipeW + 'px';
-    p.botEl.style.left   = p.x + 'px';
-    p.botEl.style.top    = bt + 'px';
-    p.botEl.style.height = (h - bt) + 'px';
-    p.botEl.style.width  = pipeW + 'px';
+    const w = ASSETS.pipes.width;
+    const topH = Math.max(0, p.gapY - p.gapH*0.5);
+    const botY = p.gapY + p.gapH*0.5;
+    const botH = Math.max(0, world.floorY - botY);
+    placeRect(p.elTop, p.x, topH*0.5, w, topH);
+    placeRect(p.elBot, p.x, botY + botH*0.5, w, botH);
   }
-  function positionItem(it){ it.el.style.left = it.x + 'px'; it.el.style.top = it.y + 'px'; }
-  function removePipe(p){ try{ p.topEl.remove(); p.botEl.remove(); }catch(_){ } }
-  function removeItem(it){ try{ it.el.remove(); }catch(_){ } }
-
-  function rectsOverlap(a,b){ return !(a.right<b.left||a.left>b.right||a.bottom<b.top||a.top>b.bottom); }
-  function collidePipe(){
-    const br = birdEl.getBoundingClientRect();
-    for (const p of pipes){
-      if (rectsOverlap(br, p.topEl.getBoundingClientRect()) || rectsOverlap(br, p.botEl.getBoundingClientRect())) return true;
+  function stepPipesCoinsPowers(dt){
+    const vx = -SPEED_X * dt;
+    for (let i=pipes.length-1;i>=0;i--){
+      const p = pipes[i];
+      p.x += vx; positionPipe(p);
+      if (!p.passed && p.x + ASSETS.pipes.width*0.5 < bird.x){ p.passed=true; score+=1; setText(scoreEl,score); haptic('success'); }
+      if (!hasShield() && intersectsPipe(bird,p)){ collide('pipe'); break; }
+      if (p.x + ASSETS.pipes.width < -10){ p.elTop.remove(); p.elBot.remove(); pipes.splice(i,1); }
     }
-    return false;
-  }
-  function activateShield(){
-    shieldActive = true;
-    shieldUntil  = Date.now() + (ASSETS.shield.dur_ms||6000);
-    birdEl.classList.add('fl-bird--shield');
-  }
-  function updateShieldHud(){
-    if (!shBar) return;
-    if (!shieldActive){ shBar.style.transform = 'scaleX(0)'; return; }
-    const left = shieldUntil - Date.now();
-    if (left <= 0){
-      shieldActive = false;
-      birdEl.classList.remove('fl-bird--shield');
-      shBar.style.transform = 'scaleX(0)';
-    } else {
-      const pct = clamp(left / (ASSETS.shield.dur_ms||6000), 0, 1);
-      shBar.style.transform = `scaleX(${pct})`;
-    }
-  }
-  function collideItems(){
-    const br = birdEl.getBoundingClientRect();
-    const dead=[];
-    for (let i=0;i<items.length;i++){
-      const it = items[i];
-      const ir = it.el.getBoundingClientRect();
-      if (rectsOverlap(br, ir)){
-        if (it.type==='coin'){
-          coins += 1; setCoins(coins); score += 1; setScore(score); haptic('medium');
-        } else if (it.type==='shield'){
-          activateShield(); haptic('medium');
-        }
-        removeItem(it); dead.push(i);
+    for (let i=coins.length-1;i>=0;i--){
+      const c = coins[i];
+      c.x += vx; placeEl(c.el,c.x,c.y,c.w,c.h);
+      if (intersects(bird,c)){
+        coinsTaken += c.value || COIN_VALUE; if (coinCnt) setText(coinCnt, coinsTaken);
+        c.el.remove(); coins.splice(i,1); haptic('light'); continue;
       }
+      if (c.x + c.w < -10){ c.el.remove(); coins.splice(i,1); }
     }
-    for (let i=dead.length-1;i>=0;i--) items.splice(dead[i],1);
-  }
-
-  function flap(){
-    if (!running) return;
-    if (!started){
-      started = true;
-      if (hintEl) hintEl.style.display = 'none';
-      birdVY = FLAP_VELOCITY;
-      t0 = performance.now();
-      spawnT = t0;
-      tick._prev = t0;
-    } else {
-      birdVY = FLAP_VELOCITY;
-    }
-    haptic('light');
-  }
-  function crash(){ haptic('heavy'); finish(); }
-
-  async function finish(){
-    running = false;
-    try{ win.cancelAnimationFrame(raf); }catch(_){}
-    if (score > best){
-      best = score;
-      try{ win.localStorage.setItem('flappy_best', String(best)); }catch(_){}
-    }
-    if (bestEl)  bestEl.textContent  = String(best|0);
-    if (worldEl) worldEl.textContent = String(WORLD_RECORD);
-    if (resBox)  resBox.classList.add('show');
-    if (cta)     cta.classList.add('show');
-
-    // сабмит оставляем, но в превью он просто тихо не отработает — это ок
-    try{
-      if (TG && (TG.initData || TG.initDataUnsafe)){
-        const init_data = TG.initData || '';
-        const u = TG.initDataUnsafe && TG.initDataUnsafe.user;
-        const publicId = String(ctx.public_id||'').trim();
-        if (publicId && init_data && u && u.id){
-          const payload = {
-            type:'game.submit',
-            init_data,
-            tg_user: { id:u.id, username:u.username||'', first_name:u.first_name||'', last_name:u.last_name||'' },
-            payload: { game_id:'flappy', mode:'daily', score:Number(score||0) }
-          };
-          fetch(`/api/public/app/${encodeURIComponent(publicId)}/event`, {
-            method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload)
-          }).catch(()=>{});
-        }
+    for (let i=powers.length-1;i>=0;i--){
+      const pw = powers[i];
+      pw.x += vx; placeEl(pw.el,pw.x,pw.y,pw.w,pw.h);
+      if (intersects(bird,pw)){
+        bird.shieldTill = performance.now() + SHIELD_DURATION;
+        bird.shieldCdTill = performance.now() + SHIELD_COOLDOWN;
+        birdEl.classList.add('fl-bird--shield'); updateShieldBar();
+        pw.el.remove(); powers.splice(i,1); haptic('success'); continue;
       }
-    }catch(_){}
+      if (pw.x + pw.w < -10){ pw.el.remove(); powers.splice(i,1); }
+    }
+    if (bird.shieldTill && performance.now() > bird.shieldTill){ bird.shieldTill=0; birdEl.classList.remove('fl-bird--shield'); updateShieldBar(); }
+    else updateShieldBar();
+  }
+  function hasShield(){ return bird.shieldTill && performance.now() < bird.shieldTill; }
+  function updateShieldBar(){
+    if (!shieldBar) return;
+    let v = 0;
+    if (hasShield()){ const left = bird.shieldTill - performance.now(); v = clamp(left/SHIELD_DURATION,0,1); }
+    shieldBar.style.transform = `scaleX(${v.toFixed(3)})`; shieldBar.style.transformOrigin = 'left center';
+  }
+  function collide(){ if(!running) return;
+    if (hasShield()){ bird.shieldTill=0; birdEl.classList.remove('fl-bird--shield'); updateShieldBar(); haptic('error'); return; }
+    bird.alive=false; finish();
+  }
+  function finish(){
+    if (!running) return; running=false; try{ win.cancelAnimationFrame(raf);}catch(_){}
+    stage.classList.add('over');
+    const finalScore = score + coinsTaken;
+    if (finalScore > best){ best=finalScore; saveBest(best); }
+    setText(bestEl,best); show(resBox); show(cta);
   }
 
-  function resetScene(){
-    pipes.forEach(removePipe); pipes = [];
-    items.forEach(removeItem); items = [];
-    coins=0; setCoins(0);
-
-    shieldActive=false; birdEl.classList.remove('fl-bird--shield'); if (shBar) shBar.style.transform = 'scaleX(0)';
-    started=false; score=0; setScore(0);
-    if (hintEl) hintEl.style.display = '';
-    birdVY = 0;
-    birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
-    if (barEl) barEl.style.transform = 'scaleX(1)';
-
-    layout();
-
-    spawnT = Infinity;
-    tick._prev = performance.now();
-    if (resBox) resBox.classList.remove('show');
-    if (cta)    cta.classList.remove('show');
+  function layout(){
+    const r = stage.getBoundingClientRect ? stage.getBoundingClientRect() : {width:360,height:480};
+    world.w = Math.max(300, Math.floor(r.width||360));
+    world.h = Math.max(360, Math.floor(r.height||480));
+    world.floorY = world.h - SAFE_FLOOR_PAD;
+    placeEl(birdEl,bird.x,bird.y,bird.w,bird.h);
+    pipes.forEach(positionPipe);
+    coins.forEach(c=>placeEl(c.el,c.x,c.y,c.w,c.h));
+    powers.forEach(p=>placeEl(p.el,p.x,p.y,p.w,p.h));
   }
 
-  function tick(){
-    const now = performance.now();
-    const dt  = Math.min(32, now - (tick._prev||now)); tick._prev = now;
+  function setText(el,v){ if(el) el.textContent=String(v); }
+  function show(el){ if(el) el.classList.add('show'); }
+  function hide(el){ if(el) el.classList.remove('show'); }
+  function setTimeBar(frac){ if(!timeBar) return; const v=clamp(frac,0,1); timeBar.style.transform=`scaleX(${v.toFixed(3)})`; timeBar.style.transformOrigin='left center'; }
+  function make(tag, cls){ const el = doc.createElement(tag); if(cls) el.className=cls; return el; }
+  function placeEl(el,cx,cy,w,h){ el.style.width=w+'px'; el.style.height=h+'px'; el.style.transform=`translate(${Math.round(cx-w*.5)}px, ${Math.round(cy-h*.5)}px)`; }
+  function placeRect(el,cx,cy,w,height){ el.style.width=w+'px'; el.style.height=height+'px'; el.style.transform=`translate(${Math.round(cx-w*.5)}px, ${Math.round(cy-height*.5)}px)`; }
+  function intersects(a,b){ const ax1=a.x-a.w*.5, ay1=a.y-a.h*.5, ax2=a.x+a.w*.5, ay2=a.y+a.h*.5; const bx1=b.x-b.w*.5, by1=b.y-b.h*.5, bx2=b.x+b.w*.5, by2=b.y+b.h*.5; return ax1<bx2 && ax2>bx1 && ay1<by2 && ay2>by1; }
+  function intersectsPipe(a,p){ const w=ASSETS.pipes.width; const topRect={x:p.x,y:p.gapY*.5,w,h:p.gapY}; const botH=Math.max(0, world.floorY - (p.gapY + p.gapH*.5)); const botRect={x:p.x, y:p.gapY + p.gapH*.5 + botH*.5, w, h:botH}; return intersects(a, topRect) || intersects(a, botRect); }
+  function randInt(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function num(v,d){ const n=Number(v); return isFinite(n)? n : d; }
 
-    if (!started){
-      birdY += Math.sin(now/300) * 0.12;
-      applyBird();
-      updateShieldHud();
-      raf = win.requestAnimationFrame(tick);
-      return;
-    }
+  function loadBest(){ try{ const v=localStorage.getItem('flappy_best'); const n=Number(v); return isFinite(n)? n:0; }catch(_){ return 0; } }
+  function saveBest(v){ try{ localStorage.setItem('flappy_best', String(v)); }catch(_){ } }
 
-    const elapsed = now - t0;
-    const prog = Math.min(1, elapsed / 45000);
-    if (barEl) barEl.style.transform = `scaleX(${1-prog})`;
-
-    const speed = SPEED_X + Math.floor(elapsed / ACCEL_EACH_MS) * SPEED_STEP;
-
-    birdVY += GRAVITY * (dt/1000);
-    birdY  += birdVY * (dt/1000);
-
-    const ang = clamp((birdVY/600)*45, ROT_UP, ROT_DOWN);
-    birdEl.style.transform = `translate(-50%,-50%) rotate(${ang}deg)`;
-
-    const topLimit = 6;
-    const botLimit = (h||480) - SAFE_FLOOR_PAD;
-    if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
-    if (birdY >= botLimit){
-      birdY = botLimit;
-      if (!shieldActive){ crash(); return; }
-      birdVY = -200;
-    }
-
-    const dx = speed * dt/1000;
-    for (const p of pipes){ p.x -= dx; positionPipe(p); }
-    for (const it of items){
-      it.x -= dx;
-      // магнит для монет при активном щите
-      if (MAGNET_ENABLED && shieldActive && it.type === 'coin'){
-        const vx=birdX-it.x, vy=birdY-it.y, dist=Math.hypot(vx,vy);
-        if (dist < MAGNET_RADIUS){
-          const pull = MAGNET_PULL_PX_S * (dt/1000);
-          const step = Math.min(pull, dist||0);
-          const nx = vx/(dist||1), ny = vy/(dist||1);
-          it.x += nx*step; it.y += ny*step;
-          it.el.style.transform = 'translate(-50%,-50%) scale(1.08)';
-        } else it.el.style.transform = 'translate(-50%,-50%)';
-      } else it.el.style.transform = 'translate(-50%,-50%)';
-
-      positionItem(it);
-    }
-
-    // очки за пролет трубы
-    for (const p of pipes){
-      if (!p.passed && p.x + (ASSETS.pipes.width||54) < birdX){
-        p.passed = true; score += 1; setScore(score); haptic('light');
-      }
-    }
-
-    // GC
-    while (pipes.length && pipes[0].x < -(ASSETS.pipes.width||54)-2){ removePipe(pipes[0]); pipes.shift(); }
-    while (items.length && items[0].x < -80){ removeItem(items[0]); items.shift(); }
-
-    collideItems();
-    if (collidePipe()){
-      if (shieldActive){
-        shieldActive = false; birdEl.classList.remove('fl-bird--shield');
-        if (shBar) shBar.style.transform = 'scaleX(0)';
-        birdVY = -260;
-      } else { crash(); return; }
-    }
-
-    if (now - spawnT > PIPE_SPAWN_MS){ spawnT = now; spawnPipe(); }
-
-    applyBird();
-    updateShieldHud();
-
-    raf = win.requestAnimationFrame(tick);
-  }
-
-  // ==== инпуты (как у тебя)
-  const onPointer = (e)=>{
-    if (
-      e.target.closest('#fl-cta') ||
-      e.target.closest('#fl-result') ||
-      e.target.closest('button,a,input,textarea,select')
-    ) return;
-    if (cta?.classList.contains('show') || resBox?.classList.contains('show')) return;
-    e.preventDefault(); flap();
-  };
-  stage.addEventListener('pointerdown', onPointer, { passive:false });
-
-  const onKey = (e)=>{
-    if (e.code==='Space' || e.key==='ArrowUp'){ e.preventDefault(); flap(); }
-    if (e.key==='Escape'){ /* мягко закрыть/ничего не делать в превью */ }
-  };
-  doc.addEventListener('keydown', onKey);
-
-  const onCta = (e)=>{
-    const btn = e.target.closest('.btn');
-    if (!btn) return;
-    e.preventDefault(); e.stopPropagation();
-    // рестарт ТОЛЬКО по кнопке
-    if (resBox) resBox.classList.remove('show');
-    if (cta)    cta.classList.remove('show');
-    resetScene();
-    running = true;
-    const t = performance.now();
-    tick._prev = t;
-    try{ win.cancelAnimationFrame(raf); }catch(_){}
-    raf = win.requestAnimationFrame(tick);
-  };
-  cta && cta.addEventListener('pointerdown', onCta, { capture:true, passive:false });
-  cta && cta.addEventListener('click', onCta, true);
-
-  // старт
-  applyAssets();
-  layout();
-  resetScene();
-  running = true;
-  raf = win.requestAnimationFrame(tick);
-
-  // resize
-  const ro = new (win.ResizeObserver||ResizeObserver)(()=>layout());
-  try{ ro.observe(stage); }catch(_){}
-
-  // cleanup
   function cleanup(){
-    try{ running=false; win.cancelAnimationFrame(raf); }catch(_){}
-    try{ stage.removeEventListener('pointerdown', onPointer); }catch(_){}
-    try{ doc.removeEventListener('keydown', onKey); }catch(_){}
-    try{ cta && cta.removeEventListener('pointerdown', onCta, true); }catch(_){}
-    try{ cta && cta.removeEventListener('click', onCta, true); }catch(_){}
+    try{ running=false; win.cancelAnimationFrame(raf);}catch(_){}
+    try{ stage.removeEventListener('pointerdown', onPointer);}catch(_){}
+    try{ doc.removeEventListener('keydown', onKey);}catch(_){}
+    try{ cta.removeEventListener('click', onCta, true);}catch(_){}
     try{ ro.disconnect(); }catch(_){}
-    try{
-      pipes.forEach(removePipe); items.forEach(removeItem);
-    }catch(_){}
+    try{ pipes.forEach(p=>{p.elTop&&p.elTop.remove(); p.elBot&&p.elBot.remove();}); coins.forEach(c=>c.el&&c.el.remove()); powers.forEach(p=>p.el&&p.el.remove()); }catch(_){}
   }
   return cleanup;
 }
