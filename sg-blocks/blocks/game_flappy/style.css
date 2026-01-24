@@ -182,22 +182,22 @@
 .blk-game-flappy .card.list-card.games{ margin-top: var(--gap-block); }
 
 
-/* ——— HUD: фиксированная строка для прогресс-бара ——— */
+/* ---- HUD: строка 1 — счет + статы; строка 2 — прогресс ---- */
 .blk-game-flappy .fl-hud{
   position: relative;
   z-index: 30;
   display: grid;
   grid-template-columns: 1fr auto; /* слева счет, справа статы */
-  grid-template-rows: 10px auto;   /* 1-я строка фикс 10px под прогресс */
+  grid-template-rows: auto 10px;   /* ВНИЗУ фикс 10px под прогресс */
   grid-template-areas:
-    "bar   bar"
-    "score stats";
+    "score stats"
+    "bar   bar";
   align-items: center;
-  gap: 8px 10px;
+  gap: 6px 10px;
   padding: 0 var(--hud-pad);
 }
 
-/* прогресс всегда виден и занимает ровно 10px */
+/* прогресс всегда второй строкой и виден */
 .blk-game-flappy .fl-bar{
   grid-area: bar;
   height: 10px;
@@ -205,6 +205,7 @@
   background: var(--bar-bg);
   border-radius: 999px;
   overflow: hidden;
+  margin-top: 2px;
 }
 .blk-game-flappy .fl-bar > i{
   display:block;
@@ -215,25 +216,36 @@
   transform: scaleX(1);
 }
 
-/* счет — в одну строку, не давит прогресс */
+/* счет левее, меньше шрифт, без переноса */
 .blk-game-flappy .fl-score{
   grid-area: score;
   font-weight: 800;
+  font-size: 15px;          /* было крупнее — уменьшили */
   letter-spacing: .2px;
-  white-space: nowrap;    /* не переносить */
-  align-self: center;
-  margin-top: 2px;        /* небольшой отступ от бара */
+  white-space: nowrap;
+  justify-self: start;
+  margin-left: 6px;         /* отступ от левого края */
 }
 
-/* монеты/щит справа, на одной линии */
+/* монеты/щит справа на одной линии */
 .blk-game-flappy .fl-stats{
   grid-area: stats;
   display: flex;
   gap: 10px;
   align-items: center;
   justify-self: end;
-  margin-top: 2px;        /* такой же отступ, как у счёта */
 }
 
+/* если нет статов (и монеты, и щит выключены) — центрируем счет */
+.blk-game-flappy .fl-hud.no-stats{
+  grid-template-columns: 1fr;     /* одна колонка */
+  grid-template-areas:
+    "score"
+    "bar";
 }
+.blk-game-flappy .fl-hud.no-stats .fl-score{
+  justify-self: center;
+  margin-left: 0;
+}
+
 
