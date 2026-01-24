@@ -1,11 +1,11 @@
 // sg-blocks/blocks/game_flappy/runtime.js
-// Чистый модуль: экспортирует mount(root, props, ctx) и возвращает cleanup()
+// Чистый модуль: export mount(root, props, ctx) -> cleanup()
 
 export async function mount(root, props = {}, ctx = {}) {
-  // ---------- контекст ----------
   const doc = root.ownerDocument;
   const win = doc.defaultView;
 
+  // Telegram контекст (для хаптик/сабмита в проде)
   const TG =
     ctx.tg ||
     (win.Telegram && win.Telegram.WebApp) ||
@@ -14,7 +14,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
   const publicId = String(ctx.public_id || '').trim();
 
-  // base_url: сначала берём из ctx, иначе вычисляем от пути модуля
+  // base_url блока для ассетов
   const BASE = (() => {
     if (ctx.base_url) return String(ctx.base_url).replace(/\/?$/, '/');
     try { return String(new URL('./', import.meta.url).href); } catch (_) { return ''; }
@@ -30,7 +30,7 @@ export async function mount(root, props = {}, ctx = {}) {
     } catch (_) {}
   };
 
-  // ---------- DOM якоря (под твой view.html) ----------
+  // -------- DOM якоря (под твой view.html) --------
   const host   = root.querySelector('[data-game-host]') || root;
   const stage  = host.querySelector('#fl-stage');
   const birdEl = host.querySelector('#fl-bird');
@@ -47,15 +47,12 @@ export async function mount(root, props = {}, ctx = {}) {
   const coinCountEl = host.querySelector('#fl-coin-count');
   const shieldBar   = host.querySelector('#fl-shield-bar');
 
-  // sanity: если чего-то критичного нет — выходим тихо, чтобы Студия не падала
   if (!stage || !birdEl || !scoreEl || !bestEl || !worldEl || !timeBar) {
-    console.warn('[game_flappy] Missing required anchors', {
-      stage: !!stage, birdEl: !!birdEl, scoreEl: !!scoreEl, bestEl: !!bestEl, worldEl: !!worldEl, timeBar: !!timeBar
-    });
+    console.warn('[game_flappy] Missing anchors');
     return () => {};
   }
 
-  // ---------- конфиг ----------
+  // -------- конфиг --------
   const WORLD_RECORD     = num(props.leaderboard_world_stub, 200);
   const GRAVITY          = 1800;
   const FLAP_VELOCITY    = -520;
@@ -80,7 +77,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const GAME_ID          = String(props.game_id || 'flappy');
   const SUBMIT_MODE      = String(props.submit_mode || 'daily');
 
-  // ---------- ассеты ----------
+  // -------- ассеты --------
   const ASSETS = {
     bird: {
       img: props.bird_mode === 'custom' && props.bird_img ? props.bird_img : (BASE + 'assets/bird_default.png'),
@@ -94,9 +91,9 @@ export async function mount(root, props = {}, ctx = {}) {
     coin:   { img: BASE + 'assets/coin.png',   w: 32, h: 32, value: COIN_VALUE },
     shield: { img: BASE + 'assets/shield.png', w: 34, h: 34, dur_ms: SHIELD_DURATION }
   };
-  applyAssets();
+  applyAssets(); // выставляем CSS-переменные на host и иконки
 
-  // ---------- состояние ----------
+  // -------- состояние --------
   let raf = 0;
   let running = false;
   let started = false;
@@ -117,12 +114,12 @@ export async function mount(root, props = {}, ctx = {}) {
   let timeLeft = SESSION_MS;
   let lastAccelAt = 0;
 
-  // ---------- layout ----------
+  // -------- layout --------
   const ro = new (win.ResizeObserver || ResizeObserver)(layout);
   try { ro.observe(stage); } catch (_) {}
   layout();
 
-  // начальный UI
+  // initial UI
   setText(scoreEl, score);
   setText(bestEl, best);
   setText(worldEl, WORLD_RECORD);
@@ -130,15 +127,13 @@ export async function mount(root, props = {}, ctx = {}) {
   setTimeBar(1);
   hide(resBox); show(hintEl); hide(cta);
 
-  // ---------- события ----------
+  // -------- listeners --------
   function onPointer(e){
     if (!started) { start(); return; }
     if (cta.classList.contains('show') || resBox.classList.contains('show')) return;
     e.preventDefault(); flap();
   }
-  // основной слушатель — на сцене
   stage.addEventListener('pointerdown', onPointer, { passive:false });
-  // дублируем по хинту и хосту, чтобы первый старт точно сработал
   hintEl && hintEl.addEventListener('pointerdown', onPointer, { passive:false });
   const hostFirstStart = (e)=>{ if (!started) onPointer(e); };
   host.addEventListener('pointerdown', hostFirstStart, { passive:false, capture:true });
@@ -163,7 +158,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
   if (AUTOSTART) start();
 
-  // ---------- API игры ----------
+  // -------- game API --------
   function start(){
     started = true;
     running = true;
@@ -187,7 +182,6 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   function resetActors(){
-    // очистка DOM
     pipes.forEach(p => { p.elTop && p.elTop.remove(); p.elBot && p.elBot.remove(); });
     coins.forEach(c => c.el && c.el.remove());
     powers.forEach(p => p.el && p.el.remove());
@@ -197,7 +191,6 @@ export async function mount(root, props = {}, ctx = {}) {
     placeEl(birdEl, bird.x, bird.y, bird.w, bird.h);
     stage.classList.remove('over');
 
-    // первая пара появится гарантированно
     spawn.nextPipeX = world.w + randInt(140, 220);
   }
 
@@ -252,7 +245,6 @@ export async function mount(root, props = {}, ctx = {}) {
     pipes.push(p);
     positionPipe(p);
 
-    // монета
     if (Math.random() < COIN_IN_GAP_PROB){
       const cy = gapY;
       const cx = x + ASSETS.pipes.width * 0.5;
@@ -263,7 +255,6 @@ export async function mount(root, props = {}, ctx = {}) {
       placeEl(el, cx, cy, ASSETS.coin.w, ASSETS.coin.h);
     }
 
-    // щит (если КД прошёл)
     if (performance.now() > bird.shieldCdTill && Math.random() < SHIELD_PROB){
       const py = clamp(gapY + randInt(-gapH*0.35, gapH*0.35), 30, world.floorY - 30);
       const px = x + randInt(40, 120);
@@ -289,7 +280,6 @@ export async function mount(root, props = {}, ctx = {}) {
   function stepPipesCoinsPowers(dt){
     const vx = -SPEED_X * dt;
 
-    // трубы
     for (let i=pipes.length-1; i>=0; i--){
       const p = pipes[i];
       p.x += vx; positionPipe(p);
@@ -302,7 +292,6 @@ export async function mount(root, props = {}, ctx = {}) {
       if (p.x + ASSETS.pipes.width < -10){ p.elTop.remove(); p.elBot.remove(); pipes.splice(i,1); }
     }
 
-    // монеты
     for (let i=coins.length-1; i>=0; i--){
       const c = coins[i];
       c.x += vx; placeEl(c.el, c.x, c.y, c.w, c.h);
@@ -314,7 +303,6 @@ export async function mount(root, props = {}, ctx = {}) {
       if (c.x + c.w < -10){ c.el.remove(); coins.splice(i,1); }
     }
 
-    // щиты
     for (let i=powers.length-1; i>=0; i--){
       const pw = powers[i];
       pw.x += vx; placeEl(pw.el, pw.x, pw.y, pw.w, pw.h);
@@ -328,7 +316,6 @@ export async function mount(root, props = {}, ctx = {}) {
       if (pw.x + pw.w < -10){ pw.el.remove(); powers.splice(i,1); }
     }
 
-    // истечение щита
     if (bird.shieldTill && performance.now() > bird.shieldTill){
       bird.shieldTill = 0;
       birdEl.classList.remove('fl-bird--shield');
@@ -377,7 +364,6 @@ export async function mount(root, props = {}, ctx = {}) {
     submitScore(finalScore).catch(()=>{});
   }
 
-  // ---------- сеть (превью: no-op) ----------
   async function submitScore(finalScore){
     if (!TG || !publicId) return;
     const init_data = TG.initData || '';
@@ -394,7 +380,7 @@ export async function mount(root, props = {}, ctx = {}) {
     await fetch(url, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) }).catch(()=>{});
   }
 
-  // ---------- layout/utils ----------
+  // -------- utils --------
   function layout(){
     const r = stage.getBoundingClientRect ? stage.getBoundingClientRect() : { width: 360, height: 480 };
     const w = Math.max(300, Math.floor(r.width || 360));
@@ -415,7 +401,13 @@ export async function mount(root, props = {}, ctx = {}) {
     timeBar.style.transform = `scaleX(${v.toFixed(3)})`;
     timeBar.style.transformOrigin = 'left center';
   }
-  function make(tag, cls){ const el = doc.createElement(tag); if (cls) el.className = cls; return el; }
+  function make(tag, cls){
+    const el = doc.createElement(tag);
+    if (cls) el.className = cls;
+    el.style.position = 'absolute';
+    el.style.willChange = 'transform';
+    return el;
+  }
   function placeEl(el, cx, cy, w, h){
     el.style.width  = w + 'px';
     el.style.height = h + 'px';
@@ -444,29 +436,35 @@ export async function mount(root, props = {}, ctx = {}) {
   function num(v,d){ const n=Number(v); return isFinite(n)? n : d; }
 
   function applyAssets(){
-    doc.documentElement.style.setProperty('--bird-w', (ASSETS.bird.w || 48) + 'px');
-    doc.documentElement.style.setProperty('--bird-h', (ASSETS.bird.h || 36) + 'px');
+    // переменные в СКОУПЕ БЛОКА, т.к. style.css их читает из .blk-game-flappy
+    const scope = host;
+    scope.style.setProperty('--bird-w', (ASSETS.bird.w || 48) + 'px');
+    scope.style.setProperty('--bird-h', (ASSETS.bird.h || 36) + 'px');
+    scope.style.setProperty('--pipe-w', (ASSETS.pipes.width || 54) + 'px');
+    scope.style.setProperty('--coin-w', (ASSETS.coin.w || 32) + 'px');
+    scope.style.setProperty('--coin-h', (ASSETS.coin.h || 32) + 'px');
+    scope.style.setProperty('--pow-w',  (ASSETS.shield.w || 34) + 'px');
+    scope.style.setProperty('--pow-h',  (ASSETS.shield.h || 34) + 'px');
+
     if (ASSETS.bird.img){
       birdEl.classList.add('fl-bird--sprite');
       birdEl.style.backgroundImage = `url(${ASSETS.bird.img})`;
+      birdEl.style.backgroundRepeat = 'no-repeat';
+      birdEl.style.backgroundSize = 'contain';
+      birdEl.style.backgroundPosition = 'center';
     }
-    doc.documentElement.style.setProperty('--pipe-w', (ASSETS.pipes.width || 54) + 'px');
 
+    // HUD иконки
     const coinIco = host.querySelector('#fl-coin-ico');
     const shIco   = host.querySelector('#fl-shield-ico');
     if (coinIco && ASSETS.coin.img)   coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
     if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
-
-    doc.documentElement.style.setProperty('--coin-w', (ASSETS.coin.w || 32) + 'px');
-    doc.documentElement.style.setProperty('--coin-h', (ASSETS.coin.h || 32) + 'px');
-    doc.documentElement.style.setProperty('--pow-w',  (ASSETS.shield.w || 34) + 'px');
-    doc.documentElement.style.setProperty('--pow-h',  (ASSETS.shield.h || 34) + 'px');
   }
 
   function loadBest(){ try{ const v = localStorage.getItem('flappy_best'); const n=Number(v); return isFinite(n)? n : 0; }catch(_){ return 0; } }
   function saveBest(v){ try{ localStorage.setItem('flappy_best', String(v)); }catch(_){ } }
 
-  // ---------- cleanup ----------
+  // -------- cleanup --------
   function cleanup(){
     try { running=false; win.cancelAnimationFrame(raf); } catch(_) {}
     try { stage.removeEventListener('pointerdown', onPointer); } catch(_) {}
