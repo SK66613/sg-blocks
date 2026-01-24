@@ -1,6 +1,6 @@
-// 5sg-blocks/blocks/game_flappy/runtime.js
+// 6sg-blocks/blocks/game_flappy/runtime.js
 // Порт твоей оригинальной превью-игры под формат блока + кастомные ассеты и лимиты.
-// Лимиты действуют и в конструкторе (пер-устройство через localStorage).
+// API: export async function mount(root, props = {}, ctx = {}) -> cleanup()
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -45,17 +45,17 @@ export async function mount(root, props = {}, ctx = {}) {
 
   if (!stage || !birdEl) return ()=>{};
 
-  // ===== HUD toggles
+  // ===== HUD toggles (по props)
   const SHOW_COINS  = props.show_coin_bar   !== false;
   const SHOW_SHIELD = props.show_shield_bar !== false;
   try{
-    const coinWrap = coinIco?.parentElement;
+    const coinWrap = coinIco?.parentElement; // .fl-stat
     if (coinWrap) coinWrap.style.display = SHOW_COINS ? '' : 'none';
     const shieldWrap = shIco?.closest('.fl-shield-wrap') || shBar?.parentElement;
     if (shieldWrap) shieldWrap.style.display = SHOW_SHIELD ? '' : 'none';
   }catch(_){}
 
-  // ===== ассеты (custom/default)
+  // ===== ассеты (поддержка custom/default)
   const bird_mode   = String(props.bird_mode   || 'default');
   const shield_mode = String(props.shield_mode || 'default');
   const coin_mode   = String(props.coin_mode   || 'default');
@@ -85,6 +85,7 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   };
 
+  // прелоад труб — если не загрузятся, используем fallback-градиент
   let pipeSpritesOK = true;
   await Promise.allSettled(
     ['top','bottom'].map(k => new Promise((res) => {
@@ -95,7 +96,7 @@ export async function mount(root, props = {}, ctx = {}) {
     }))
   );
 
-  // ===== применяем ассеты
+  // ===== применяем ассеты в scope host (CSS vars)
   (function applyAssets(){
     const scope = host;
     scope.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
@@ -133,23 +134,22 @@ export async function mount(root, props = {}, ctx = {}) {
   let GAP_MAX          = num(props.gap_max, 220);
 
   const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
-  const SESSION_MS     = num(props.session_ms, 45000); // настраиваемая длина раунда
+  const SESSION_MS     = num(props.session_ms, 45000);
 
   const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
   const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
   const SH_CD          = num(props.shield_cooldown_ms, 9000);
 
+  // сложность
   const diff = String(props.difficulty||'normal');
   if (diff === 'easy'){  SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
   if (diff === 'hard'){  SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
 
-  // ===== daily limits (пер-устройство; суффикс по public_id, если есть)
-  const LIMIT_ATTEMPTS = num(props.limit_attempts_per_day, 0); // 0 => без лимита
-  const LIMIT_COINS    = num(props.limit_coins_per_day,   0); // 0 => без лимита
+  // ===== daily limits (localStorage, per-device)
+  const LIMIT_ATTEMPTS = Number(props.limit_attempts_per_day || 0) || 0;   // 0 => no limit
+  const LIMIT_COINS    = Number(props.limit_coins_per_day   || 0) || 0;   // 0 => no limit
 
-  const appSuffix = (ctx && ctx.public_id) ? ':' + String(ctx.public_id) : '';
-  const LS_KEY = 'flappy_daily' + appSuffix;
-
+  const LS_KEY = 'flappy_daily';
   function dayKey(){
     try{
       const d = new Date();
@@ -220,7 +220,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
   const haptic = (kind='light')=>{
     try{
-      if (props.haptics === false) return;
+      if (!props.haptics) return;
       if (!TG || !TG.HapticFeedback) return;
       if (kind==='error')   TG.HapticFeedback.notificationOccurred('error');
       else if (kind==='success') TG.HapticFeedback.notificationOccurred('success');
@@ -357,21 +357,19 @@ export async function mount(root, props = {}, ctx = {}) {
           const want = ASSETS.coin.value || 1;
           const taken = addCoinsToday(want);
           if (taken > 0){
-            if (SHOW_COINS){ coins += taken; setCoins(coins); }
-            // «поинт» за набор препятствия
-            score += 1; setScore(score); haptic('light');
+            if (SHOW_COINS){
+              coins += taken; setCoins(coins);
+            }
+            // очко за пролёт монетной связки — как раньше
+            score += 1; setScore(score);
+            haptic('light');
           } else {
-            // лимит монет достигнут — мгновенно завершаем раунд
             showLimitMsg('coins');
-            removeItem(it);
-            dead.push(i);
-            finish();
-            break;
           }
         } else if (it.type==='shield'){
           activateShield(); haptic('success');
         }
-        if (!dead.includes(i)){ removeItem(it); dead.push(i); }
+        removeItem(it); dead.push(i);
       }
     }
     for (let i=dead.length-1;i>=0;i--) items.splice(dead[i],1);
@@ -381,13 +379,13 @@ export async function mount(root, props = {}, ctx = {}) {
   function flap(){
     if (!running) return;
 
-    // первый тап = проверка лимита попыток
+    // первый тап = попытка
     if (!started){
-      if (LIMIT_ATTEMPTS && !canStartAttempt()){
+      if (!canStartAttempt()){
         showLimitMsg('attempts');
-        return; // не стартуем
+        return;
       }
-      registerAttempt(); // считаем попытку
+      registerAttempt();
 
       started = true;
       if (hintEl) hintEl.style.display = 'none';
@@ -414,7 +412,7 @@ export async function mount(root, props = {}, ctx = {}) {
     if (resBox)  resBox.classList.add('show');
     if (cta)     cta.classList.add('show');
 
-    // сабмит (в конструкторе тихо не отработает — ок)
+    // Сабмит в проде (в превью тихо игнорится)
     try{
       const publicId = String(ctx.public_id||'').trim();
       if (TG && publicId && (TG.initData || TG.initDataUnsafe)){
@@ -458,13 +456,6 @@ export async function mount(root, props = {}, ctx = {}) {
   function tick(){
     const now = performance.now();
     const dt  = Math.min(34, now - (tick._prev||now)); tick._prev = now;
-
-    // если лимит монет уже исчерпан до старта — не даём «холостую» игру
-    if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
-      if (hintEl) hintEl.textContent = 'Лимит монет на сегодня';
-      raf = win.requestAnimationFrame(tick); // просто «дышим», но не стартуем
-      return;
-    }
 
     if (!started){
       // лёгкая «левитация» перед стартом
@@ -529,16 +520,7 @@ export async function mount(root, props = {}, ctx = {}) {
     applyBird();
     updateShieldHud();
 
-    // конец по таймеру раунда
     if (elapsed >= SESSION_MS){ finish(); return; }
-
-    // если в процессе раунда монет больше нельзя — сразу финиш
-    if (LIMIT_COINS && coinsLeftToday() <= 0){
-      showLimitMsg('coins');
-      finish();
-      return;
-    }
-
     raf = win.requestAnimationFrame(tick);
   }
 
@@ -563,6 +545,7 @@ export async function mount(root, props = {}, ctx = {}) {
     const btn = e.target.closest('.btn');
     if (!btn) return;
     e.preventDefault(); e.stopPropagation();
+    // рестарт → снова «Тапни чтобы начать»
     resetScene();
     running = true;
     try{ win.cancelAnimationFrame(raf); }catch(_){}
