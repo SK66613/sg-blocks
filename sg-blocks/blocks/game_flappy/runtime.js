@@ -1,5 +1,5 @@
-// sg-blocks/blocks/game_flappy/runtime.js
-// Порт твоей оригинальной превью-версии под формат блока.
+// XXXsg-blocks/blocks/game_flappy/runtime.js
+// Порт твоей версии с расширением: кастомные ассеты для щита, монет и труб.
 // export async function mount(root, props, ctx) -> cleanup()
 
 export async function mount(root, props = {}, ctx = {}) {
@@ -11,6 +11,12 @@ export async function mount(root, props = {}, ctx = {}) {
     (win.Telegram && win.Telegram.WebApp) ||
     (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
     null;
+
+  // ==== helpers
+  const num  = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
+  const clamp01 = (v)=> { const n=Number(v); return Number.isFinite(n)? Math.max(0, Math.min(1,n)) : 0; };
+  const rand = (a,b)=> a + Math.random()*(b-a);
 
   // ==== BASE ассетов
   const BASE = String(
@@ -37,14 +43,36 @@ export async function mount(root, props = {}, ctx = {}) {
   const worldEl = host.querySelector('#fl-world');
   const cta     = host.querySelector('#fl-cta');
 
-  if (!stage || !birdEl) return () => {};
+  if (!stage || !birdEl) return ()=>{};
 
-  // ==== ассеты (с фолбэком)
+  // ==== ассеты (поддержка custom/default)
+  const bird_mode = String(props.bird_mode || 'default');
+  const shield_mode = String(props.shield_mode || 'default');
+  const coin_mode = String(props.coin_mode || 'default');
+  const pipes_mode = String(props.pipes_mode || 'default');
+
   const ASSETS = {
-    bird:   { img: (props.bird_mode === 'custom' && props.bird_img) ? props.bird_img : (BASE + 'assets/bumblebee.png'),  w:56, h:42 },
-    pipes:  { top: BASE + 'assets/pipe_top.png', bottom: BASE + 'assets/pipe_bottom.png', width:54 },
-    coin:   { img: BASE + 'assets/coin.png',   w:32, h:32, value: Number(props.coin_value ?? 5) },
-    shield: { img: BASE + 'assets/shield.png', w:34, h:34, dur_ms: Number(props.shield_duration_ms ?? 6000) }
+    bird: {
+      img: (bird_mode === 'custom' && props.bird_img) ? props.bird_img : (BASE + 'assets/bumblebee.png'),
+      w: 56, h: 42
+    },
+    shield: {
+      img: (shield_mode === 'custom' && props.shield_img) ? props.shield_img : (BASE + 'assets/shield.png'),
+      w: num(props.shield_w, 34),
+      h: num(props.shield_h, 34),
+      dur_ms: num(props.shield_duration_ms, 6000)
+    },
+    coin: {
+      img: (coin_mode === 'custom' && props.coin_img) ? props.coin_img : (BASE + 'assets/coin.png'),
+      w: num(props.coin_w, 32),
+      h: num(props.coin_h, 32),
+      value: num(props.coin_value, 5)
+    },
+    pipes: {
+      top: (pipes_mode === 'custom' && props.pipes_top_img) ? props.pipes_top_img : (BASE + 'assets/pipe_top.png'),
+      bottom: (pipes_mode === 'custom' && props.pipes_bottom_img) ? props.pipes_bottom_img : (BASE + 'assets/pipe_bottom.png'),
+      width: num(props.pipe_width, 54)
+    }
   };
 
   // прелоад труб — если не загрузятся, используем цветной fallback
@@ -58,14 +86,17 @@ export async function mount(root, props = {}, ctx = {}) {
     }))
   );
 
-  // ==== применяем ассеты в scope host
+  // ==== применяем ассеты в scope host (CSS vars)
   (function applyAssets(){
     const scope = host;
     scope.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
     scope.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
-    scope.style.setProperty('--pipe-w',(ASSETS.pipes.width||54)+'px');
-    scope.style.setProperty('--coin-w',(ASSETS.coin.w||32)+'px');
-    scope.style.setProperty('--coin-h',(ASSETS.coin.h||32)+'px');
+
+    scope.style.setProperty('--pipe-w', (ASSETS.pipes.width||54)+'px');
+
+    scope.style.setProperty('--coin-w', (ASSETS.coin.w||32)+'px');
+    scope.style.setProperty('--coin-h', (ASSETS.coin.h||32)+'px');
+
     scope.style.setProperty('--pow-w', (ASSETS.shield.w||34)+'px');
     scope.style.setProperty('--pow-h', (ASSETS.shield.h||34)+'px');
 
@@ -80,29 +111,29 @@ export async function mount(root, props = {}, ctx = {}) {
     if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage   = `url(${ASSETS.shield.img})`;
   })();
 
-  // ==== константы как в оригинале
-  const WORLD_RECORD   = Number(props.leaderboard_world_stub) || 200;
+  // ==== константы
+  const WORLD_RECORD   = num(props.leaderboard_world_stub, 200);
   const GRAVITY        = 1800;
   const FLAP_VELOCITY  = -520;
-  let   SPEED_X        = Number(props.speed_x ?? 220);
-  const ACCEL_EACH_MS  = Number(props.accel_each_ms ?? 8000);
-  const SPEED_STEP     = Number(props.speed_step ?? 18);
-  const PIPE_SPAWN_MS  = 1300;
 
-  let GAP_MIN = Number(props.gap_min ?? 140);
-  let GAP_MAX = Number(props.gap_max ?? 220);
+  let   SPEED_X        = num(props.speed_x, 220);
+  const ACCEL_EACH_MS  = num(props.accel_each_ms, 8000);
+  const SPEED_STEP     = num(props.speed_step, 18);
+
+  let GAP_MIN          = num(props.gap_min, 140);
+  let GAP_MAX          = num(props.gap_max, 220);
+
+  const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
+  const SESSION_MS     = num(props.session_ms, 45000);
+
+  const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
+  const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
+  const SH_CD          = num(props.shield_cooldown_ms, 9000);
 
   // сложность
   const diff = String(props.difficulty||'normal');
   if (diff === 'easy'){  SPEED_X*=0.9;  GAP_MIN*=1.1; GAP_MAX*=1.1; }
   if (diff === 'hard'){  SPEED_X*=1.2;  GAP_MIN*=0.9; GAP_MAX*=0.9; }
-
-  const SAFE_FLOOR_PAD = Number(props.safe_floor_pad ?? 24);
-  const SESSION_MS     = Number(props.session_ms ?? 45000);
-
-  const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
-  const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
-  const SH_CD          = Number(props.shield_cooldown_ms ?? 9000);
 
   // ==== state
   let best=0; try{ best = Number(win.localStorage.getItem('flappy_best')||0)||0; }catch(_){}
@@ -128,17 +159,11 @@ export async function mount(root, props = {}, ctx = {}) {
     }catch(_){}
   };
 
-  // ==== helpers
-  function clamp01(v){ const n=Number(v); return isFinite(n)? Math.max(0, Math.min(1,n)) : 0; }
-  const clamp  = (v,a,b)=> Math.max(a, Math.min(b, v));
-  const rand   = (a,b)=> a + Math.random()*(b-a);
-
   // надёжный layout
   function layout(){
     const r = stage.getBoundingClientRect();
     let cw = r.width, ch = r.height;
     if (!ch || ch < 20){
-      // fallback: computed style / min-height
       const cs = win.getComputedStyle(stage);
       ch = parseFloat(cs.height) || parseFloat(cs.minHeight) || 480;
       cw = parseFloat(cs.width)  || 360;
@@ -176,7 +201,6 @@ export async function mount(root, props = {}, ctx = {}) {
       top.style.background = `url(${ASSETS.pipes.top}) center/100% 100% no-repeat`;
       bot.style.background = `url(${ASSETS.pipes.bottom}) center/100% 100% no-repeat`;
     } else {
-      // fallback: сплошная заливка — чтобы точно были видны
       top.style.background = 'linear-gradient(180deg,#6BFF7A,#1ED760)';
       bot.style.background = 'linear-gradient(180deg,#6BFF7A,#1ED760)';
     }
@@ -191,15 +215,19 @@ export async function mount(root, props = {}, ctx = {}) {
       const c = doc.createElement('div');
       c.className = 'fl-coin';
       if (ASSETS.coin.img) c.style.backgroundImage = `url(${ASSETS.coin.img})`;
+      c.style.width = (ASSETS.coin.w||32) + 'px';
+      c.style.height= (ASSETS.coin.h||32) + 'px';
       stage.appendChild(c);
       const it = { type:'coin', x: p.x + 200, y: gapY, el: c };
       items.push(it); positionItem(it);
     }
     // shield (с КД)
-    if ((performance.now() - lastShieldSpawn) > SH_CD && Math.random() < (props.shield_prob ?? 0.25)){
+    if ((performance.now() - lastShieldSpawn) > SH_CD && Math.random() < SHIELD_PROB){
       const s = doc.createElement('div');
       s.className = 'fl-power';
       if (ASSETS.shield.img) s.style.backgroundImage = `url(${ASSETS.shield.img})`;
+      s.style.width  = (ASSETS.shield.w||34) + 'px';
+      s.style.height = (ASSETS.shield.h||34) + 'px';
       stage.appendChild(s);
       const it = { type:'shield', x: p.x + 300, y: clamp(gapY - gap*0.35, 30, floorY-30), el: s };
       items.push(it); positionItem(it);
@@ -292,7 +320,6 @@ export async function mount(root, props = {}, ctx = {}) {
     if (resBox)  resBox.classList.add('show');
     if (cta)     cta.classList.add('show');
 
-    // сабмит — как у тебя
     try{
       const publicId = String(ctx.public_id||'').trim();
       if (TG && publicId && (TG.initData || TG.initDataUnsafe)){
@@ -322,7 +349,7 @@ export async function mount(root, props = {}, ctx = {}) {
     shieldUntil = 0; if (shBar) shBar.style.transform = 'scaleX(0)';
 
     started=false; score=0; setScore(0);
-    if (hintEl) hintEl.style.display = '';           // снова «Тапни чтобы начать»
+    if (hintEl) hintEl.style.display = '';           // «Тапни чтобы начать»
     birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
     if (barEl) barEl.style.transform = 'scaleX(1)';
 
@@ -339,7 +366,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
     if (!started){
       // лёгкая «левитация» перед стартом
-      birdY = clamp(birdY + Math.sin(now/320)*0.18, ASSETS.bird.h*0.5, floorY - ASSETS.bird.h*0.5);
+      birdY = clamp(birdY + Math.sin(now/320)*0.18, ASSETS.bird.h*0.5, (h - SAFE_FLOOR_PAD) - ASSETS.bird.h*0.5);
       applyBird();
       updateShieldHud();
       raf = win.requestAnimationFrame(tick);
@@ -357,7 +384,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
     // ограничители
     const topLimit = ASSETS.bird.h*0.5 + 2;
-    const botLimit = floorY - ASSETS.bird.h*0.5;
+    const botLimit = (h - SAFE_FLOOR_PAD) - ASSETS.bird.h*0.5;
     if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
     if (birdY >= botLimit){
       birdY = botLimit;
@@ -391,7 +418,7 @@ export async function mount(root, props = {}, ctx = {}) {
     }
 
     // спавн
-    if (now - spawnT > PIPE_SPAWN_MS){ spawnT = now; spawnPipe(); }
+    if (now - spawnT > 1300){ spawnT = now; spawnPipe(); }
 
     // визуал птички
     const ang = clamp((birdVY/600)*45, -35, 90);
@@ -406,7 +433,6 @@ export async function mount(root, props = {}, ctx = {}) {
 
   // ==== input
   const onPointer = (e)=>{
-    // игнор кликов по оверлеям/кнопкам
     if (e.target.closest('#fl-cta') || e.target.closest('#fl-result') ||
         e.target.closest('button,a,input,textarea,select')) return;
     if (cta?.classList.contains('show') || resBox?.classList.contains('show')) return;
@@ -414,14 +440,13 @@ export async function mount(root, props = {}, ctx = {}) {
     e.preventDefault();
     flap();
   };
-  // слушаем и сцену, и хост (capture) — чтобы первый тап всегда ловился
+  // ловим первый тап надёжно
   stage.addEventListener('pointerdown', onPointer, { passive:false });
   host.addEventListener('pointerdown', onPointer, { passive:false, capture:true });
   hintEl && hintEl.addEventListener('pointerdown', onPointer, { passive:false });
 
   const onKey = (e)=>{
     if (e.code==='Space' || e.key==='ArrowUp'){ e.preventDefault(); flap(); }
-    if (e.key==='Escape'){ /* ничего */ }
   };
   doc.addEventListener('keydown', onKey);
 
@@ -429,7 +454,7 @@ export async function mount(root, props = {}, ctx = {}) {
     const btn = e.target.closest('.btn');
     if (!btn) return;
     e.preventDefault(); e.stopPropagation();
-    // рестарт ТОЛЬКО по кнопке → снова «тапни», а не автозапуск
+    // рестарт → снова «Тапни чтобы начать»
     resetScene();
     running = true;
     try{ win.cancelAnimationFrame(raf); }catch(_){}
