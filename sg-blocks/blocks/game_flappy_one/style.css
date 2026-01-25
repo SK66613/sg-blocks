@@ -1,255 +1,182 @@
-/* ==== Flappy (scoped for block: game_flappy_one) ==================== */
-.blk[data-key="game_flappy_one"] .flappy,
-.blk[data-key="game_flappy_one"] .flappy *{
+/* ==== Flappy (scoped for block) =================================== */
+/* Пусть Flappy целиком берёт тот же шрифт, что и весь мини-апп */
+.blk-game-flappy .flappy,
+.blk-game-flappy .flappy *{
   font-family: inherit !important;
 }
 
 /* --- Extras (pipes/coin/shield elements) --- */
-.blk[data-key="game_flappy_one"] .fl-stage{
+.blk-game-flappy .fl-stage{
   position: relative;
   overflow: hidden;
 }
-.blk[data-key="game_flappy_one"] .fl-pipe-part{
+.blk-game-flappy .fl-pipe-part{
   position: absolute;
   background-repeat: no-repeat;
   background-size: cover;
 }
-.blk[data-key="game_flappy_one"] .fl-pipe-part.top{
+.blk-game-flappy .fl-pipe-part.top{
   transform: scaleY(-1);
   transform-origin: top;
 }
 
 /* В твоём старом коде встречались и .fl-shield, и .fl-power — поддержим оба */
-.blk[data-key="game_flappy_one"] .fl-coin,
-.blk[data-key="game_flappy_one"] .fl-shield,
-.blk[data-key="game_flappy_one"] .fl-power{
+.blk-game-flappy .fl-coin,
+.blk-game-flappy .fl-shield,
+.blk-game-flappy .fl-power{
   position: absolute;
   background-repeat: no-repeat;
   background-size: contain;
 }
-.blk[data-key="game_flappy_one"] .is-gone{
+.blk-game-flappy .is-gone{
   opacity: 0;
   transform: scale(.5);
   transition: opacity .2s ease, transform .2s ease;
 }
 
 /* Ensure game remains interactive inside preview (только внутри блока) */
-.blk[data-key="game_flappy_one"] .game-host,
-.blk[data-key="game_flappy_one"] .game-host *{
+.blk-game-flappy .game-host,
+.blk-game-flappy .game-host *{
   pointer-events: auto;
 }
 
 /* ===== Sheet (bottom modal) — если вызываешь из игры, не утечёт глобально ===== */
-.blk[data-key="game_flappy_one"] .sheet{
-  position: fixed;
-  inset: 0;
-  z-index: 9990;
-  pointer-events: none;
+.blk-game-flappy .sheet{
+  position:fixed;
+  inset:0;
+  z-index:9990;
+  pointer-events:none;
 }
-.blk[data-key="game_flappy_one"] .sheet.is-open{ pointer-events: auto; }
-.blk[data-key="game_flappy_one"] .sheet__overlay{
-  position: absolute;
-  inset: 0;
+.blk-game-flappy .sheet.is-open{ pointer-events:auto; }
+.blk-game-flappy .sheet__overlay{
+  position:absolute;
+  inset:0;
   bottom: var(--tabH,0px);
-  background: rgba(0,0,0,.48);
-  opacity: 0;
-  transition: opacity .2s ease;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  background:rgba(0,0,0,.48);
+  opacity:0;
+  transition:opacity .2s ease;
+  -webkit-backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);
 }
-.blk[data-key="game_flappy_one"] .sheet.is-open .sheet__overlay{ opacity: 1; }
-
-.blk[data-key="game_flappy_one"] .sheet__panel{
-  position: absolute;
-  left: 0; right: 0;
-  margin: 0 auto;
-  width: min(820px,100%);
-  max-height: 88vh;
-  overflow: auto;
-  background: linear-gradient(180deg,rgba(18,20,24,.98),rgba(18,20,24,.96));
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 20px 40px rgba(0,0,0,.45);
-  transform: translateY(100%);
-  transition: transform .24s ease;
-  border-radius: 18px 18px 0 0;
-  padding: 10px 14px 16px;
+.blk-game-flappy .sheet.is-open .sheet__overlay{ opacity:1; }
+.blk-game-flappy .sheet__panel{
+  position:absolute;
+  left:0; right:0;
+  margin:0 auto;
+  width:min(820px,100%);
+  max-height:88vh;
+  overflow:auto;
+  background:linear-gradient(180deg,rgba(18,20,24,.98),rgba(18,20,24,.96));
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 20px 40px rgba(0,0,0,.45);
+  transform:translateY(100%);
+  transition:transform .24s ease;
+  border-radius:18px 18px 0 0;
+  padding:10px 14px 16px;
 }
-.blk[data-key="game_flappy_one"] .sheet.sheet-bottom .sheet__panel{
-  bottom: calc(var(--tabH,0px) + 8px);
+.blk-game-flappy .sheet.sheet-bottom .sheet__panel{
+  bottom:calc(var(--tabH,0px) + 8px);
 }
-.blk[data-key="game_flappy_one"] .sheet.is-open .sheet__panel{ transform: translateY(0); }
-
-.blk[data-key="game_flappy_one"] .sheet__handle{
-  width: 42px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.26);
-  margin: 4px auto 10px;
+.blk-game-flappy .sheet.is-open .sheet__panel{ transform:translateY(0); }
+.blk-game-flappy .sheet__handle{
+  width:42px;
+  height:4px;
+  border-radius:999px;
+  background:rgba(255,255,255,.26);
+  margin:4px auto 10px;
 }
-.blk[data-key="game_flappy_one"] .sheet__header{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+.blk-game-flappy .sheet__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
 }
-.blk[data-key="game_flappy_one"] .sheet__title{ font-weight: 600; font-size: 16px; }
-.blk[data-key="game_flappy_one"] .sheet__close{
-  border: 0;
-  background: transparent;
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
+.blk-game-flappy .sheet__title{ font-weight:600; font-size:16px; }
+.blk-game-flappy .sheet__close{
+  border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer;
 }
-.blk[data-key="game_flappy_one"] .sheet__body{ font-size: 14px; line-height: 1.5; }
+.blk-game-flappy .sheet__body{ font-size:14px; line-height:1.5; }
 
 /* Когда шит открыт — блокируем скролл только у контейнера блока */
-.blk[data-key="game_flappy_one"].sheet-open{
-  overflow: hidden;
-  touch-action: none;
+.blk-game-flappy.sheet-open{
+  overflow:hidden;
+  touch-action:none;
 }
 
 /* === Intro slider + start cards === */
-.blk[data-key="game_flappy_one"]{ --introBottomPad: 28px; } /* насколько выше кнопки от нижней перекладины */
+.blk-game-flappy{ --introBottomPad: 28px; } /* насколько выше кнопки от нижней перекладины */
 
-.blk[data-key="game_flappy_one"] .intro{
-  position: fixed;
-  inset: 0;
-  z-index: 10050;
-  background: #000;
-  color: #fff;
-  display: none;
-  pointer-events: auto;
+.blk-game-flappy .intro{
+  position:fixed; inset:0; z-index:10050;
+  background:#000; color:#fff;
+  display:none; pointer-events:auto;
 }
-.blk[data-key="game_flappy_one"] .intro.is-open{ display: block; }
-.blk[data-key="game_flappy_one"].intro-open{ overflow: hidden; }
+.blk-game-flappy .intro.is-open{ display:block; }
+.blk-game-flappy.intro-open{ overflow:hidden; }
 
-.blk[data-key="game_flappy_one"] .intro__wrap{
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
+.blk-game-flappy .intro__wrap{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
   padding:
     calc(env(safe-area-inset-top,0px) + 6px)
     14px
     calc(env(safe-area-inset-bottom,0px) + var(--introBottomPad));
 }
-.blk[data-key="game_flappy_one"] .intro__progress{
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  padding: 8px 0 12px;
+.blk-game-flappy .intro__progress{
+  display:flex; gap:8px; justify-content:center;
+  padding:8px 0 12px;
 }
-.blk[data-key="game_flappy_one"] .intro__seg{
-  width: 44px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.28);
-}
-.blk[data-key="game_flappy_one"] .intro__seg.active{ background: #fff; }
+.blk-game-flappy .intro__seg{ width:44px; height:4px; border-radius:999px; background:rgba(255,255,255,.28) }
+.blk-game-flappy .intro__seg.active{ background:#fff }
 
-.blk[data-key="game_flappy_one"] .intro__stage{
-  flex: 1;
-  display: grid;
-  place-items: center;
-  padding: 12px;
-  text-align: center;
+.blk-game-flappy .intro__stage{
+  flex:1; display:grid; place-items:center; padding:12px; text-align:center;
 }
-.blk[data-key="game_flappy_one"] .intro__slides{ width: 100%; }
-.blk[data-key="game_flappy_one"] .intro__slide{ display: none; }
-.blk[data-key="game_flappy_one"] .intro__slide.active{ display: block; }
+.blk-game-flappy .intro__slides{ width:100% }
+.blk-game-flappy .intro__slide{ display:none }
+.blk-game-flappy .intro__slide.active{ display:block }
 
-.blk[data-key="game_flappy_one"] .intro__h1{ font-weight: 900; font-size: 28px; margin: 0 0 10px; }
-.blk[data-key="game_flappy_one"] .intro__p{ opacity: .85; font-size: 15px; margin: 0 auto; max-width: 26ch; }
+.blk-game-flappy .intro__h1{ font-weight:900; font-size:28px; margin:0 0 10px }
+.blk-game-flappy .intro__p{ opacity:.85; font-size:15px; margin:0 auto; max-width:26ch }
 
-.blk[data-key="game_flappy_one"] .intro__actions{
-  margin-top: auto;
-  display: grid;
-  gap: 10px;
-  padding-top: 8px;
+.blk-game-flappy .intro__actions{
+  margin-top:auto; display:grid; gap:10px;
+  padding-top:8px;
 }
-.blk[data-key="game_flappy_one"] .intro__actions--one{ grid-template-columns: 1fr; }
-.blk[data-key="game_flappy_one"] .intro__actions--two{ grid-template-columns: 1fr 1fr; }
+.blk-game-flappy .intro__actions--one{ grid-template-columns:1fr }
+.blk-game-flappy .intro__actions--two{ grid-template-columns:1fr 1fr }
 
-.blk[data-key="game_flappy_one"] .intro__btn{
-  height: 52px;
-  padding: 0 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(255,255,255,.06);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
+.blk-game-flappy .intro__btn{
+  height:52px; padding:0 16px; border-radius:16px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
 }
-.blk[data-key="game_flappy_one"] .intro__btn--primary{
-  background: #fff;
-  color: #000;
-  border-color: #fff;
-}
-.blk[data-key="game_flappy_one"] .intro__btn--ghost{ background: transparent; }
-.blk[data-key="game_flappy_one"] .intro__btn:active{ transform: translateY(1px); }
+.blk-game-flappy .intro__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.blk-game-flappy .intro__btn--ghost{ background:transparent }
+.blk-game-flappy .intro__btn:active{ transform:translateY(1px) }
 
 @media (min-width:900px){
-  .blk[data-key="game_flappy_one"] .intro__wrap{ max-width: var(--appW,428px); margin: 0 auto; }
+  .blk-game-flappy .intro__wrap{ max-width: var(--appW,428px); margin:0 auto }
 }
 
 /* === Games card (если рендеришь карточку запуска из блока) === */
-.blk[data-key="game_flappy_one"] .list-card.games .list__item{
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+.blk-game-flappy .list-card.games .list__item{
+  background:transparent; border:0; box-shadow:none;
 }
-.blk[data-key="game_flappy_one"] .list__btn{
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
+.blk-game-flappy .list__btn{
+  height:36px; padding:0 14px; border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
 }
-.blk[data-key="game_flappy_one"] .list__btn--primary{
-  background: #fff;
-  color: #000;
-  border-color: #fff;
-}
-.blk[data-key="game_flappy_one"] .list__btn:active{ transform: translateY(1px); }
+.blk-game-flappy .list__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.blk-game-flappy .list__btn:active{ transform:translateY(1px) }
 
 /* чуть плотнее сетка под кнопку справа */
-.blk[data-key="game_flappy_one"] .list-card.games.tight .list__item{
-  grid-template-columns: 36px 1fr auto;
+.blk-game-flappy .list-card.games.tight .list__item{
+  grid-template-columns:36px 1fr auto;
 }
-.blk[data-key="game_flappy_one"]{ --gap-block: 16px; }
-.blk[data-key="game_flappy_one"] .card.list-card.games{ margin-top: var(--gap-block); }
-
-/* CTA bottom (safe-area) — scoped (важно!) */
-.blk[data-key="game_flappy_one"]{ --ctaGap: 44px; }
-
-.blk[data-key="game_flappy_one"] .fl-cta{
-  position: absolute;
-  left: 14px; right: 14px;
-  bottom: calc(env(safe-area-inset-bottom,0px) + var(--ctaGap));
-  display: none;
-  z-index: 10000 !important;
-  pointer-events: auto !important;
-}
-.blk[data-key="game_flappy_one"] .fl-cta .btn{ pointer-events: auto !important; }
-
-.blk[data-key="game_flappy_one"] .fl-cta.show{ display: block; }
-.blk[data-key="game_flappy_one"] .fl-cta .btn{
-  width: 100%;
-  height: 52px;
-  border-radius: 16px;
-  font: 800 16px/1 Inter;
-  background: #fff;
-  color: #000;
-  border: 1px solid #fff;
-}
-
-@media (min-width:900px){
-  .blk[data-key="game_flappy_one"] .flappy__wrap{
-    max-width: var(--appW,428px);
-    margin: 0 auto;
-  }
-}
+.blk-game-flappy{ --gap-block: 16px; }
+.blk-game-flappy .card.list-card.games{ margin-top: var(--gap-block); }
