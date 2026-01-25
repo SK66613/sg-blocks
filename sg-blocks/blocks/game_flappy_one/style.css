@@ -5,6 +5,228 @@
   font-family: inherit !important;
 }
 
+/* === MAIN UI (HUD + stage + overlays) ============================== */
+.blk-game-flappy{
+  --fl-radius: 18px;
+  --fl-pad: 14px;
+  --fl-border: rgba(255,255,255,.10);
+  --fl-bg1: rgba(255,255,255,.06);
+  --fl-bg2: rgba(255,255,255,.03);
+  --fl-text: rgba(255,255,255,.92);
+  --fl-muted: rgba(255,255,255,.72);
+  --fl-ctaGap: 44px; /* safe-area gap for CTA */
+}
+
+.blk-game-flappy .flappy{
+  position: relative;
+  border-radius: var(--fl-radius);
+  border: 1px solid var(--fl-border);
+  background: linear-gradient(180deg, var(--fl-bg1), var(--fl-bg2));
+  overflow: hidden;
+}
+
+.blk-game-flappy .flappy__wrap{
+  padding: var(--fl-pad);
+}
+
+/* HUD */
+.blk-game-flappy .fl-hud{
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.blk-game-flappy .fl-score{
+  display:flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--fl-text);
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+.blk-game-flappy .fl-score span{
+  font-size: 20px;
+  line-height: 1;
+}
+
+.blk-game-flappy .fl-bar{
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-border);
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+}
+.blk-game-flappy .fl-bar > i{
+  display:block;
+  width:100%;
+  height:100%;
+  transform-origin: left center;
+  transform: scaleX(1);
+  background: linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.40));
+}
+
+.blk-game-flappy .fl-stats{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.blk-game-flappy .fl-stat{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-border);
+  background: rgba(255,255,255,.05);
+  color: var(--fl-text);
+  font-weight: 900;
+}
+
+.blk-game-flappy .fl-ico{
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.10);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:contain;
+}
+
+.blk-game-flappy .fl-shield-bar{
+  width: 86px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-border);
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+}
+.blk-game-flappy .fl-shield-bar > i{
+  display:block;
+  width:100%;
+  height:100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, rgba(120,200,255,.95), rgba(120,200,255,.35));
+}
+
+/* Stage */
+.blk-game-flappy .fl-stage{
+  border-radius: 16px;
+  border: 1px solid var(--fl-border);
+  background:
+    radial-gradient(1200px 600px at 30% 0%, rgba(255,255,255,.10), transparent 60%),
+    linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.40));
+}
+
+/* Hint */
+.blk-game-flappy .fl-hint{
+  position:absolute;
+  left:50%;
+  top: 18px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-border);
+  background: rgba(0,0,0,.35);
+  color: rgba(255,255,255,.90);
+  font-weight: 900;
+  font-size: 13px;
+  z-index: 5;
+  user-select: none;
+}
+
+/* Bird */
+.blk-game-flappy .fl-bird{
+  position:absolute;
+  width: var(--bird-w, 56px);
+  height: var(--bird-h, 42px);
+  left: 80px;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  border-radius: 12px;
+  background: rgba(255,255,255,.18);
+}
+.blk-game-flappy .fl-bird--sprite{
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size: 100% 100%;
+  background-color: transparent;
+}
+.blk-game-flappy .fl-bird--shield{
+  box-shadow: 0 0 0 2px rgba(120,200,255,.55), 0 0 22px rgba(120,200,255,.35);
+}
+
+/* Result overlay */
+.blk-game-flappy .fl-result{
+  position:absolute;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding: 14px;
+  z-index: 9990;
+}
+.blk-game-flappy .fl-result.show{ display:flex; }
+
+.blk-game-flappy .fl-card{
+  width: min(360px, 100%);
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--fl-border);
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.blk-game-flappy .fl-cell{
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  padding: 12px;
+  text-align:center;
+}
+.blk-game-flappy .fl-val{
+  font-size: 26px;
+  font-weight: 900;
+  line-height:1;
+  color: #fff;
+}
+.blk-game-flappy .fl-sub{
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--fl-muted);
+}
+
+/* CTA bottom (scoped; was global before) */
+.blk-game-flappy .fl-cta{
+  position:absolute;
+  left:14px;
+  right:14px;
+  bottom: calc(env(safe-area-inset-bottom,0px) + var(--fl-ctaGap));
+  display:none;
+  z-index:10000 !important;
+  pointer-events:auto !important;
+}
+.blk-game-flappy .fl-cta.show{ display:block; }
+.blk-game-flappy .fl-cta .btn{
+  pointer-events:auto !important;
+  width:100%;
+  height:52px;
+  border-radius:16px;
+  font-weight:900;
+  font-size:16px;
+  background:#fff;
+  color:#000;
+  border:1px solid #fff;
+}
+.blk-game-flappy .fl-cta .btn:active{ transform: translateY(1px); }
+
 /* --- Extras (pipes/coin/shield elements) --- */
 .blk-game-flappy .fl-stage{
   position: relative;
@@ -183,19 +405,6 @@
 
 
 
-/* CTA bottom (safe-area) */
-:root{ --ctaGap: 44px; }
-.fl-cta{
-  position:absolute; left:14px; right:14px;
-  bottom: calc(env(safe-area-inset-bottom,0px) + var(--ctaGap));
-  display:none;
-  z-index:10000 !important;
-  pointer-events:auto !important;
-}
-.fl-cta .btn{ pointer-events:auto !important; }
-
-
-.fl-cta.show{ display:block; }
-.fl-cta .btn{ width:100%; height:52px; border-radius:16px; font:800 16px/1 Inter; background:#fff; color:#000; border:1px solid #fff; }
+/* (removed) global .fl-cta rules — moved to scoped .blk-game-flappy above */
 
 @media (min-width:900px){ .flappy__wrap{ max-width:var(--appW,428px); margin:0 auto } }
