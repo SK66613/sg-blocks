@@ -1,7 +1,8 @@
 /* ==== Flappy (scoped for block) =================================== */
-/* Базовый шрифт игры — из токена темы (а не “случайный inherit” окружения) */
+/* Важно: базовый шрифт игры — из токенов темы конструктора */
 .blk-game-flappy{
-  font-family: var(--fl-font, inherit) !important;
+  font-family: var(--font-body, inherit) !important;
+  font-size: var(--font-size, 14px);
 }
 .blk-game-flappy *{
   font-family: inherit !important;
@@ -9,41 +10,39 @@
 
 /* Vars + bridge from constructor theme tokens */
 .blk-game-flappy{
-  /* ===== Bridge from constructor theme tokens (t_*) ===== */
-  /* Цвета */
-  --fl-bg1: color-mix(in srgb, var(--t-card, #101827) 92%, transparent);
-  --fl-bg2: color-mix(in srgb, var(--t-surface, #121a2a) 88%, transparent);
-  --fl-border: color-mix(in srgb, var(--t-border, #263048) 75%, transparent);
+  /* ===== Bridge from constructor theme css (REAL names) ===== */
+  /* Colors */
+  --fl-bg1: color-mix(in srgb, var(--color-card, rgba(255,255,255,.06)) 92%, transparent);
+  --fl-bg2: color-mix(in srgb, var(--color-surface, rgba(255,255,255,.03)) 88%, transparent);
+  --fl-border: color-mix(in srgb, var(--color-border, rgba(255,255,255,.10)) 75%, transparent);
 
-  --fl-text: var(--t-text, rgba(255,255,255,.92));
-  --fl-muted: var(--t-muted, rgba(255,255,255,.72));
-  --fl-accent: var(--t-brand, #7C5CFF);
+  --fl-text: var(--color-text, rgba(255,255,255,.92));
+  --fl-muted: var(--color-muted, rgba(255,255,255,.72));
+  --fl-accent: var(--color-brand, #7C5CFF);
 
-  /* Кнопки (Primary) */
-  --fl-cta-bg: var(--t-btnPrimaryBg, #ffffff);
-  --fl-cta-text: var(--t-btnPrimaryText, #000000);
+  /* Buttons */
+  --fl-cta-bg: var(--btn-primary-bg, #ffffff);
+  --fl-cta-text: var(--btn-primary-text, #000000);
 
-  /* Радиусы (в теме у тебя числа, поэтому *1px) */
-  --fl-radius: calc(var(--t-radiusCard, 18) * 1px);
-  --fl-btn-radius: calc(var(--t-radiusBtn, 16) * 1px);
+  /* Radius */
+  --fl-radius: var(--radius-card, 18px);
+  --fl-btn-radius: var(--radius-btn, 16px);
 
-  /* Типографика (в теме у тебя строка + число) */
-  --fl-font: var(--t-fontBody, inherit);
-  --fl-head: var(--t-fontHead, var(--fl-font));
-  --fl-fontSize: calc(var(--t-fontSize, 14) * 1px);
+  /* Typography */
+  --fl-font: var(--font-body, inherit);
+  --fl-head: var(--font-head, var(--fl-font));
+  --fl-fontSize: var(--font-size, 14px);
 
-  /* Размер/вес счёта (можно потом вынести в UI блока) */
+  /* Score tuning */
   --fl-score-size: clamp(18px, calc(var(--fl-fontSize) * 1.6), 28px);
   --fl-score-weight: 900;
   --fl-score-letter: .2px;
 
-  /* нижняя панель/меню (если рантайм не проставил — фолбэк 0) */
+  /* bottom menu (runtime can override) */
   --tabH: 0px;
-
-  /* насколько поднять CTA над нижним меню */
   --fl-ctaGap: 44px;
 
-  /* z-index слой оверлея */
+  /* overlay layer */
   --fl-z: 10020;
 }
 
@@ -64,7 +63,7 @@
   z-index: var(--fl-z);
   border-radius: 0;
   border: 0;
-  background: var(--t-overlay, #000); /* overlay из темы */
+  background: var(--overlay, #000); /* <-- токен темы */
 }
 
 /* если надо отключить оверлей в конструкторе (можно поставить на root) */
@@ -80,7 +79,7 @@
 /* wrap: в overlay учитываем safe-area + нижнее меню */
 .blk-game-flappy .flappy__wrap{
   position: relative;
-  padding: 14px; /* не меняем как было */
+  padding: 14px; /* оставил как у тебя */
 }
 .blk-game-flappy .flappy.is-open .flappy__wrap{
   position: absolute;
@@ -107,14 +106,13 @@
   gap: 8px;
   color: var(--fl-text);
 
-  /* фиксируем одинаковый вид в конструкторе и телеге */
+  /* ФИКС: одинаковый шрифт/цифры в конструкторе и телеге */
   font-family: var(--fl-head) !important;
   font-weight: var(--fl-score-weight);
   letter-spacing: var(--fl-score-letter);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
 
-  /* брендовая мягкая подсветка */
   text-shadow: 0 6px 22px color-mix(in srgb, var(--fl-accent) 35%, transparent);
 }
 .blk-game-flappy .fl-score span{
