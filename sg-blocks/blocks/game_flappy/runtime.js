@@ -193,15 +193,20 @@ export async function mount(root, props = {}, ctx = {}) {
     data[key] = rec; writeDaily(data);
     return take;
   }
-  function showLimitMsg(kind){
-    const msg = (kind==='attempts')
-      ? 'Достигнут дневной лимит попыток'
-      : 'Достигнут дневной лимит монет';
-    try{
-      if (win.showToast) win.showToast(msg, false);
-      else alert(msg);
-    }catch(_){}
-  }
+function showLimitMsg(kind){
+  const msg = (kind==='attempts')
+    ? 'Достигнут дневной лимит попыток'
+    : 'Достигнут дневной лимит монет';
+
+  // только текст на сцене, без всплывашек
+  try{
+    if (hintEl){
+      hintEl.textContent = msg;
+      hintEl.style.display = '';
+    }
+  }catch(_){}
+}
+
 
   // ===== state
   let best=0; try{ best = Number(win.localStorage.getItem('flappy_best')||0)||0; }catch(_){}
@@ -444,7 +449,10 @@ export async function mount(root, props = {}, ctx = {}) {
     shieldUntil = 0; if (SHOW_SHIELD && shBar) shBar.style.transform = 'scaleX(0)';
 
     started=false; score=0; setScore(0);
-    if (hintEl) hintEl.style.display = '';           // «Тапни чтобы начать»
+    if (hintEl){
+  hintEl.style.display = '';
+  hintEl.textContent = 'Тапни чтобы начать';
+}
     birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
     if (barEl) barEl.style.transform = 'scaleX(1)';
 
@@ -460,11 +468,12 @@ export async function mount(root, props = {}, ctx = {}) {
     const dt  = Math.min(34, now - (tick._prev||now)); tick._prev = now;
 
     // если лимит монет уже исчерпан до старта — не даём «холостую» игру
-    if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
-      if (hintEl) hintEl.textContent = 'Лимит монет на сегодня';
-      raf = win.requestAnimationFrame(tick); // просто «дышим», но не стартуем
-      return;
-    }
+if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
+  showLimitMsg('coins');
+  raf = win.requestAnimationFrame(tick);
+  return;
+}
+
 
     if (!started){
       // лёгкая «левитация» перед стартом
