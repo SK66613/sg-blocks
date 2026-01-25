@@ -1,18 +1,41 @@
 /* ==== Flappy (scoped for block) =================================== */
-/* Наследуем шрифт мини-аппа */
-.blk-game-flappy, .blk-game-flappy *{
+/* Базовый шрифт игры — из токена темы (а не “случайный inherit” окружения) */
+.blk-game-flappy{
+  font-family: var(--fl-font, inherit) !important;
+}
+.blk-game-flappy *{
   font-family: inherit !important;
 }
 
-/* Vars */
+/* Vars + bridge from constructor theme tokens */
 .blk-game-flappy{
-  --fl-radius: 18px;
-  --fl-pad: 14px;
-  --fl-border: rgba(255,255,255,.10);
-  --fl-bg1: rgba(255,255,255,.06);
-  --fl-bg2: rgba(255,255,255,.03);
-  --fl-text: rgba(255,255,255,.92);
-  --fl-muted: rgba(255,255,255,.72);
+  /* ===== Bridge from constructor theme tokens (t_*) ===== */
+  /* Цвета */
+  --fl-bg1: color-mix(in srgb, var(--t-card, #101827) 92%, transparent);
+  --fl-bg2: color-mix(in srgb, var(--t-surface, #121a2a) 88%, transparent);
+  --fl-border: color-mix(in srgb, var(--t-border, #263048) 75%, transparent);
+
+  --fl-text: var(--t-text, rgba(255,255,255,.92));
+  --fl-muted: var(--t-muted, rgba(255,255,255,.72));
+  --fl-accent: var(--t-brand, #7C5CFF);
+
+  /* Кнопки (Primary) */
+  --fl-cta-bg: var(--t-btnPrimaryBg, #ffffff);
+  --fl-cta-text: var(--t-btnPrimaryText, #000000);
+
+  /* Радиусы (в теме у тебя числа, поэтому *1px) */
+  --fl-radius: calc(var(--t-radiusCard, 18) * 1px);
+  --fl-btn-radius: calc(var(--t-radiusBtn, 16) * 1px);
+
+  /* Типографика (в теме у тебя строка + число) */
+  --fl-font: var(--t-fontBody, inherit);
+  --fl-head: var(--t-fontHead, var(--fl-font));
+  --fl-fontSize: calc(var(--t-fontSize, 14) * 1px);
+
+  /* Размер/вес счёта (можно потом вынести в UI блока) */
+  --fl-score-size: clamp(18px, calc(var(--fl-fontSize) * 1.6), 28px);
+  --fl-score-weight: 900;
+  --fl-score-letter: .2px;
 
   /* нижняя панель/меню (если рантайм не проставил — фолбэк 0) */
   --tabH: 0px;
@@ -41,7 +64,7 @@
   z-index: var(--fl-z);
   border-radius: 0;
   border: 0;
-  background: #000; /* как было в оверлее */
+  background: var(--t-overlay, #000); /* overlay из темы */
 }
 
 /* если надо отключить оверлей в конструкторе (можно поставить на root) */
@@ -57,7 +80,7 @@
 /* wrap: в overlay учитываем safe-area + нижнее меню */
 .blk-game-flappy .flappy__wrap{
   position: relative;
-  padding: var(--fl-pad);
+  padding: 14px; /* не меняем как было */
 }
 .blk-game-flappy .flappy.is-open .flappy__wrap{
   position: absolute;
@@ -83,11 +106,19 @@
   align-items: baseline;
   gap: 8px;
   color: var(--fl-text);
-  font-weight: 900;
-  letter-spacing: .2px;
+
+  /* фиксируем одинаковый вид в конструкторе и телеге */
+  font-family: var(--fl-head) !important;
+  font-weight: var(--fl-score-weight);
+  letter-spacing: var(--fl-score-letter);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+
+  /* брендовая мягкая подсветка */
+  text-shadow: 0 6px 22px color-mix(in srgb, var(--fl-accent) 35%, transparent);
 }
 .blk-game-flappy .fl-score span{
-  font-size: 20px;
+  font-size: var(--fl-score-size);
   line-height: 1;
 }
 
@@ -104,7 +135,11 @@
   height:100%;
   transform-origin: left center;
   transform: scaleX(1);
-  background: linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.40));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--fl-text) 92%, transparent),
+    color-mix(in srgb, var(--fl-text) 40%, transparent)
+  );
 }
 
 .blk-game-flappy .fl-stats{
@@ -150,7 +185,11 @@
   height:100%;
   transform-origin: left center;
   transform: scaleX(0);
-  background: linear-gradient(90deg, rgba(120,200,255,.95), rgba(120,200,255,.35));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--fl-accent) 92%, transparent),
+    color-mix(in srgb, var(--fl-accent) 35%, transparent)
+  );
 }
 
 /* ===================== Stage ===================== */
@@ -207,7 +246,9 @@
   background-color: transparent;
 }
 .blk-game-flappy .fl-bird--shield{
-  box-shadow: 0 0 0 2px rgba(120,200,255,.55), 0 0 22px rgba(120,200,255,.35);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--fl-accent) 70%, transparent),
+    0 0 28px color-mix(in srgb, var(--fl-accent) 45%, transparent);
 }
 
 /* Pipes / items */
@@ -239,7 +280,7 @@
   justify-content:center;
   padding: 14px;
   z-index: 9990;
-  pointer-events: none; /* чтобы клики не перехватывало кроме карточки */
+  pointer-events: none;
 }
 .blk-game-flappy .fl-result.show{ display:flex; }
 
@@ -292,12 +333,12 @@
   pointer-events:auto !important;
   width:100%;
   height:52px;
-  border-radius:16px;
+  border-radius: var(--fl-btn-radius);
   font-weight:900;
   font-size:16px;
-  background:#fff;
-  color:#000;
-  border:1px solid #fff;
+  background: var(--fl-cta-bg);
+  color: var(--fl-cta-text);
+  border: 1px solid color-mix(in srgb, var(--fl-cta-bg) 82%, transparent);
 }
 .blk-game-flappy .fl-cta .btn:active{ transform: translateY(1px); }
 
