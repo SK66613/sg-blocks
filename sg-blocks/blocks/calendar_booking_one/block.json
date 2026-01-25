@@ -1,0 +1,47 @@
+{
+  "id": "calendar_booking_one",
+  "title": "Календарь: запись",
+  "category": "Виджеты / Календарь",
+  "version": "1.4.0",
+  "type": "htmlEmbed",
+  "tags": [
+    "all",
+    "booking",
+    "calendar"
+  ],
+  "defaults": {
+    "title": "Записаться на консультацию",
+    "view": "month",
+    "allowed_minutes": [
+      30,
+      60,
+      90
+    ],
+    "defaultDuration": 60,
+    "slot_step_min": 30,
+    "dur_title": "Длительность",
+    "slots_title": "Свободные слоты",
+    "srv_title": "Услуги",
+    "services": [
+      "Консультация",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "text_ok": "Забронировать",
+    "text_hold": "Держать слот",
+    "show_book": true,
+    "show_hold": true,
+    "radius": 12,
+    "gap": 8
+  },
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  }
+}
