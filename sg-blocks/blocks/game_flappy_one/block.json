@@ -1,6 +1,6 @@
 {
   "id": "game_flappy_one",
-  "type": "game",
+  "type": "htmlEmbed",
   "title": "Flappy (мини-игра)",
   "category": "Игры",
   "tags": ["all", "games", "flappy"],
