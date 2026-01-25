@@ -1,0 +1,57 @@
+{
+  "id": "game_flappy_one",
+  "type": "game",
+  "title": "Flappy (мини-игра)",
+  "category": "Игры",
+  "tags": ["all", "games", "flappy"],
+  "version": "1.0.0",
+  "template": "view.html",
+  "assets": {
+    "css": ["style.css"],
+    "js": ["runtime.js"]
+  },
+  "defaults": {
+    "title": "Flappy",
+    "autostart": false,
+    "min_h": 520,
+    "difficulty": "normal",
+
+    "session_ms": 45000,
+    "haptics": true,
+    "submit_mode": "daily",
+    "leaderboard_world_stub": 200,
+
+    "gap_min": 140,
+    "gap_max": 220,
+    "speed_x": 220,
+    "speed_step": 18,
+    "accel_each_ms": 8000,
+    "safe_floor_pad": 24,
+
+    "show_coin_bar": true,
+    "show_shield_bar": true,
+
+    "bird_mode": "default",
+    "bird_img": "",
+
+    "shield_mode": "default",
+    "shield_img": "",
+    "shield_w": 34,
+    "shield_h": 34,
+    "shield_prob": 0.25,
+    "shield_cooldown_ms": 9000,
+    "shield_duration_ms": 6000,
+
+    "coin_mode": "default",
+    "coin_img": "",
+    "coin_w": 32,
+    "coin_h": 32,
+    "coin_value": 5,
+    "coin_prob": 0.55,
+
+    "pipes_mode": "default",
+    "pipe_top_img": "",
+    "pipe_bottom_img": "",
+    "pipe_width": 54
+  }
+}
