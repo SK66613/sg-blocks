@@ -1,18 +1,42 @@
-/* Stars product card — uses global app tokens */
+/* ===== Stars product card (scoped for block) ====================== */
+/* Uses global app tokens */
+
 .blk-shop-stars{ padding: 0; }
+
+/* ===== FALLBACK FIRST (TG WebView safe) ===== */
+.blk-shop-stars{
+  --ss-cardBg: var(--color-card, #101827);
+  --ss-cardBorder: var(--color-border, #263048);
+  --ss-imgBg: var(--color-surface, #121a2a);
+  --ss-brand: var(--btn-primary-bg, var(--color-brand, #7C5CFF));
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-shop-stars{
+    --ss-cardBg: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
+    --ss-cardBorder: var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
+    --ss-imgBg: color-mix(in srgb, var(--color-surface, #121a2a) 100%, transparent);
+  }
+}
 
 .blk-shop-stars .ss-card{
   border-radius: var(--radius-card, 16px);
   overflow: hidden;
-  background: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
+
+  /* fallback */
+  background: var(--ss-cardBg);
+  border: 1px solid var(--ss-cardBorder);
+
   color: var(--color-text, #e8f0ff);
   box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
-  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
 }
 
 .blk-shop-stars .ss-img{
   height: 160px;
-  background: color-mix(in srgb, var(--color-surface, #121a2a) 100%, transparent);
+
+  /* fallback */
+  background: var(--ss-imgBg);
+
   background-size: cover;
   background-position: center;
 }
@@ -56,9 +80,18 @@
   padding: 10px 14px;
   font-weight: 800;
   cursor: pointer;
-  background: var(--btn-primary-bg, var(--color-brand, #7C5CFF));
+
+  background: var(--ss-brand);
   color: var(--btn-primary-text, #fff);
-  box-shadow: color-mix(in srgb, var(--color-brand, #7C5CFF) 22%, transparent) 0 10px 22px;
+
+  /* fallback shadow */
+  box-shadow: 0 10px 22px rgba(124,92,255,.22);
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-shop-stars .ss-btn{
+    box-shadow: color-mix(in srgb, var(--color-brand, #7C5CFF) 22%, transparent) 0 10px 22px;
+  }
 }
 
 .blk-shop-stars .ss-btn:active{ transform: translateY(1px); }
