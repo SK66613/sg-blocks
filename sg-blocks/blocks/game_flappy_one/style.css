@@ -30,9 +30,9 @@
   --fl-cta-text-2: var(--btn-secondary-text, var(--fl-text));
 
   /* Radius: по умолчанию 0 (прямые), пользователь закругляет в теме */
-  --fl-radius: calc(var(--radius-card, 0) * 1px);
-  --fl-btn-radius: calc(var(--radius-btn, 0) * 1px);
-  --fl-input-radius: calc(var(--radius-input, 0) * 1px);
+  --fl-radius: var(--radius-card, 16px);
+  --fl-btn-radius: var(--radius-btn, 14px);
+  --fl-input-radius: var(--radius-input, 12px);
 
   /* “card radius” применяется к карточкам/результатам/худ-плашкам (не к pill) */
   --fl-card-radius: var(--fl-radius);
@@ -48,8 +48,8 @@
   --fl-score-letter: .2px;
 
   /* Glow / shadow (0..1) */
-  --fl-glow: var(--glow, 0);                 /* 0..1 */
-  --fl-shadow-card: var(--shadow-card, .35); /* 0..1 */
+  --fl-glow: var(--glow-a, .35);                 /* 0..1 */
+  --fl-shadow-card: var(--shadow-a, .35); /* 0..1 */
 
   /* Overlay / tab */
   --tabH: 0px;        /* runtime can override */
