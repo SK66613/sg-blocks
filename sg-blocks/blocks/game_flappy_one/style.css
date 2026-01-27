@@ -29,7 +29,7 @@
   --fl-cta-bg-2: var(--btn-secondary-bg, rgba(255,255,255,.06));
   --fl-cta-text-2: var(--btn-secondary-text, var(--fl-text));
 
-  /* Radius: по умолчанию 0 (прямые), пользователь закругляет в теме */
+  /* Radius */
   --fl-radius: var(--radius-card, 16px);
   --fl-btn-radius: var(--radius-btn, 14px);
   --fl-input-radius: var(--radius-input, 12px);
@@ -48,7 +48,7 @@
   --fl-score-letter: .2px;
 
   /* Glow / shadow (0..1) */
-  --fl-glow: var(--glow-a, .35);                 /* 0..1 */
+  --fl-glow: var(--glow-a, .35);        /* 0..1 */
   --fl-shadow-card: var(--shadow-a, .35); /* 0..1 */
 
   /* Overlay / tab */
@@ -56,15 +56,14 @@
   --fl-ctaGap: 44px;  /* поднять кнопку от низа */
   --fl-z: 10020;
 
-  /* Derived helpers */
-  --fl-border: color-mix(in srgb, var(--fl-border-c) 75%, transparent);
-  --fl-panel: color-mix(in srgb, var(--fl-bg-card) 92%, transparent);
-  --fl-panel2: color-mix(in srgb, var(--fl-bg-surface) 88%, transparent);
+  /* ===== Derived helpers (FALLBACK FIRST — TG WebView safe) ===== */
+  --fl-border: var(--fl-border-c);
+  --fl-panel: var(--fl-bg-card);
+  --fl-panel2: var(--fl-bg-surface);
 
-  /* Stage background from theme (и в тёмной, и в светлой красиво) */
-  --fl-stage-top: color-mix(in srgb, var(--fl-bg-surface) 92%, transparent);
-  --fl-stage-bot: color-mix(in srgb, var(--fl-bg-page) 96%, transparent);
-  --fl-stage-glow: color-mix(in srgb, var(--fl-accent-soft) 55%, transparent);
+  --fl-stage-top: var(--fl-bg-surface);
+  --fl-stage-bot: var(--fl-bg-page);
+  --fl-stage-glow: var(--fl-accent-soft);
 
   /* Pills stay pill always */
   --fl-pill-radius: 999px;
@@ -74,15 +73,39 @@
     0 12px 28px rgba(0,0,0, calc(0.10 + var(--fl-shadow-card) * 0.35));
 }
 
-/* ===================== Overlay mode (как раньше) ===================== */
+/* ===== Enable color-mix ONLY when supported ===== */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy{
+    --fl-border: color-mix(in srgb, var(--fl-border-c) 75%, transparent);
+    --fl-panel:  color-mix(in srgb, var(--fl-bg-card) 92%, transparent);
+    --fl-panel2: color-mix(in srgb, var(--fl-bg-surface) 88%, transparent);
+
+    --fl-stage-top: color-mix(in srgb, var(--fl-bg-surface) 92%, transparent);
+    --fl-stage-bot: color-mix(in srgb, var(--fl-bg-page) 96%, transparent);
+    --fl-stage-glow: color-mix(in srgb, var(--fl-accent-soft) 55%, transparent);
+  }
+}
+
+/* ===================== Overlay mode ===================== */
 /* По умолчанию встраиваемый режим */
 .blk-game-flappy .flappy{
   position: relative;
   border-radius: var(--fl-radius);
-  border: 1px solid var(--fl-border);
-  background: linear-gradient(180deg, var(--fl-panel), var(--fl-panel2));
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
   overflow: hidden;
   box-shadow: var(--fl-card-shadow);
+}
+
+/* modern */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .flappy{
+    border-color: var(--fl-border);
+    background: linear-gradient(180deg, var(--fl-panel), var(--fl-panel2));
+  }
 }
 
 /* Когда открыта как "игра во весь экран" */
@@ -102,9 +125,20 @@
   inset: auto;
   z-index: auto;
   border-radius: var(--fl-radius);
-  border: 1px solid var(--fl-border);
-  background: linear-gradient(180deg, var(--fl-panel), var(--fl-panel2));
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
   box-shadow: var(--fl-card-shadow);
+}
+
+/* modern */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy.no-overlay .flappy.is-open{
+    border-color: var(--fl-border);
+    background: linear-gradient(180deg, var(--fl-panel), var(--fl-panel2));
+  }
 }
 
 /* wrap: в overlay учитываем safe-area + нижнее меню */
@@ -131,12 +165,22 @@
   z-index: 30;
 }
 
-/* СЧЁТ — фиксируем одинаковые цифры и берём heading-font из темы */
+/* ===== SCORE (fallback card + modern glow) ===== */
 .blk-game-flappy .fl-score{
-  display:flex;
+  display:inline-flex;
   align-items: baseline;
   gap: 8px;
   color: var(--fl-text);
+
+  padding: 8px 10px;
+  border-radius: max(0px, calc(var(--fl-card-radius) - 4px));
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
+  box-shadow:
+    0 10px 18px rgba(0,0,0, calc(0.05 + var(--fl-shadow-card) * 0.18));
 
   font-family: var(--fl-head) !important;
   font-weight: var(--fl-score-weight);
@@ -144,11 +188,18 @@
 
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
-
-  text-shadow:
-    0 6px calc(18px + var(--fl-glow) * 26px)
-    color-mix(in srgb, var(--fl-accent) calc(18% + var(--fl-glow) * 55%), transparent);
 }
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-score{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-bg-card) 92%, transparent);
+    text-shadow:
+      0 6px calc(18px + var(--fl-glow) * 26px)
+      color-mix(in srgb, var(--fl-accent) calc(18% + var(--fl-glow) * 55%), transparent);
+  }
+}
+
 .blk-game-flappy .fl-score span{
   font-size: var(--fl-score-size);
   line-height: 1;
@@ -158,24 +209,43 @@
 .blk-game-flappy .fl-bar{
   height: 10px;
   border-radius: var(--fl-pill-radius);
-  border: 1px solid var(--fl-border);
-  background: color-mix(in srgb, var(--fl-text) 8%, transparent);
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: rgba(255,255,255,.08);
+
   overflow: hidden;
 }
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-bar{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-text) 8%, transparent);
+  }
+}
+
 .blk-game-flappy .fl-bar > i{
   display:block;
   width:100%;
   height:100%;
   transform-origin: left center;
   transform: scaleX(1);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--fl-text) 92%, transparent),
-    color-mix(in srgb, var(--fl-text) 40%, transparent)
-  );
+
+  /* fallback */
+  background: linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.40));
 }
 
-/* Плашки coins/shield — ЭТО ТОЖЕ “CARD” в твоём понимании */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-bar > i{
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--fl-text) 92%, transparent),
+      color-mix(in srgb, var(--fl-text) 40%, transparent)
+    );
+  }
+}
+
+/* Плашки coins/shield */
 .blk-game-flappy .fl-stats{
   display:flex;
   align-items:center;
@@ -189,22 +259,42 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: var(--fl-pill-radius); /* всегда овально */
-  border: 1px solid var(--fl-border);
-  background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
   color: var(--fl-text);
   font-weight: 900;
+
   box-shadow:
     0 10px 18px rgba(0,0,0, calc(0.05 + var(--fl-shadow-card) * 0.18));
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-stat{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
+  }
 }
 
 .blk-game-flappy .fl-ico{
   width: 20px;
   height: 20px;
-  border-radius: 8px; /* можно тоже связать с radiusInput, но тут приятнее константа */
-  background: color-mix(in srgb, var(--fl-text) 10%, transparent);
+  border-radius: 8px;
+
+  /* fallback */
+  background: rgba(255,255,255,.10);
+
   background-repeat:no-repeat;
   background-position:center;
   background-size:contain;
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-ico{
+    background: color-mix(in srgb, var(--fl-text) 10%, transparent);
+  }
 }
 
 /* Shield progress */
@@ -212,21 +302,40 @@
   width: 86px;
   height: 8px;
   border-radius: var(--fl-pill-radius);
-  border: 1px solid var(--fl-border);
-  background: color-mix(in srgb, var(--fl-text) 8%, transparent);
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: rgba(255,255,255,.08);
+
   overflow: hidden;
 }
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-shield-bar{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-text) 8%, transparent);
+  }
+}
+
 .blk-game-flappy .fl-shield-bar > i{
   display:block;
   width:100%;
   height:100%;
   transform-origin: left center;
   transform: scaleX(0);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--fl-accent) 92%, transparent),
-    color-mix(in srgb, var(--fl-accent) 35%, transparent)
-  );
+
+  /* fallback */
+  background: linear-gradient(90deg, var(--fl-accent), rgba(124,92,255,.35));
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-shield-bar > i{
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--fl-accent) 92%, transparent),
+      color-mix(in srgb, var(--fl-accent) 35%, transparent)
+    );
+  }
 }
 
 /* ===================== Stage ===================== */
@@ -234,18 +343,25 @@
   position: relative;
   overflow: hidden;
 
-  /* Stage radius идёт от card radius */
   border-radius: var(--fl-radius);
-  border: 1px solid var(--fl-border);
 
-  background:
-    radial-gradient(900px 520px at 30% 0%, var(--fl-stage-glow), transparent 62%),
-    linear-gradient(180deg, var(--fl-stage-top), var(--fl-stage-bot));
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-surface);
 
   min-height: 360px;
+}
 
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--fl-border-c) 35%, transparent);
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-stage{
+    border-color: var(--fl-border);
+    background:
+      radial-gradient(900px 520px at 30% 0%, var(--fl-stage-glow), transparent 62%),
+      linear-gradient(180deg, var(--fl-stage-top), var(--fl-stage-bot));
+
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--fl-border-c) 35%, transparent);
+  }
 }
 
 /* в overlay пусть stage занимает всё оставшееся место */
@@ -254,7 +370,7 @@
   border-radius: max(0px, calc(var(--fl-radius)));
 }
 
-/* Hint — тоже “card/pill” */
+/* Hint */
 .blk-game-flappy .fl-hint{
   position:absolute;
   left:50%;
@@ -263,9 +379,11 @@
   padding: 8px 12px;
 
   border-radius: var(--fl-pill-radius);
-  border: 1px solid var(--fl-border);
 
-  background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
   color: var(--fl-text);
 
   font-family: var(--fl-head) !important;
@@ -273,6 +391,13 @@
   font-size: 13px;
   z-index: 50;
   user-select: none;
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-hint{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
+  }
 }
 
 /* Bird */
@@ -284,9 +409,19 @@
   top: 50%;
   transform: translate(-50%,-50%);
   border-radius: max(0px, calc(var(--fl-radius) * 0.6));
-  background: color-mix(in srgb, var(--fl-text) 16%, transparent);
+
+  /* fallback */
+  background: rgba(255,255,255,.16);
+
   will-change: transform, top, left;
 }
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-bird{
+    background: color-mix(in srgb, var(--fl-text) 16%, transparent);
+  }
+}
+
 .blk-game-flappy .fl-bird--sprite{
   background-repeat:no-repeat;
   background-position:center;
@@ -295,11 +430,13 @@
   border-radius: max(0px, calc(var(--fl-radius) * 0.6));
 }
 
-/* Shield glow зависит от glow и brand */
-.blk-game-flappy .fl-bird--shield{
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--fl-accent) calc(45% + var(--fl-glow) * 40%), transparent),
-    0 0 calc(18px + var(--fl-glow) * 26px) color-mix(in srgb, var(--fl-accent) calc(22% + var(--fl-glow) * 55%), transparent);
+/* Shield glow */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-bird--shield{
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--fl-accent) calc(45% + var(--fl-glow) * 40%), transparent),
+      0 0 calc(18px + var(--fl-glow) * 26px) color-mix(in srgb, var(--fl-accent) calc(22% + var(--fl-glow) * 55%), transparent);
+  }
 }
 
 /* Pipes / items */
@@ -335,18 +472,17 @@
 }
 .blk-game-flappy .fl-result.show{ display:flex; }
 
-/* Result card — берём radius-card, border, card bg, shadow */
+/* Result card */
 .blk-game-flappy .fl-card{
   pointer-events:auto;
   width: min(360px, 100%);
   padding: 14px;
 
   border-radius: var(--fl-card-radius);
-  border: 1px solid var(--fl-border);
 
-  background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
 
   box-shadow: var(--fl-card-shadow);
 
@@ -355,12 +491,31 @@
   gap: 10px;
 }
 
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-card{
+    border-color: var(--fl-border);
+    background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
 .blk-game-flappy .fl-cell{
   border-radius: max(0px, calc(var(--fl-card-radius) - 2px));
-  border: 1px solid color-mix(in srgb, var(--fl-border-c) 55%, transparent);
-  background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+  background: var(--fl-bg-card);
+
   padding: 12px;
   text-align:center;
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-cell{
+    border: 1px solid color-mix(in srgb, var(--fl-border-c) 55%, transparent);
+    background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
+  }
 }
 
 .blk-game-flappy .fl-val{
@@ -402,19 +557,36 @@
 
   background: var(--fl-cta-bg);
   color: var(--fl-cta-text);
-  border: 1px solid color-mix(in srgb, var(--fl-cta-bg) 82%, transparent);
+
+  /* fallback border */
+  border: 1px solid rgba(255,255,255,.14);
 
   box-shadow:
     0 14px 28px rgba(0,0,0, calc(0.06 + var(--fl-shadow-card) * 0.22));
 }
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .fl-cta .btn{
+    border: 1px solid color-mix(in srgb, var(--fl-cta-bg) 82%, transparent);
+  }
+}
+
 .blk-game-flappy .fl-cta .btn:active{ transform: translateY(1px); }
 
-/* Secondary button (если где-то есть) */
+/* Secondary button */
 .blk-game-flappy .btn-secondary{
   border-radius: var(--fl-btn-radius);
   background: var(--fl-cta-bg-2);
   color: var(--fl-cta-text-2);
-  border: 1px solid var(--fl-border);
+
+  /* fallback */
+  border: 1px solid var(--fl-border-c);
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-game-flappy .btn-secondary{
+    border-color: var(--fl-border);
+  }
 }
 
 /* Desktop fit */
