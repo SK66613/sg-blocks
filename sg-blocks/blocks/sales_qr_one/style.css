@@ -1,10 +1,31 @@
-/* Sales QR — uses global app tokens (see :root vars in mini runtime) */
+/* ===== Sales QR (scoped for block) ================================ */
+/* Uses global app tokens (see :root vars in mini runtime) */
+
 .blk-sales-qr{ padding: 10px 0; }
+
+/* ===== FALLBACK FIRST (TG WebView safe) ===== */
+.blk-sales-qr{
+  --sq-cardBg: var(--color-card, #101827);
+  --sq-cardBorder: var(--color-border, #263048);
+  --sq-chipBg: var(--color-surface, #121a2a);
+}
+
+/* Enable color-mix only if supported */
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-sales-qr{
+    --sq-cardBg: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
+    --sq-cardBorder: var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
+    --sq-chipBg: var(--surface2, color-mix(in srgb, var(--color-surface, #121a2a) 88%, var(--color-bg, #0f1219)));
+  }
+}
 
 .blk-sales-qr .sq-card{
   border-radius: var(--radius-card, 16px);
-  background: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
-  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
+
+  /* fallback */
+  background: var(--sq-cardBg);
+  border: 1px solid var(--sq-cardBorder);
+
   padding: 16px;
   box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
   max-width: 420px;
@@ -22,8 +43,10 @@
   justify-content:center;
   padding: 14px;
   border-radius: var(--radius-card, 16px);
-  background: var(--surface2, color-mix(in srgb, var(--color-surface, #121a2a) 88%, var(--color-bg, #0f1219)));
-  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 55%, transparent));
+
+  /* fallback */
+  background: var(--sq-chipBg);
+  border: 1px solid var(--sq-cardBorder);
 }
 
 .blk-sales-qr .sq-canvas{
@@ -55,11 +78,20 @@
   flex:1;
   height: 42px;
   border-radius: var(--radius-btn, 14px);
-  border: 1px solid var(--card-border, rgba(255,255,255,.14));
+
+  /* fallback */
+  border: 1px solid var(--sq-cardBorder);
   background: var(--btn-secondary-bg, rgba(255,255,255,.08));
   color: var(--btn-secondary-text, inherit);
+
   font-weight: 700;
   cursor: pointer;
+}
+
+@supports (background: color-mix(in srgb, #000 50%, transparent)){
+  .blk-sales-qr .sq-btn{
+    border-color: var(--sq-cardBorder);
+  }
 }
 
 .blk-sales-qr .sq-btn:active{ transform: translateY(1px); }
