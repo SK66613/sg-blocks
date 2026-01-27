@@ -1,55 +1,66 @@
+/* Sales QR — uses global app tokens (see :root vars in mini runtime) */
 .blk-sales-qr{ padding: 10px 0; }
-.sq-card{
-  border-radius: 16px;
-  background: var(--card-bg, rgba(255,255,255,.06));
-  border: 1px solid var(--card-border, rgba(255,255,255,.10));
+
+.blk-sales-qr .sq-card{
+  border-radius: var(--radius-card, 16px);
+  background: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
+  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
   padding: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
   max-width: 420px;
   margin: 0 auto;
+  color: var(--color-text, #e8f0ff);
 }
-.sq-title{ font-size: 18px; font-weight: 700; margin: 0 0 6px; }
-.sq-sub{ font-size: 13px; opacity:.85; margin: 0 0 8px; }
-.sq-desc{ font-size: 13px; opacity:.8; margin: 0 0 12px; white-space: pre-wrap; }
-.sq-qrwrap{
+
+.blk-sales-qr .sq-title{ font-size: 18px; font-weight: 800; margin: 0 0 6px; }
+.blk-sales-qr .sq-sub{ font-size: 13px; opacity:.85; margin: 0 0 8px; color: var(--color-muted, rgba(255,255,255,.7)); }
+.blk-sales-qr .sq-desc{ font-size: 13px; opacity:.9; margin: 0 0 12px; white-space: pre-wrap; }
+
+.blk-sales-qr .sq-qrwrap{
   display:flex;
   align-items:center;
   justify-content:center;
   padding: 14px;
-  border-radius: 18px;
-  background: rgba(0,0,0,.10);
-  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--radius-card, 16px);
+  background: var(--surface2, color-mix(in srgb, var(--color-surface, #121a2a) 88%, var(--color-bg, #0f1219)));
+  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 55%, transparent));
 }
-.sq-canvas{
-  border-radius: 14px;
+
+.blk-sales-qr .sq-canvas{
+  border-radius: var(--radius-input, 12px);
   background: #fff;
   padding: 10px;
 }
-.sq-fallback{
+
+.blk-sales-qr .sq-fallback{
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-input, 12px);
   background: rgba(0,0,0,.15);
   font-size: 12px;
   word-break: break-all;
 }
-.sq-foot{ margin-top: 12px; text-align:center; }
-.sq-cb{ font-size: 13px; opacity:.9; margin-bottom: 6px; }
-.sq-status{ font-size: 12px; opacity:.85; }
-.sq-debug{ margin-top: 6px; font-size: 11px; opacity: .55; word-break: break-all; }
-.sq-actions{
+
+.blk-sales-qr .sq-foot{ margin-top: 12px; text-align:center; }
+.blk-sales-qr .sq-cb{ font-size: 13px; opacity:.9; margin-bottom: 6px; }
+.blk-sales-qr .sq-status{ font-size: 12px; opacity:.85; }
+.blk-sales-qr .sq-debug{ margin-top: 6px; font-size: 11px; opacity: .55; word-break: break-all; }
+
+.blk-sales-qr .sq-actions{
   display:flex;
   gap: 10px;
   margin-top: 14px;
 }
-.sq-btn{
+
+.blk-sales-qr .sq-btn{
   flex:1;
   height: 42px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.08);
-  color: inherit;
-  font-weight: 600;
+  border-radius: var(--radius-btn, 14px);
+  border: 1px solid var(--card-border, rgba(255,255,255,.14));
+  background: var(--btn-secondary-bg, rgba(255,255,255,.08));
+  color: var(--btn-secondary-text, inherit);
+  font-weight: 700;
   cursor: pointer;
 }
-.sq-btn:active{ transform: translateY(1px); }
-.sq-btn-ghost{ background: transparent; }
+
+.blk-sales-qr .sq-btn:active{ transform: translateY(1px); }
+.blk-sales-qr .sq-btn-ghost{ background: transparent; }
