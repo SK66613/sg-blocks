@@ -1,63 +1,64 @@
+/* Stars product card — uses global app tokens */
 .blk-shop-stars{ padding: 0; }
 
-.ss-card{
-  border-radius: var(--r-card, 16px);
+.blk-shop-stars .ss-card{
+  border-radius: var(--radius-card, 16px);
   overflow: hidden;
-  background: var(--card, #fff);
-  color: var(--text, #0b1220);
-  box-shadow: var(--shadow-card, 0 10px 30px rgba(0,0,0,.10));
-  border: 1px solid var(--card-border, rgba(0,0,0,.06));
+  background: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
+  color: var(--color-text, #e8f0ff);
+  box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+  border: 1px solid var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
 }
 
-.ss-img{
+.blk-shop-stars .ss-img{
   height: 160px;
-  background: color-mix(in srgb, var(--surface, #f2f3f5) 100%, transparent);
+  background: color-mix(in srgb, var(--color-surface, #121a2a) 100%, transparent);
   background-size: cover;
   background-position: center;
 }
 
-.ss-body{
+.blk-shop-stars .ss-body{
   padding: 14px;
   display:flex;
   flex-direction:column;
   gap:10px;
 }
 
-.ss-title{
-  font-weight: 700;
+.blk-shop-stars .ss-title{
+  font-weight: 800;
   font-size: 16px;
   line-height: 1.2;
-  color: var(--text, inherit);
+  color: var(--color-text, inherit);
 }
 
-.ss-desc{
+.blk-shop-stars .ss-desc{
   font-size: 13px;
   line-height: 1.35;
-  color: var(--muted, rgba(0,0,0,.65));
+  color: var(--color-muted, rgba(255,255,255,.7));
 }
 
-.ss-row{
+.blk-shop-stars .ss-row{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:12px;
 }
 
-.ss-price{
-  font-weight: 800;
+.blk-shop-stars .ss-price{
+  font-weight: 900;
   font-size: 15px;
-  color: var(--text, inherit);
+  color: var(--color-text, inherit);
 }
 
-.ss-btn{
+.blk-shop-stars .ss-btn{
   border:0;
-  border-radius: var(--r-btn, 14px);
+  border-radius: var(--radius-btn, 14px);
   padding: 10px 14px;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
-  background: var(--btnPrimaryBg, var(--brand, #2b6cff));
-  color: var(--btnPrimaryText, #fff);
+  background: var(--btn-primary-bg, var(--color-brand, #7C5CFF));
+  color: var(--btn-primary-text, #fff);
+  box-shadow: color-mix(in srgb, var(--color-brand, #7C5CFF) 22%, transparent) 0 10px 22px;
 }
 
-.ss-btn:active{ transform: translateY(1px); }
-
+.blk-shop-stars .ss-btn:active{ transform: translateY(1px); }
