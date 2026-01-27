@@ -29,7 +29,7 @@
   --fl-cta-bg-2: var(--btn-secondary-bg, rgba(255,255,255,.06));
   --fl-cta-text-2: var(--btn-secondary-text, var(--fl-text));
 
-  /* Radius */
+  /* Radius: по умолчанию 0 (прямые), пользователь закругляет в теме */
   --fl-radius: var(--radius-card, 16px);
   --fl-btn-radius: var(--radius-btn, 14px);
   --fl-input-radius: var(--radius-input, 12px);
@@ -48,7 +48,7 @@
   --fl-score-letter: .2px;
 
   /* Glow / shadow (0..1) */
-  --fl-glow: var(--glow-a, .35);       /* 0..1 */
+  --fl-glow: var(--glow-a, .35);                 /* 0..1 */
   --fl-shadow-card: var(--shadow-a, .35); /* 0..1 */
 
   /* Overlay / tab */
@@ -61,7 +61,7 @@
   --fl-panel: color-mix(in srgb, var(--fl-bg-card) 92%, transparent);
   --fl-panel2: color-mix(in srgb, var(--fl-bg-surface) 88%, transparent);
 
-  /* Stage background from theme */
+  /* Stage background from theme (и в тёмной, и в светлой красиво) */
   --fl-stage-top: color-mix(in srgb, var(--fl-bg-surface) 92%, transparent);
   --fl-stage-bot: color-mix(in srgb, var(--fl-bg-page) 96%, transparent);
   --fl-stage-glow: color-mix(in srgb, var(--fl-accent-soft) 55%, transparent);
@@ -80,12 +80,7 @@
   position: relative;
   border-radius: var(--fl-radius);
   border: 1px solid var(--fl-border);
-
-  /* fallback first (for iOS TG) */
-  background: var(--fl-bg-card);
-  /* fancy on modern */
   background: linear-gradient(180deg, var(--fl-panel), var(--fl-panel2));
-
   overflow: hidden;
   box-shadow: var(--fl-card-shadow);
 }
@@ -136,25 +131,11 @@
   z-index: 30;
 }
 
-/* ===== SCORE as card (ВAЖНО: было прозрачным) ===== */
+/* СЧЁТ — фиксируем одинаковые цифры и берём heading-font из темы */
 .blk-game-flappy .fl-score{
-  display:inline-flex;
+  display:flex;
   align-items: baseline;
   gap: 8px;
-
-  /* card look */
-  padding: 8px 10px;
-  border-radius: max(0px, calc(var(--fl-card-radius) - 4px));
-  border: 1px solid var(--fl-border);
-
-  /* fallback for iOS TG */
-  background: var(--fl-bg-card);
-  /* modern */
-  background: color-mix(in srgb, var(--fl-bg-card) 92%, transparent);
-
-  box-shadow:
-    0 10px 18px rgba(0,0,0, calc(0.05 + var(--fl-shadow-card) * 0.18));
-
   color: var(--fl-text);
 
   font-family: var(--fl-head) !important;
@@ -194,7 +175,7 @@
   );
 }
 
-/* Плашки coins/shield */
+/* Плашки coins/shield — ЭТО ТОЖЕ “CARD” в твоём понимании */
 .blk-game-flappy .fl-stats{
   display:flex;
   align-items:center;
@@ -209,7 +190,6 @@
   padding: 8px 10px;
   border-radius: var(--fl-pill-radius); /* всегда овально */
   border: 1px solid var(--fl-border);
-  background: var(--fl-bg-card); /* fallback */
   background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
   color: var(--fl-text);
   font-weight: 900;
@@ -220,7 +200,7 @@
 .blk-game-flappy .fl-ico{
   width: 20px;
   height: 20px;
-  border-radius: 8px;
+  border-radius: 8px; /* можно тоже связать с radiusInput, но тут приятнее константа */
   background: color-mix(in srgb, var(--fl-text) 10%, transparent);
   background-repeat:no-repeat;
   background-position:center;
@@ -254,13 +234,10 @@
   position: relative;
   overflow: hidden;
 
+  /* Stage radius идёт от card radius */
   border-radius: var(--fl-radius);
   border: 1px solid var(--fl-border);
 
-  /* IMPORTANT: fallback background first (iOS TG) */
-  background: var(--fl-bg-surface);
-
-  /* Fancy gradients on modern engines */
   background:
     radial-gradient(900px 520px at 30% 0%, var(--fl-stage-glow), transparent 62%),
     linear-gradient(180deg, var(--fl-stage-top), var(--fl-stage-bot));
@@ -277,7 +254,7 @@
   border-radius: max(0px, calc(var(--fl-radius)));
 }
 
-/* Hint */
+/* Hint — тоже “card/pill” */
 .blk-game-flappy .fl-hint{
   position:absolute;
   left:50%;
@@ -288,7 +265,6 @@
   border-radius: var(--fl-pill-radius);
   border: 1px solid var(--fl-border);
 
-  background: var(--fl-bg-card); /* fallback */
   background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
   color: var(--fl-text);
 
@@ -319,7 +295,7 @@
   border-radius: max(0px, calc(var(--fl-radius) * 0.6));
 }
 
-/* Shield glow depends on theme */
+/* Shield glow зависит от glow и brand */
 .blk-game-flappy .fl-bird--shield{
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--fl-accent) calc(45% + var(--fl-glow) * 40%), transparent),
@@ -359,7 +335,7 @@
 }
 .blk-game-flappy .fl-result.show{ display:flex; }
 
-/* Result card */
+/* Result card — берём radius-card, border, card bg, shadow */
 .blk-game-flappy .fl-card{
   pointer-events:auto;
   width: min(360px, 100%);
@@ -368,7 +344,6 @@
   border-radius: var(--fl-card-radius);
   border: 1px solid var(--fl-border);
 
-  background: var(--fl-bg-card); /* fallback */
   background: color-mix(in srgb, var(--fl-bg-card) 70%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -383,7 +358,6 @@
 .blk-game-flappy .fl-cell{
   border-radius: max(0px, calc(var(--fl-card-radius) - 2px));
   border: 1px solid color-mix(in srgb, var(--fl-border-c) 55%, transparent);
-  background: var(--fl-bg-card); /* fallback */
   background: color-mix(in srgb, var(--fl-bg-card) 86%, transparent);
   padding: 12px;
   text-align:center;
