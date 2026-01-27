@@ -283,19 +283,24 @@
   height: 20px;
   border-radius: 8px;
 
-  /* fallback */
-  background: rgba(255,255,255,.10);
+  /* было: background: ...;  -> убираем, чтобы не "перекрывать" иконку */
+  background: transparent;
+
+  /* лёгкая подложка через border (не мешает картинке) */
+  border: 1px solid rgba(255,255,255,.10);
 
   background-repeat:no-repeat;
   background-position:center;
   background-size:contain;
 }
 
+/* если color-mix поддерживается — делаем более "в тему" */
 @supports (background: color-mix(in srgb, #000 50%, transparent)){
   .blk-game-flappy .fl-ico{
-    background: color-mix(in srgb, var(--fl-text) 10%, transparent);
+    border-color: color-mix(in srgb, var(--fl-text) 14%, transparent);
   }
 }
+
 
 /* Shield progress */
 .blk-game-flappy .fl-shield-bar{
