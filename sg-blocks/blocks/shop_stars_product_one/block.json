@@ -1,0 +1,36 @@
+{
+  "id": "shop_stars_product_one",
+  "type": "htmlEmbed",
+  "title": "Магазин: товар за Stars",
+  "category": "Магазин / Оплата",
+  "tags": [
+    "all",
+    "shop",
+    "product",
+    "stars",
+    "payments"
+  ],
+  "version": "1.0.0",
+  "template": "view.html",
+  "assets": {
+    "css": [
+      "style.css"
+    ],
+    "js": [
+      "runtime.js"
+    ]
+  },
+  "defaults": {
+    "title": "Товар",
+    "description": "Оплата звёздами в Telegram",
+    "product_id": "product_1",
+    "photo_url": "",
+    "stars": 50,
+    "qty": 1,
+    "btn_text": "Купить за ⭐",
+    "btn_loading_text": "Создаю счёт…",
+    "success_text": "✅ Оплачено!",
+    "cancel_text": "Отменено",
+    "fail_text": "Ошибка оплаты"
+  }
+}
