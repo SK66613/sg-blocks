@@ -101,6 +101,11 @@
 .blk-shop-stars .ss-title{
   font-family: var(--font-head, var(--font-body));
   font-weight: var(--fw-head, 800);
+
+  /* ВАЖНО: head italic/underline из твоей темы */
+  font-style: var(--it-head, normal);
+  text-decoration: var(--ul-head, none);
+
   margin: 0;
   font-size: var(--fs-h2, 18px);
   line-height: 1.18;
@@ -120,6 +125,10 @@
   font-size: 0.93em;  /* чуть меньше body, в em */
   line-height: 1.35;
   margin: 0;
+
+  /* body italic/underline из твоей темы (если включишь) */
+  font-style: var(--it-body, normal);
+  text-decoration: var(--ul-body, none);
 }
 
 /* ===== Row (price + button) — ВАЖНО: у тебя в HTML именно .ss-row ==== */
@@ -167,6 +176,13 @@
 .blk-shop-stars .ss-btn:focus-visible{
   outline: none;
   box-shadow: var(--glow-brand, 0 0 0 2px rgba(124,92,255,.35), 0 0 24px rgba(124,92,255,.22));
+}
+
+/* страховка: кнопки не подчеркиваем даже если включен ul-body */
+.blk-shop-stars .ss-btn,
+.blk-shop-stars .ss-btn *{
+  text-decoration: none !important;
+  font-style: normal;
 }
 
 /* Secondary button support (если когда-то добавишь класс) */
