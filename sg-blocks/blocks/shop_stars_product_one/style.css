@@ -1,10 +1,20 @@
 /* ===== Stars product card (scoped for block) ====================== */
-/* Uses global app tokens + typography tokens (font/weight/italic/underline + sizes) */
+/* Uses global app tokens + SG typography tokens (works like Calendar: em-based) */
 
 .blk-shop-stars{
   padding: 0;
 
-  /* --- Typography bridges (fallbacks if some tokens not defined yet) --- */
+  /* ===== Theme colors fallbacks (TG-safe) ===== */
+  --ss-cardBg: var(--color-card, #101827);
+  --ss-cardBorder: var(--color-border, #263048);
+  --ss-imgBg: var(--color-surface, #121a2a);
+
+  /* brand / button bg (support both new + legacy aliases) */
+  --ss-brand: var(--btn-primary-bg, var(--btnPrimaryBg, var(--color-brand, #7C5CFF)));
+  /* button text (support new + legacy aliases) */
+  --ss-onBrand: var(--btn-primary-text, var(--btnPrimaryText, #fff));
+
+  /* ===== Typography bridges ===== */
   --ss-font-body: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
   --ss-font-head: var(--font-head, var(--ss-font-body));
   --ss-font-btn:  var(--font-btn,  var(--ss-font-body));
@@ -21,39 +31,19 @@
   --ss-ul-head: var(--ul-head, none);
   --ss-ul-btn:  var(--ul-btn,  none);
 
-  /* --- SIZE bridges --- */
-  --ss-fs-body: var(--fs-body, 14px);
-  --ss-fs-btn:  var(--fs-btn,  14px);
+  /* ===== Sizes: THIS is the key =====
+     font-size of the block = Body size
+     everything inside uses em */
+  font-size: var(--fs-body, 14px);
 
-  /* scale helpers (block-local) */
-  --ss-title-scale: 1.15; /* title ~ body*1.15 */
-  --ss-desc-scale:  0.95; /* desc  ~ body*0.95 */
-  --ss-price-scale: 1.05; /* price ~ body*1.05 */
-
-  /* default text style for the block */
+  /* default style for block text */
   font-family: var(--ss-font-body);
   font-weight: var(--ss-fw-body);
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
-
-  /* IMPORTANT: if block is mounted inside something with different font-size,
-     explicitly set base size so descendants can scale predictably */
-  font-size: var(--ss-fs-body);
 }
 
-/* ===== FALLBACK FIRST (TG WebView safe) ===== */
-.blk-shop-stars{
-  --ss-cardBg: var(--color-card, #101827);
-  --ss-cardBorder: var(--color-border, #263048);
-  --ss-imgBg: var(--color-surface, #121a2a);
-
-  /* brand / button bg (support both new + legacy aliases) */
-  --ss-brand: var(--btn-primary-bg, var(--btnPrimaryBg, var(--color-brand, #7C5CFF)));
-
-  /* button text (support new + legacy aliases) */
-  --ss-onBrand: var(--btn-primary-text, var(--btnPrimaryText, #fff));
-}
-
+/* Enable color-mix only if supported */
 @supports (background: color-mix(in srgb, #000 50%, transparent)){
   .blk-shop-stars{
     --ss-cardBg: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
@@ -62,6 +52,7 @@
   }
 }
 
+/* Card */
 .blk-shop-stars .ss-card{
   border-radius: var(--radius-card, 16px);
   overflow: hidden;
@@ -81,33 +72,32 @@
 }
 
 .blk-shop-stars .ss-body{
-  padding: 14px;
+  padding: 1em;            /* было 14px -> теперь от body */
   display:flex;
   flex-direction:column;
-  gap:10px;
+  gap: 0.7em;              /* было 10px */
 }
 
-/* Title = HEAD typography */
+/* Title = HEAD typography + em size */
 .blk-shop-stars .ss-title{
   font-family: var(--ss-font-head);
   font-weight: var(--ss-fw-head);
   font-style: var(--ss-it-head);
   text-decoration: var(--ss-ul-head);
 
-  /* size follows BODY (so slider changes it) */
-  font-size: calc(var(--ss-fs-body) * var(--ss-title-scale));
+  font-size: 1.15em;       /* ~16px at body=14 */
   line-height: 1.2;
   color: var(--color-text, inherit);
 }
 
-/* Description = BODY typography */
+/* Description = BODY typography + em size */
 .blk-shop-stars .ss-desc{
   font-family: var(--ss-font-body);
   font-weight: var(--ss-fw-body);
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
 
-  font-size: calc(var(--ss-fs-body) * var(--ss-desc-scale));
+  font-size: 0.93em;       /* ~13px at body=14 */
   line-height: 1.35;
   color: var(--color-muted, rgba(255,255,255,.7));
 }
@@ -116,42 +106,39 @@
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:12px;
+  gap: 0.85em;             /* было 12px */
 }
 
-/* Price — keep it “strong”, but still BODY typography */
+/* Price — BODY typography, can be strong */
 .blk-shop-stars .ss-price{
   font-family: var(--ss-font-body);
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
 
-  /* weight: either follow body slider or keep extra-strong */
-  /* font-weight: var(--ss-fw-body); */
-  font-weight: 900;
-
-  font-size: calc(var(--ss-fs-body) * var(--ss-price-scale));
+  font-weight: 900;        /* можно заменить на var(--ss-fw-body) если хочешь */
+  font-size: 1.05em;       /* ~15px at body=14 */
   color: var(--color-text, inherit);
 }
 
-/* Button = BTN typography */
+/* Button = BTN typography + button size token */
 .blk-shop-stars .ss-btn{
   border:0;
   border-radius: var(--radius-btn, 14px);
-  padding: 10px 14px;
+
+  padding: 0.72em 1em;     /* было 10px 14px */
+  cursor: pointer;
 
   font-family: var(--ss-font-btn);
   font-weight: var(--ss-fw-btn);
   font-style: var(--ss-it-btn);
   text-decoration: var(--ss-ul-btn);
 
-  /* size follows BUTTON slider */
-  font-size: var(--ss-fs-btn);
+  /* IMPORTANT: button size is separate slider */
+  font-size: var(--fs-btn, 14px);
 
-  cursor: pointer;
   background: var(--ss-brand);
   color: var(--ss-onBrand);
 
-  /* fallback shadow */
   box-shadow: 0 10px 22px rgba(124,92,255,.22);
 }
 
