@@ -1,151 +1,135 @@
-/* ===== Stars product card (scoped for block) ====================== */
-/* Uses global app tokens + SG typography tokens (works like Calendar: em-based) */
+/* ===== Stars product card (scoped for block) =========================
+   Этот блок ЗАВЯЗАН на токены твоего приложения:
+   Colors:   --color-bg/surface/card/border/text/muted/brand
+   Buttons:  --btn-primary-bg/text, --btn-secondary-bg/text
+   Radius:   --radius-card/btn/input
+   Shadow:   --shadow-soft, --glow-brand
+   Type:     --font-body/head/btn, --fs-body, --fs-btn, --fw-*
+   ==================================================================== */
 
 .blk-shop-stars{
   padding: 0;
 
-  /* ===== Theme colors fallbacks (TG-safe) ===== */
+  /* === БАЗА МАСШТАБА (ВАЖНО ДЛЯ em) ==================================
+     Всё внутри блока считается в em от --fs-body.
+     Если хочешь увеличить/уменьшить блок — меняй --fs-body в теме. */
+  font-family: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
+  font-size: var(--fs-body, 14px);
+  line-height: 1.45;
+  color: var(--color-text, #e8f0ff);
+
+  /* === РУЧКИ ДЛЯ ПОДКРУТКИ (можно менять тут или через тему) ========= */
+  --ss-pad: 1em;              /* внутренний паддинг карточки */
+  --ss-gap: 0.75em;           /* вертикальные расстояния */
+  --ss-img-h: 11.5em;         /* высота картинки (в em, НЕ px) */
+  --ss-title-size: 1.15em;    /* размер заголовка */
+  --ss-desc-size: 0.93em;     /* размер описания */
+  --ss-price-size: 1.05em;    /* размер цены */
+  --ss-btn-pad-y: 0.72em;     /* кнопка: вертикальный паддинг */
+  --ss-btn-pad-x: 1.00em;     /* кнопка: горизонтальный паддинг */
+
+  /* === ФОЛБЭКИ НА ЦВЕТА/ТЕНИ (TG-safe) =============================== */
   --ss-cardBg: var(--color-card, #101827);
   --ss-cardBorder: var(--color-border, #263048);
   --ss-imgBg: var(--color-surface, #121a2a);
 
-  /* brand / button bg (support both new + legacy aliases) */
-  --ss-brand: var(--btn-primary-bg, var(--btnPrimaryBg, var(--color-brand, #7C5CFF)));
-  /* button text (support new + legacy aliases) */
-  --ss-onBrand: var(--btn-primary-text, var(--btnPrimaryText, #fff));
-
-  /* ===== Typography bridges ===== */
-  --ss-font-body: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
-  --ss-font-head: var(--font-head, var(--ss-font-body));
-  --ss-font-btn:  var(--font-btn,  var(--ss-font-body));
-
-  --ss-fw-body: var(--fw-body, 400);
-  --ss-fw-head: var(--fw-head, 800);
-  --ss-fw-btn:  var(--fw-btn,  800);
-
-  --ss-it-body: var(--it-body, normal);
-  --ss-it-head: var(--it-head, normal);
-  --ss-it-btn:  var(--it-btn,  normal);
-
-  --ss-ul-body: var(--ul-body, none);
-  --ss-ul-head: var(--ul-head, none);
-  --ss-ul-btn:  var(--ul-btn,  none);
-
-  /* ===== Sizes: THIS is the key =====
-     font-size of the block = Body size
-     everything inside uses em */
-  font-size: var(--fs-body, 14px);
-
-  /* default style for block text */
-  font-family: var(--ss-font-body);
-  font-weight: var(--ss-fw-body);
-  font-style: var(--ss-it-body);
-  text-decoration: var(--ss-ul-body);
+  --ss-primaryBg: var(--btn-primary-bg, var(--color-brand, #7C5CFF));
+  --ss-primaryText: var(--btn-primary-text, #ffffff);
+  --ss-secondaryBg: var(--btn-secondary-bg, #1a2336);
+  --ss-secondaryText: var(--btn-secondary-text, #e8f0ff);
 }
 
-/* Enable color-mix only if supported */
-@supports (background: color-mix(in srgb, #000 50%, transparent)){
-  .blk-shop-stars{
-    --ss-cardBg: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
-    --ss-cardBorder: var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
-    --ss-imgBg: color-mix(in srgb, var(--color-surface, #121a2a) 100%, transparent);
-  }
-}
-
-/* Card */
+/* ===== Card =========================================================== */
 .blk-shop-stars .ss-card{
-  border-radius: var(--radius-card, 16px);
-  overflow: hidden;
-
   background: var(--ss-cardBg);
   border: 1px solid var(--ss-cardBorder);
-
-  color: var(--color-text, #e8f0ff);
+  border-radius: var(--radius-card, 16px);
   box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+  padding: var(--ss-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ss-gap);
+  overflow: hidden;
 }
 
+/* ===== Image ========================================================== */
 .blk-shop-stars .ss-img{
-  height: 160px;
+  width: 100%;
+  height: var(--ss-img-h);
   background: var(--ss-imgBg);
-  background-size: cover;
-  background-position: center;
+  border-radius: calc(var(--radius-card, 16px) - 6px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.blk-shop-stars .ss-img img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.blk-shop-stars .ss-body{
-  padding: 1em;            /* было 14px -> теперь от body */
-  display:flex;
-  flex-direction:column;
-  gap: 0.7em;              /* было 10px */
-}
-
-/* Title = HEAD typography + em size */
+/* ===== Text =========================================================== */
 .blk-shop-stars .ss-title{
-  font-family: var(--ss-font-head);
-  font-weight: var(--ss-fw-head);
-  font-style: var(--ss-it-head);
-  text-decoration: var(--ss-ul-head);
-
-  font-size: 1.15em;       /* ~16px at body=14 */
-  line-height: 1.2;
-  color: var(--color-text, inherit);
+  font-family: var(--font-head, var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif));
+  font-weight: var(--fw-head, 800);
+  font-size: var(--ss-title-size);
+  line-height: 1.18;
+  margin: 0;
 }
-
-/* Description = BODY typography + em size */
 .blk-shop-stars .ss-desc{
-  font-family: var(--ss-font-body);
-  font-weight: var(--ss-fw-body);
-  font-style: var(--ss-it-body);
-  text-decoration: var(--ss-ul-body);
-
-  font-size: 0.93em;       /* ~13px at body=14 */
+  color: var(--color-muted, #97aac4);
+  font-size: var(--ss-desc-size);
   line-height: 1.35;
-  color: var(--color-muted, rgba(255,255,255,.7));
+  margin: 0;
 }
 
-.blk-shop-stars .ss-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 0.85em;             /* было 12px */
+/* ===== Footer / price + button ======================================= */
+.blk-shop-stars .ss-foot{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85em;
 }
-
-/* Price — BODY typography, can be strong */
 .blk-shop-stars .ss-price{
-  font-family: var(--ss-font-body);
-  font-style: var(--ss-it-body);
-  text-decoration: var(--ss-ul-body);
-
-  font-weight: 900;        /* можно заменить на var(--ss-fw-body) если хочешь */
-  font-size: 1.05em;       /* ~15px at body=14 */
-  color: var(--color-text, inherit);
+  font-weight: 800;
+  font-size: var(--ss-price-size);
+  white-space: nowrap;
 }
 
-/* Button = BTN typography + button size token */
+/* ===== Button ========================================================= */
 .blk-shop-stars .ss-btn{
-  border:0;
+  border: 0;
   border-radius: var(--radius-btn, 14px);
-
-  padding: 0.72em 1em;     /* было 10px 14px */
+  padding: var(--ss-btn-pad-y) var(--ss-btn-pad-x);
   cursor: pointer;
 
-  font-family: var(--ss-font-btn);
-  font-weight: var(--ss-fw-btn);
-  font-style: var(--ss-it-btn);
-  text-decoration: var(--ss-ul-btn);
-
-  /* IMPORTANT: button size is separate slider */
+  font-family: var(--font-btn, var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif));
   font-size: var(--fs-btn, 14px);
+  font-weight: var(--fw-btn, 800);
+  line-height: 1;
 
-  background: var(--ss-brand);
-  color: var(--ss-onBrand);
+  background: var(--ss-primaryBg);
+  color: var(--ss-primaryText);
 
-  box-shadow: 0 10px 22px rgba(124,92,255,.22);
+  transition: transform .12s ease, filter .12s ease, opacity .12s ease;
 }
-
-@supports (background: color-mix(in srgb, #000 50%, transparent)){
-  .blk-shop-stars .ss-btn{
-    box-shadow: color-mix(in srgb, var(--color-brand, #7C5CFF) 22%, transparent) 0 10px 22px;
-  }
-}
-
+.blk-shop-stars .ss-btn:hover{ filter: brightness(1.03); }
 .blk-shop-stars .ss-btn:active{ transform: translateY(1px); }
+.blk-shop-stars .ss-btn:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+.blk-shop-stars .ss-btn:focus-visible{
+  outline: none;
+  box-shadow: var(--glow-brand, 0 0 0 2px rgba(124,92,255,.35), 0 0 24px rgba(124,92,255,.22));
+}
+
+/* ===== Secondary button (если у тебя в view есть такой класс) ========= */
+.blk-shop-stars .ss-btn.is-secondary{
+  background: var(--ss-secondaryBg);
+  color: var(--ss-secondaryText);
+}
