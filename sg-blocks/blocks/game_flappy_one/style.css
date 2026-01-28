@@ -4,12 +4,29 @@
    (и legacy: --bg --fg --sub --acc --line)
 */
 
-/* Базовый шрифт/размер — строго из темы (чтобы в конструкторе и телеге одинаково) */
+/* базовое для блока */
 .blk-game-flappy{
-  font-family: var(--font-body, inherit) !important;
+  font-family: var(--font-body, inherit);
   font-size: var(--font-size, 14px);
 }
-.blk-game-flappy *{ font-family: inherit !important; }
+
+/* всё наследует, но БЕЗ !important */
+.blk-game-flappy *{
+  font-family: inherit;
+}
+
+/* заголовки/титулы — на head */
+.blk-game-flappy h1,
+.blk-game-flappy h2,
+.blk-game-flappy h3,
+.blk-game-flappy .h1,
+.blk-game-flappy .h2,
+.blk-game-flappy .h3,
+.blk-game-flappy .title,
+.blk-game-flappy .headline{
+  font-family: var(--font-head, inherit);
+}
+
 
 .blk-game-flappy{
   /* ===== BRIDGE ===== */
