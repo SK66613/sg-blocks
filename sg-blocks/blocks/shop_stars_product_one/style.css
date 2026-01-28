@@ -1,5 +1,5 @@
 /* ===== Stars product card (scoped for block) ====================== */
-/* Uses global app tokens + typography tokens (font/weight/italic/underline) */
+/* Uses global app tokens + typography tokens (font/weight/italic/underline + sizes) */
 
 .blk-shop-stars{
   padding: 0;
@@ -21,11 +21,24 @@
   --ss-ul-head: var(--ul-head, none);
   --ss-ul-btn:  var(--ul-btn,  none);
 
+  /* --- SIZE bridges --- */
+  --ss-fs-body: var(--fs-body, 14px);
+  --ss-fs-btn:  var(--fs-btn,  14px);
+
+  /* scale helpers (block-local) */
+  --ss-title-scale: 1.15; /* title ~ body*1.15 */
+  --ss-desc-scale:  0.95; /* desc  ~ body*0.95 */
+  --ss-price-scale: 1.05; /* price ~ body*1.05 */
+
   /* default text style for the block */
   font-family: var(--ss-font-body);
   font-weight: var(--ss-fw-body);
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
+
+  /* IMPORTANT: if block is mounted inside something with different font-size,
+     explicitly set base size so descendants can scale predictably */
+  font-size: var(--ss-fs-body);
 }
 
 /* ===== FALLBACK FIRST (TG WebView safe) ===== */
@@ -81,7 +94,8 @@
   font-style: var(--ss-it-head);
   text-decoration: var(--ss-ul-head);
 
-  font-size: 16px;
+  /* size follows BODY (so slider changes it) */
+  font-size: calc(var(--ss-fs-body) * var(--ss-title-scale));
   line-height: 1.2;
   color: var(--color-text, inherit);
 }
@@ -93,7 +107,7 @@
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
 
-  font-size: 13px;
+  font-size: calc(var(--ss-fs-body) * var(--ss-desc-scale));
   line-height: 1.35;
   color: var(--color-muted, rgba(255,255,255,.7));
 }
@@ -111,9 +125,11 @@
   font-style: var(--ss-it-body);
   text-decoration: var(--ss-ul-body);
 
-  /* if you want price to follow body weight slider, use var(--ss-fw-body) */
+  /* weight: either follow body slider or keep extra-strong */
+  /* font-weight: var(--ss-fw-body); */
   font-weight: 900;
-  font-size: 15px;
+
+  font-size: calc(var(--ss-fs-body) * var(--ss-price-scale));
   color: var(--color-text, inherit);
 }
 
@@ -127,6 +143,9 @@
   font-weight: var(--ss-fw-btn);
   font-style: var(--ss-it-btn);
   text-decoration: var(--ss-ul-btn);
+
+  /* size follows BUTTON slider */
+  font-size: var(--ss-fs-btn);
 
   cursor: pointer;
   background: var(--ss-brand);
