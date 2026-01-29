@@ -443,7 +443,7 @@
     0 14px 28px rgba(0,0,0, calc(0.06 + var(--fl-shadow-card) * 0.22));
 }
 
-}
+
 .blk-game-flappy .fl-cta .btn:active{ transform: translateY(1px); }
 
 /* Secondary */
