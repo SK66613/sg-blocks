@@ -51,6 +51,9 @@
   /* ===== Layout knobs (ВАЖНО: отступы) ===== */
   --fl-side-pad: 18px;    /* отступы слева/справа у CTA и результата */
   --fl-bottom-pad: 38px;  /* отступ снизу у CTA */
+   /* вставь внутрь .blk-game-flappy (рядом с --fl-accent) */
+--fl-accent-rgb: var(--brand-rgb, 124, 92, 255); /* если в app.css есть --brand-rgb — возьмёт его */
+
 }
 
 /* всё наследует (без !important) */
@@ -310,13 +313,6 @@
   border-radius: 50%;
 }
 
-.blk-game-flappy .fl-bird--sprite{
-  background-repeat:no-repeat;
-  background-position:center;
-  background-size: 100% 100%;
-  background-color: transparent;
-  border-radius: max(0px, calc(var(--fl-radius) * 0.6));
-}
 
 /* Pipes / items */
 .blk-game-flappy .fl-pipe-part{
@@ -576,7 +572,7 @@
 .blk-game-flappy .fl-bar{
   height: 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--fl-btn-radius);
   background: var(--fl-track);
   overflow:hidden;
 }
@@ -589,7 +585,7 @@
   width: 86px;
   height: 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--fl-btn-radius);
   background: var(--fl-track);
   overflow:hidden;
 }
@@ -610,7 +606,8 @@
   justify-content: center;
 
   padding: .55em .85em;          /* в em — будет расти при увеличении fs-body */
-  border-radius: 999px;          /* всегда pill */
+  border-radius: var(--fl-radius); /* = radius-card */
+
 
   background: var(--color-card, #101827);
   border: 1px solid var(--color-border, #263048);
@@ -714,6 +711,7 @@
   overflow: visible;
 }
 
+/* Shield ON: яркое, круглое 40x40, цвет = Brand/Accent */
 .blk-game-flappy .fl-bird.fl-bird--shield::after{
   content:"";
   position:absolute;
@@ -725,12 +723,12 @@
   border-radius:50%;
   pointer-events:none;
 
-  /* Берём Brand цвет как base */
-  /* Делаем 3 слоя, “интенсивность” регулируем альфой */
   box-shadow:
-    0 0 0 2px rgba(124,92,255,.35),
-    0 0 26px rgba(124,92,255,.28),
-    0 0 60px rgba(124,92,255,.16);
+    0 0 0 2px rgba(var(--fl-accent-rgb), .60),
+    0 0 22px rgba(var(--fl-accent-rgb), .55),
+    0 0 64px rgba(var(--fl-accent-rgb), .40),
+    0 0 110px rgba(var(--fl-accent-rgb), .22);
 }
+
 
 
