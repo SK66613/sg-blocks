@@ -141,7 +141,20 @@
     "pipes_mode": "default",
     "pipe_top_img": "",
     "pipe_bottom_img": "",
-    "pipe_width": 54
+    "pipe_width": 54,
+
+    
+    "spawn_each_ms": 1300,
+
+    "gravity": 1800,
+    "flap_velocity": -520,
+
+    "score_per_pipe": 1,
+    "score_per_coin": 1,
+
+    "magnet_radius": 120,
+    "magnet_strength": 900
+
 
       },
       "i18n": {
