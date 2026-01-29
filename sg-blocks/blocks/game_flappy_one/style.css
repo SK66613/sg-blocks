@@ -591,3 +591,22 @@
   gap: 0; /* если вдруг flex-gap где-то появится */
 }
 
+/* RESULT: одна общая плашка (без двойных карточек) */
+.blk-game-flappy .fl-card{
+  background: var(--fl-bg-card);
+  border: 1px solid var(--fl-border-c);
+  border-radius: var(--fl-card-radius);
+  box-shadow: var(--fl-card-shadow);
+  overflow: hidden; /* важно: чтобы разделитель не вылезал */
+}
+.blk-game-flappy .fl-cell{
+  background: transparent;      /* было: var(--fl-bg-card) */
+  border: 0;                    /* было: 1px solid ... */
+  border-radius: 0;             /* было: скругление */
+  padding: 12px;
+}
+/* разделитель между "Лучший" и "Мир" */
+.blk-game-flappy .fl-cell + .fl-cell{
+  border-left: 1px solid rgba(255,255,255,.10);
+}
+
