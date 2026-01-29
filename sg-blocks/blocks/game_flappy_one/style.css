@@ -683,3 +683,8 @@
   box-shadow: var(--glow-brand);
 }
 
+/* Shield ON: glow from Brand/Accent (через твой токен свечения) */
+.blk-game-flappy .fl-bird.fl-bird--shield{
+  /* если у тебя есть --glow-brand в app.css — используем его */
+  box-shadow: var(--glow-brand, 0 0 0 2px rgba(124,92,255,.35), 0 0 24px rgba(124,92,255,.22));
+}
