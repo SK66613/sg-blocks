@@ -540,3 +540,53 @@
   min-width: 5.5em;  /* можно крутить */
 }
 
+
+
+
+/* ===== HUD as ONE surface card + stage top corners sharp ============ */
+
+/* 1) Верхняя плашка HUD = одна карточка на surface */
+.blk-game-flappy .fl-hud{
+  background: var(--fl-bg-surface);
+  border: 1px solid var(--fl-border-c);
+  border-radius: var(--fl-radius) var(--fl-radius) 0 0; /* низ 90° */
+  padding: 10px 10px 10px;
+  margin-bottom: 0; /* чтобы не было “щели” */
+  box-shadow: none; /* можно включить, если хочешь */
+}
+
+/* 2) Убираем “пилюли”: score/coins/shield становятся частью общей плашки */
+.blk-game-flappy .fl-score,
+.blk-game-flappy .fl-stat{
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* (опционально) чуть выровнять типографику */
+.blk-game-flappy .fl-score{
+  font-family: var(--fl-head);
+  font-weight: var(--fl-score-weight);
+}
+
+/* 3) Бар времени тоже без собственной рамки/капсулы (он внутри общей карточки) */
+.blk-game-flappy .fl-bar{
+  border: 0;
+  background: rgba(255,255,255,.08);
+  border-radius: 999px;
+}
+
+/* 4) Сцена: верхние углы 90°, чтобы стыковалось с HUD */
+.blk-game-flappy .fl-stage{
+  border-radius: 0 0 var(--fl-radius) var(--fl-radius); /* верх 90° */
+  margin-top: 0;
+  border-top: 0; /* чтобы не было двойной линии между HUD и сценой */
+}
+
+/* 5) На всякий — если у wrap есть отступы/склейка */
+.blk-game-flappy .flappy__wrap{
+  gap: 0; /* если вдруг flex-gap где-то появится */
+}
+
