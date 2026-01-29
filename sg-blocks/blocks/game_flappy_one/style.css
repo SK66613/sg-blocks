@@ -428,3 +428,222 @@
     margin:0 auto;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+/* =================== FLAPPY PATCH (no color-mix) =================== */
+/* Ручки (можешь крутить) */
+.blk-game-flappy{
+  --fl-side-pad: 14px;     /* отступы слева/справа у CTA и Result */
+  --fl-hud-pad: 10px;      /* паддинг верхней плашки */
+  --fl-hud-gap: .55em;     /* расстояние между строкой и баром */
+  --fl-top-gap: .75em;     /* между счетом и правой частью */
+  --fl-stats-gap: .6em;    /* между монетами и щитом */
+
+  /* Цвета полос (по твоему требованию) */
+  --fl-track: var(--color-brand-soft, #2A2352); /* Brand soft = “полная шкала” */
+  --fl-fill:  var(--color-brand, #7C5CFF);      /* Brand / Accent = “убывающая/активная” */
+}
+
+/* 0) Никаких !important на head в HUD, иначе italic/underline не зайдут */
+.blk-game-flappy .fl-score,
+.blk-game-flappy .fl-hint,
+.blk-game-flappy .fl-val,
+.blk-game-flappy .fl-sub{
+  font-family: inherit;
+}
+
+/* 1) HUD = одна общая плашка (surface), низ 90° */
+.blk-game-flappy .fl-hud{
+  background: var(--color-surface, #121a2a);
+  border: 1px solid var(--color-border, #263048);
+  border-radius: var(--radius-card, 16px) var(--radius-card, 16px) 0 0;
+  padding: var(--fl-hud-pad);
+  margin-bottom: 0;
+  box-shadow: none;
+
+  display:flex;
+  flex-direction:column;
+  gap: var(--fl-hud-gap);
+}
+
+/* 2) Верхняя строка: счет слева, монеты+щит справа (в одну линию) */
+.blk-game-flappy .fl-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: var(--fl-top-gap);
+  min-width: 0;
+}
+
+/* счет = типографика Body */
+.blk-game-flappy .fl-score{
+  white-space:nowrap;
+  display:inline-flex;
+  align-items:baseline;
+  gap:.45em;
+
+  font-family: var(--font-body, inherit);
+  font-size: var(--fs-body, 14px);
+  font-weight: var(--fw-body, 400);
+  font-style: var(--it-body, normal);
+  text-decoration: var(--ul-body, none);
+
+  /* убрать личную “плашку” */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+.blk-game-flappy .fl-score span{
+  font-weight: calc(var(--fw-body, 400) + 200);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* справа монеты+щит */
+.blk-game-flappy .fl-stats{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap: var(--fl-stats-gap);
+  flex: 0 0 auto;
+}
+
+/* монеты/щит = Body, без отдельных фонов */
+.blk-game-flappy .fl-stat{
+  display:inline-flex;
+  align-items:center;
+  gap: .5em;
+
+  font-family: var(--font-body, inherit);
+  font-size: var(--fs-body, 14px);
+  font-weight: var(--fw-body, 400);
+  font-style: var(--it-body, normal);
+  text-decoration: var(--ul-body, none);
+
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* 3) Таймер (bar): track=brandSoft, fill=brandAccent */
+.blk-game-flappy .fl-bar{
+  height: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fl-track);
+  overflow:hidden;
+}
+.blk-game-flappy .fl-bar > i{
+  background: var(--fl-fill);
+}
+
+/* 4) Shield bar: track=brandSoft, fill=brandAccent */
+.blk-game-flappy .fl-shield-bar{
+  width: 86px;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fl-track);
+  overflow:hidden;
+}
+.blk-game-flappy .fl-shield-bar > i{
+  background: var(--fl-fill);
+}
+
+/* 5) Hint “Тапни чтобы начать” = фон как card */
+.blk-game-flappy .fl-hint{
+  background: var(--color-card, #101827);
+  border: 1px solid var(--color-border, #263048);
+  color: var(--color-text, #e8f0ff);
+
+  font-family: var(--font-body, inherit);
+  font-size: var(--fs-body, 14px);
+  font-weight: calc(var(--fw-body, 400) + 200);
+  font-style: var(--it-body, normal);
+  text-decoration: var(--ul-body, none);
+}
+
+/* 6) Сцена: верх всегда 90° (не реагирует на radius) */
+.blk-game-flappy .fl-stage{
+  border-radius: 0 0 var(--radius-card, 16px) var(--radius-card, 16px);
+  margin-top: 0;
+  border-top: 0;
+}
+.blk-game-flappy .flappy.is-open .fl-stage{
+  border-radius: 0 0 var(--radius-card, 16px) var(--radius-card, 16px);
+}
+
+/* 7) RESULT: одна общая плашка + правильные отступы */
+.blk-game-flappy .fl-result{
+  padding-left: var(--fl-side-pad);
+  padding-right: var(--fl-side-pad);
+}
+
+.blk-game-flappy .fl-card{
+  width: 100%;
+  max-width: 360px;
+
+  background: var(--color-card, #101827);
+  border: 1px solid var(--color-border, #263048);
+  border-radius: var(--radius-card, 16px);
+  box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+  overflow:hidden;
+
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0; /* важно: убираем gap чтобы не было “двойных карточек” */
+}
+
+.blk-game-flappy .fl-cell{
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 12px;
+}
+.blk-game-flappy .fl-cell + .fl-cell{
+  border-left: 1px solid rgba(255,255,255,.10);
+}
+
+/* числа = H1, подписи = H2 */
+.blk-game-flappy .fl-val{
+  font-family: var(--font-head, var(--font-body));
+  font-size: var(--fs-h1, 22px);
+  font-weight: var(--fw-head, 800);
+  font-style: var(--it-head, normal);
+  text-decoration: var(--ul-head, none);
+  line-height: 1;
+}
+.blk-game-flappy .fl-sub{
+  font-family: var(--font-head, var(--font-body));
+  font-size: var(--fs-h2, 18px);
+  font-weight: var(--fw-head, 800);
+  font-style: var(--it-head, normal);
+  text-decoration: var(--ul-head, none);
+  line-height: 1.15;
+  margin-top: .35em;
+  opacity: .92;
+}
+
+/* 8) CTA: отступы от краёв + glow от brand */
+.blk-game-flappy .fl-cta{
+  left: var(--fl-side-pad);
+  right: var(--fl-side-pad);
+}
+.blk-game-flappy .fl-cta .btn:focus-visible{
+  outline: none;
+  box-shadow: var(--glow-brand);
+}
+
