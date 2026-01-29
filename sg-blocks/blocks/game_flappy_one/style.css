@@ -158,10 +158,23 @@
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
+/* убрать общий перетир размера для всех span */
 .blk-game-flappy .fl-hud .fl-score span{
-  font-size: var(--fl-score-size);
+  font-size: inherit;
   line-height: 1;
 }
+
+/* "счет:" = Body size */
+.blk-game-flappy .fl-score [data-i18n="score"]{
+  font-size: var(--fs-body, 14px);
+}
+
+/* цифра = можно чуть больше (если хочешь), иначе тоже Body */
+.blk-game-flappy #fl-score{
+  font-size: var(--fs-body, 14px); /* или var(--fs-h2) / var(--fs-h1) если решишь */
+  font-weight: calc(var(--fw-body, 400) + 200);
+}
+
 
 /* таймер-бар */
 .blk-game-flappy .fl-bar{
