@@ -475,14 +475,16 @@
   gap: var(--fl-hud-gap);
 }
 
-/* 2) Верхняя строка: счет слева, монеты+щит справа (в одну линию) */
+/* 2) Верхняя строка: монеты+щит СЛЕВА, счет СПРАВА */
 .blk-game-flappy .fl-top{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: var(--fl-top-gap);
   min-width: 0;
+  flex-direction: row-reverse; /* ключ */
 }
+
 
 /* счет = типографика Body */
 .blk-game-flappy .fl-score{
