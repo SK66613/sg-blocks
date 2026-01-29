@@ -140,10 +140,16 @@
 }
 
 .blk-shop-stars .ss-price{
-  font-weight: 800;
-  font-size: 1.05em;
+  font-family: var(--font-head, var(--font-body));
+  font-weight: var(--fw-head, 800);
+  font-style: var(--it-head, normal);
+  text-decoration: var(--ul-head, none);
+
+  font-size: var(--fs-h1, 22px); /* <- вот тут H1 */
+  line-height: 1.05;
   white-space: nowrap;
 }
+
 
 /* ===== Button ======================================================== */
 .blk-shop-stars .ss-btn{
