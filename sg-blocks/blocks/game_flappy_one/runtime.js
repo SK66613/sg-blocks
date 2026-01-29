@@ -64,7 +64,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const ASSETS = {
     bird: {
       img: (bird_mode === 'custom'  && props.bird_img)         ? props.bird_img         : (BASE + 'assets/bumblebee.png'),
-      w: 56, h: 42
+      w: 40, h: 40
     },
     shield: {
       img: (shield_mode === 'custom' && props.shield_img)      ? props.shield_img       : (BASE + 'assets/shield.png'),
@@ -98,8 +98,8 @@ export async function mount(root, props = {}, ctx = {}) {
   // ===== применяем ассеты
   (function applyAssets(){
     const scope = host;
-    scope.style.setProperty('--bird-w', (ASSETS.bird.w||36)+'px');
-    scope.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
+    scope.style.setProperty('--bird-w', (ASSETS.bird.w||40)+'px');
+    scope.style.setProperty('--bird-h', (ASSETS.bird.h||40)+'px');
 
     scope.style.setProperty('--pipe-w', (ASSETS.pipes.width||54)+'px');
 
