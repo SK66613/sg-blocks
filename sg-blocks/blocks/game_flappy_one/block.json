@@ -53,5 +53,15 @@
     "pipe_top_img": "",
     "pipe_bottom_img": "",
     "pipe_width": 54
-  }
+  },
+  "i18n": {
+  "score": "счет:",
+  "tap_to_start": "Тапни чтобы начать",
+  "limit_attempts": "Достигнут дневной лимит попыток",
+  "limit_coins": "Достигнут дневной лимит монет",
+  "best": "Лучший",
+  "world": "Мир",
+  "play_again": "Ещё раз"
+}
+
 }
