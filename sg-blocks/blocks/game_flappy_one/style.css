@@ -708,9 +708,10 @@
   box-shadow: var(--glow-brand);
 }
 
-/* Shield ON: ALWAYS circular glow 40x40 (Brand/Accent) */
-.blk-game-flappy .fl-bird.fl-bird--shield{
-  position: absolute; /* на всякий, если вдруг */
+/* Shield ON: circular glow exactly 40x40, color = Brand/Accent (no color-mix) */
+.blk-game-flappy .fl-bird{
+  /* на всякий — чтобы ::after не обрезался */
+  overflow: visible;
 }
 
 .blk-game-flappy .fl-bird.fl-bird--shield::after{
@@ -722,10 +723,10 @@
   height:40px;
   transform:translate(-50%,-50%);
   border-radius:50%;
-
   pointer-events:none;
 
-  /* круговой glow */
+  /* Берём Brand цвет как base */
+  /* Делаем 3 слоя, “интенсивность” регулируем альфой */
   box-shadow:
     0 0 0 2px rgba(124,92,255,.35),
     0 0 26px rgba(124,92,255,.28),
