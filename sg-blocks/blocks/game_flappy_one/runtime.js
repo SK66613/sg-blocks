@@ -139,6 +139,11 @@ export async function mount(root, props = {}, ctx = {}) {
   const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
   const SH_CD          = num(props.shield_cooldown_ms, 9000);
 
+    // ===== magnet (работает когда активен щит)
+  const MAGNET_R       = num(props.magnet_radius_px, 140);     // радиус притяжения
+  const MAGNET_SPEED   = num(props.magnet_speed_px_s, 780);    // скорость притяжения (px/sec)
+
+
   const diff = String(props.difficulty||'normal');
   if (diff === 'easy'){  SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
   if (diff === 'hard'){  SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
@@ -345,12 +350,59 @@ function showLimitMsg(kind){
     birdEl.classList.add('fl-bird--shield');
   }
   function updateShieldHud(){
-    if (!SHOW_SHIELD || !shBar) return;
-    if (!hasShield()){ shBar.style.transform = 'scaleX(0)'; return; }
+    if (!SHOW_SHIELD || !shBar) {
+      // даже если HUD скрыт — класс щита всё равно должен сниматься по таймеру
+      if (!hasShield()) birdEl.classList.remove('fl-bird--shield');
+      return;
+    }
+
+    if (!hasShield()){
+      shBar.style.transform = 'scaleX(0)';
+      birdEl.classList.remove('fl-bird--shield'); // <-- важно
+      return;
+    }
+
     const left = shieldUntil - performance.now();
     const pct  = clamp(left / (ASSETS.shield.dur_ms||6000), 0, 1);
     shBar.style.transform = `scaleX(${pct.toFixed(3)})`;
   }
+
+    function applyMagnet(dt){
+    if (!hasShield()) return;
+    if (!items.length) return;
+
+    const br = (ASSETS.bird.w||56) * 0.35; // "радиус" птички условный
+    const r  = Math.max(40, MAGNET_R);
+    const r2 = r*r;
+
+    const step = MAGNET_SPEED * (dt/1000);
+
+    for (const it of items){
+      if (it.type !== 'coin') continue;
+
+      // расстояние монеты до птички в координатах сцены (x/y у тебя именно такие)
+      const dx = (birdX) - (it.x);
+      const dy = (birdY) - (it.y);
+      const d2 = dx*dx + dy*dy;
+
+      if (d2 > r2) continue;
+
+      const d = Math.sqrt(d2) || 1;
+      // тянем монету к птичке
+      const k = Math.min(1, step / d);
+      it.x += dx * k;
+      it.y += dy * k;
+
+      // чуть "доводим" чтобы коллизия случалась увереннее
+      if (d < br + 10){
+        it.x = birdX;
+        it.y = birdY;
+      }
+
+      positionItem(it);
+    }
+  }
+
   function collideItems(){
     const br = birdEl.getBoundingClientRect();
     const dead=[];
@@ -507,6 +559,10 @@ if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
     const dx = speed * dt/1000;
     for (const p of pipes){ p.x -= dx; positionPipe(p); }
     for (const it of items){ it.x -= dx; positionItem(it); }
+
+    // магнит монет (работает только при активном щите)
+    applyMagnet(dt);
+
 
     // очки за пролет
     for (const p of pipes){
