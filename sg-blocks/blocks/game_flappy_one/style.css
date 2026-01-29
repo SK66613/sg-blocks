@@ -688,3 +688,11 @@
   /* если у тебя есть --glow-brand в app.css — используем его */
   box-shadow: var(--glow-brand, 0 0 0 2px rgba(124,92,255,.35), 0 0 24px rgba(124,92,255,.22));
 }
+
+.blk-game-flappy .fl-bird.fl-bird--shield{
+  box-shadow:
+    0 0 0 2px rgba(124,92,255,.35),
+    0 0 26px rgba(124,92,255,.28),
+    0 0 60px rgba(124,92,255,.16);
+}
+
