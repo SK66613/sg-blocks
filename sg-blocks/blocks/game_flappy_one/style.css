@@ -503,3 +503,40 @@
     margin:0 auto;
   }
 }
+
+
+/* HUD layout: 2 rows */
+.blk-game-flappy .fl-hud{
+  display:flex;
+  flex-direction:column;
+  gap:.55em; /* расстояние между верхней плашкой и баром */
+}
+
+/* Top row */
+.blk-game-flappy .fl-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75em;
+}
+
+/* Score pill (оставь как есть если уже стилизован) */
+.blk-game-flappy .fl-score{
+  white-space:nowrap;
+}
+
+/* Coins + shield on the right */
+.blk-game-flappy .fl-stats{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:.6em;
+  flex: 0 0 auto;
+}
+
+/* Ensure shield bar doesn't collapse */
+.blk-game-flappy .fl-shield-bar{
+  display:inline-block;
+  min-width: 5.5em;  /* можно крутить */
+}
+
