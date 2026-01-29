@@ -98,7 +98,7 @@ export async function mount(root, props = {}, ctx = {}) {
   // ===== применяем ассеты
   (function applyAssets(){
     const scope = host;
-    scope.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
+    scope.style.setProperty('--bird-w', (ASSETS.bird.w||36)+'px');
     scope.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
 
     scope.style.setProperty('--pipe-w', (ASSETS.pipes.width||54)+'px');
