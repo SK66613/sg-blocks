@@ -139,40 +139,54 @@ try{
     if (shIco   && ASSETS.shield.img) shIco.style.backgroundImage   = `url(${ASSETS.shield.img})`;
   })();
 
-  // ===== константы/настройки
-  const WORLD_RECORD   = num(props.leaderboard_world_stub, 200);
-  const GRAVITY        = 1800;
-  const FLAP_VELOCITY  = -520;
+ // ===== константы/настройки
+const WORLD_RECORD   = num(props.leaderboard_world_stub, 200);
 
-  let   SPEED_X        = num(props.speed_x, 220);
-  const ACCEL_EACH_MS  = num(props.accel_each_ms, 8000);
-  const SPEED_STEP     = num(props.speed_step, 18);
+// NEW: управляем физикой/спавном/очками через props, но с дефолтами как раньше
+const GRAVITY        = num(props.gravity, 1800);
+const FLAP_VELOCITY  = num(props.flap_velocity, -520);
 
-  let GAP_MIN          = num(props.gap_min, 140);
-  let GAP_MAX          = num(props.gap_max, 220);
+const SPAWN_EACH_MS  = num(props.spawn_each_ms, 1300);
 
-  const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
-  const SESSION_MS     = num(props.session_ms, 45000); // настраиваемая длина раунда
+const SCORE_PER_PIPE = num(props.score_per_pipe, 1);
+const SCORE_PER_COIN = num(props.score_per_coin, 1);
 
-  const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
-  const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
-  const SH_CD          = num(props.shield_cooldown_ms, 9000);
+let   SPEED_X        = num(props.speed_x, 220);
+const ACCEL_EACH_MS  = num(props.accel_each_ms, 8000);
+const SPEED_STEP     = num(props.speed_step, 18);
 
-    // ===== magnet (работает когда активен щит)
-  const MAGNET_R       = num(props.magnet_radius_px, 140);     // радиус притяжения
-  const MAGNET_SPEED   = num(props.magnet_speed_px_s, 780);    // скорость притяжения (px/sec)
+let GAP_MIN          = num(props.gap_min, 140);
+let GAP_MAX          = num(props.gap_max, 220);
 
+const SAFE_FLOOR_PAD = num(props.safe_floor_pad, 24);
+const SESSION_MS     = num(props.session_ms, 45000); // настраиваемая длина раунда
 
-  const diff = String(props.difficulty||'normal');
-  if (diff === 'easy'){  SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
-  if (diff === 'hard'){  SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
+const COIN_PROB      = clamp01(props.coin_prob ?? 0.55);
+const SHIELD_PROB    = clamp01(props.shield_prob ?? 0.25);
+const SH_CD          = num(props.shield_cooldown_ms, 9000);
 
-  // ===== daily limits (пер-устройство; суффикс по public_id, если есть)
-  const LIMIT_ATTEMPTS = num(props.limit_attempts_per_day, 0); // 0 => без лимита
-  const LIMIT_COINS    = num(props.limit_coins_per_day,   0); // 0 => без лимита
+// ===== magnet (работает когда активен щит)
+// поддержка И новых И старых ключей (чтобы не ломать твои уже сохранённые настройки)
+const MAGNET_R     = num(
+  (props.magnet_radius_px !== undefined ? props.magnet_radius_px : props.magnet_radius),
+  0
+);
+const MAGNET_SPEED = num(
+  (props.magnet_speed_px_s !== undefined ? props.magnet_speed_px_s : props.magnet_strength),
+  0
+);
 
-  const appSuffix = (ctx && ctx.public_id) ? ':' + String(ctx.public_id) : '';
-  const LS_KEY = 'flappy_daily' + appSuffix;
+const diff = String(props.difficulty||'normal');
+if (diff === 'easy'){  SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
+if (diff === 'hard'){  SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
+
+// ===== daily limits (пер-устройство; суффикс по public_id, если есть)
+const LIMIT_ATTEMPTS = num(props.limit_attempts_per_day, 0); // 0 => без лимита
+const LIMIT_COINS    = num(props.limit_coins_per_day,   0); // 0 => без лимита
+
+const appSuffix = (ctx && ctx.public_id) ? ':' + String(ctx.public_id) : '';
+const LS_KEY = 'flappy_daily' + appSuffix;
+
 
   function dayKey(){
     try{
@@ -436,7 +450,8 @@ const msg = (kind==='attempts')
           if (taken > 0){
             if (SHOW_COINS){ coins += taken; setCoins(coins); }
             // «поинт» за набор препятствия
-            score += 1; setScore(score); haptic('light');
+            score += SCORE_PER_COIN; setScore(score); haptic('light');
+
           } else {
             // лимит монет достигнут — мгновенно завершаем раунд
             showLimitMsg('coins');
@@ -587,7 +602,7 @@ if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
     // очки за пролет
     for (const p of pipes){
       if (!p.passed && p.x + (ASSETS.pipes.width||54) < birdX){
-        p.passed = true; score += 1; setScore(score); haptic('light');
+        p.passed = true; score += SCORE_PER_PIPE; setScore(score); haptic('light');
       }
     }
 
@@ -605,7 +620,8 @@ if (!started && LIMIT_COINS && coinsLeftToday() <= 0){
     }
 
     // спавн труб/итемов
-    if (now - spawnT > 1300){ spawnT = now; spawnPipe(); }
+    if (now - spawnT > SPAWN_EACH_MS){ spawnT = now; spawnPipe(); }
+
 
     // визуал птички
     const ang = clamp((birdVY/600)*45, -35, 90);
