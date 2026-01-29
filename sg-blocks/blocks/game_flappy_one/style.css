@@ -730,24 +730,6 @@
 }
 
 
-/* HUD text must follow BODY settings */
-.blk-game-flappy .fl-score,
-.blk-game-flappy .fl-score * ,
-.blk-game-flappy .fl-stat,
-.blk-game-flappy .fl-stat *{
-  font-family: var(--font-body, inherit);
-  font-size: var(--fs-body, 14px);
-  font-weight: var(--fw-body, 400);
-  font-style: var(--it-body, normal);
-  text-decoration: var(--ul-body, none);
-}
 
-/* цифры можно сделать чуть плотнее, но всё равно от body */
-.blk-game-flappy #fl-score,
-.blk-game-flappy #fl-coin-count{
-  font-weight: calc(var(--fw-body, 400) + 200);
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
-}
 
 
