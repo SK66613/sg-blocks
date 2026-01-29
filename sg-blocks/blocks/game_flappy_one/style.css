@@ -711,7 +711,7 @@
   overflow: visible;
 }
 
-/* Shield ON: яркое, круглое 40x40, цвет = Brand/Accent */
+/* Shield ON: glow only (без жирной обводки) */
 .blk-game-flappy .fl-bird.fl-bird--shield::after{
   content:"";
   position:absolute;
@@ -724,11 +724,11 @@
   pointer-events:none;
 
   box-shadow:
-    0 0 0 2px rgba(var(--fl-accent-rgb), .60),
     0 0 22px rgba(var(--fl-accent-rgb), .55),
     0 0 64px rgba(var(--fl-accent-rgb), .40),
     0 0 110px rgba(var(--fl-accent-rgb), .22);
 }
+
 
 
 
