@@ -399,9 +399,14 @@
   height:52px;
 
   border-radius: var(--fl-btn-radius);
-  font-family: var(--fl-head);
-  font-weight: 900;
-  font-size:16px;
+  
+  /* ===== Typography from BODY (как ты просишь) ===== */
+  font-family: var(--font-body, inherit);
+  font-size: var(--fs-body, 14px);
+  font-weight: var(--fw-body, 400);
+  font-style: var(--it-body, normal);
+  text-decoration: var(--ul-body, none);
+  line-height: 1;
 
   background: var(--fl-cta-bg);
   color: var(--fl-cta-text);
@@ -410,6 +415,8 @@
 
   box-shadow:
     0 14px 28px rgba(0,0,0, calc(0.06 + var(--fl-shadow-card) * 0.22));
+}
+
 }
 .blk-game-flappy .fl-cta .btn:active{ transform: translateY(1px); }
 
