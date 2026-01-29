@@ -297,7 +297,7 @@
   position: relative;
   overflow: hidden;
 
-  border-radius: var(--fl-radius);
+  border-radius: 0 0 var(--fl-radius) var(--fl-radius); /* верх всегда 90° */
 
   /* fallback */
   border: 1px solid var(--fl-border-c);
@@ -311,8 +311,9 @@
 /* в overlay пусть stage занимает всё оставшееся место */
 .blk-game-flappy .flappy.is-open .fl-stage{
   flex: 1;
-  border-radius: max(0px, calc(var(--fl-radius)));
+  border-radius: 0 0 var(--fl-radius) var(--fl-radius); /* верх всегда 90° */
 }
+
 
 /* Hint */
 .blk-game-flappy .fl-hint{
