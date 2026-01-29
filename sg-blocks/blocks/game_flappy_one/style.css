@@ -276,8 +276,8 @@
 /* Bird */
 .blk-game-flappy .fl-bird{
   position:absolute;
-  width: var(--bird-w, 56px);
-  height: var(--bird-h, 42px);
+  width: var(--bird-w, 36px);
+  height: var(--bird-h, 36px);
   left: 80px;
   top: 50%;
   transform: translate(-50%,-50%);
