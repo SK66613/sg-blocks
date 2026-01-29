@@ -176,9 +176,7 @@ const MAGNET_SPEED = num(
   0
 );
 
-const diff = String(props.difficulty||'normal');
-if (diff === 'easy'){  SPEED_X*=0.9; GAP_MIN*=1.1; GAP_MAX*=1.1; }
-if (diff === 'hard'){  SPEED_X*=1.2; GAP_MIN*=0.9; GAP_MAX*=0.9; }
+
 
 // ===== daily limits (пер-устройство; суффикс по public_id, если есть)
 const LIMIT_ATTEMPTS = num(props.limit_attempts_per_day, 0); // 0 => без лимита
