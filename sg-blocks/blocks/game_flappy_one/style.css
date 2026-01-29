@@ -273,18 +273,43 @@
   user-select: none;
 }
 
-/* Bird */
+
+/* Bird (circle + image always fitted) */
 .blk-game-flappy .fl-bird{
-  position:absolute;
-  width: var(--bird-w, 36px);
-  height: var(--bird-h, 36px);
+  position: absolute;
+  width:  var(--bird-w, 40px);
+  height: var(--bird-h, 40px);
   left: 80px;
   top: 50%;
   transform: translate(-50%,-50%);
-  border-radius: max(0px, calc(var(--fl-radius) * 0.6));
+
+  /* ВСЕГДА круг */
+  border-radius: 50%;
+
+  /* если нет картинки — лёгкая подложка */
   background: rgba(255,255,255,.16);
+
+  /* важно для “круга” */
+  overflow: hidden;
+
   will-change: transform, top, left;
 }
+
+/* когда есть спрайт/картинка */
+.blk-game-flappy .fl-bird--sprite{
+  background-repeat: no-repeat;
+  background-position: center;
+
+  /* картинка всегда "вписана" в круг */
+  background-size: contain;
+
+  /* не перетираем картинку подложкой */
+  background-color: transparent;
+
+  /* на всякий случай, чтобы круг не сломался */
+  border-radius: 50%;
+}
+
 .blk-game-flappy .fl-bird--sprite{
   background-repeat:no-repeat;
   background-position:center;
