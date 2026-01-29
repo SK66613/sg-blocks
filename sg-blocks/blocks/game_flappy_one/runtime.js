@@ -45,6 +45,25 @@ export async function mount(root, props = {}, ctx = {}) {
 
   if (!stage || !birdEl) return ()=>{};
 
+  // ===== i18n/texts
+const T = (props && props.i18n) ? props.i18n : {};
+const txt = (k, fallback) => {
+  const v = T && T[k];
+  return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : fallback;
+};
+
+// проставляем подписи в DOM
+try{
+  host.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.getAttribute('data-i18n');
+    if (!k) return;
+
+    const fallback = el.textContent || '';
+    el.textContent = txt(k, fallback);
+  });
+}catch(_){}
+
+
   // ===== HUD toggles
   const SHOW_COINS  = props.show_coin_bar   !== false;
   const SHOW_SHIELD = props.show_shield_bar !== false;
@@ -199,9 +218,10 @@ export async function mount(root, props = {}, ctx = {}) {
     return take;
   }
 function showLimitMsg(kind){
-  const msg = (kind==='attempts')
-    ? 'Достигнут дневной лимит попыток'
-    : 'Достигнут дневной лимит монет';
+const msg = (kind==='attempts')
+  ? txt('limit_attempts', 'Достигнут дневной лимит попыток')
+  : txt('limit_coins', 'Достигнут дневной лимит монет');
+
 
   // только текст на сцене, без всплывашек
   try{
@@ -503,7 +523,7 @@ function showLimitMsg(kind){
     started=false; score=0; setScore(0);
     if (hintEl){
   hintEl.style.display = '';
-  hintEl.textContent = 'Тапни чтобы начать';
+  hintEl.textContent = txt('tap_to_start', 'Тапни чтобы начать');
 }
     birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
     if (barEl) barEl.style.transform = 'scaleX(1)';
