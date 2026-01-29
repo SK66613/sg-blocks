@@ -137,15 +137,7 @@
   z-index: 30;
 }
 
-/* строка: слева score, справа coins/shield */
-.blk-game-flappy .fl-hud .fl-score{
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--fl-text);
-  font-family: var(--fl-head);
-  font-weight: var(--fl-score-weight);
-  white-space: nowrap;
+
 
   /* убрали “пилюлю” — это часть общей карточки */
   padding: 0;
