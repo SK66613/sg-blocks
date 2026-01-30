@@ -196,7 +196,7 @@
   user-select:none;
 
   font-family: var(--cal-font-body);
-  font-size: var(--cal-fs-h3);
+  font-size: var(--cal-fs-h1);
   font-weight: var(--cal-fw-body);
   font-style: var(--cal-it-body);
   text-decoration: var(--cal-ul-body);
