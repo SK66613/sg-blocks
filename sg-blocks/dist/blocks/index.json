@@ -103,21 +103,28 @@
   "defaults": {
     "title": "Колесо бонусов",
     "subtitle": "Крути и получай призы",
+
     "spin_cost": 10,
     "cooldown_ms": 0,
     "haptics": true,
+
     "btn_text": "Крутить",
+
+    "btn_spin": "Крутить",
+    "btn_claim": "Забрать",
+
     "not_enough_text": "Недостаточно монет",
     "cooldown_text": "Подожди немного",
     "success_text": "🎉 Ты выиграл:",
     "fail_text": "Ошибка. Попробуй ещё раз",
+
     "prizes": [
-      { "code": "coins_5",  "name": "5 🪙",    "img": "" },
-      { "code": "coins_10", "name": "10 🪙",   "img": "" },
-      { "code": "coins_20", "name": "20 🪙",   "img": "" },
-      { "code": "beer_1",   "name": "🍺 1",    "img": "" },
-      { "code": "beer_2",   "name": "🍺 2",    "img": "" },
-      { "code": "free",     "name": "🎁 Приз", "img": "" }
+      { "code": "coins_5",  "name": "5 🪙",    "img": "", "weight": 1, "coins": 5,  "active": true },
+      { "code": "coins_10", "name": "10 🪙",   "img": "", "weight": 1, "coins": 10, "active": true },
+      { "code": "coins_20", "name": "20 🪙",   "img": "", "weight": 1, "coins": 20, "active": true },
+      { "code": "beer_1",   "name": "🍺 1",    "img": "", "weight": 1, "coins": 0,  "active": true },
+      { "code": "beer_2",   "name": "🍺 2",    "img": "", "weight": 1, "coins": 0,  "active": true },
+      { "code": "free",     "name": "🎁 Приз", "img": "", "weight": 1, "coins": 0,  "active": true }
     ]
   }
 },
