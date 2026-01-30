@@ -1,100 +1,227 @@
-/* ===== Calendar (scoped for block) ================================= */
+/* ===== Calendar (scoped for block) — SG tokens / typography / radius =====
+   Uses:
+   Colors:  --color-bg/surface/card/border/text/muted/brand/brand-soft
+   Buttons: --btn-primary-bg/text, --btn-secondary-bg/text
+   Radius:  --radius-card/btn/input
+   Type:    --font-body/head/btn, --fs-*, --fw-*, --it-*, --ul-*
+   Shadow:  --shadow-soft, --glow-brand
+*/
+
+/* ===================== Bridges (tokens) ===================== */
 .blk-calendar{
-  /* bridge to app theme tokens */
-  --acc: var(--accent, var(--color-brand, #7C5CFF));
-  --onAcc: var(--onAccent, var(--btn-primary-text, #fff));
-  --text: var(--text, var(--color-text, #fff));
+  /* ===== Typography bridges ===== */
+  --cal-font-body: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
+  --cal-font-head: var(--font-head, var(--cal-font-body));
+  --cal-font-btn:  var(--font-btn,  var(--cal-font-body));
 
-  /* FALLBACK FIRST (TG WebView safe) */
-  --cardBg: var(--color-card, #101827);
+  --cal-fs-body: var(--fs-body, 14px);
+  --cal-fw-body: var(--fw-body, 400);
+  --cal-it-body: var(--it-body, normal);
+  --cal-ul-body: var(--ul-body, none);
+
+  --cal-fs-h1: var(--fs-h1, 22px);
+  --cal-fs-h2: var(--fs-h2, 18px);
+  --cal-fs-h3: var(--fs-h3, 16px);
+  --cal-fw-head: var(--fw-head, 800);
+  --cal-it-head: var(--it-head, normal);
+  --cal-ul-head: var(--ul-head, none);
+
+  --cal-fs-btn: var(--fs-btn, 14px);
+  --cal-fw-btn: var(--fw-btn, 800);
+  --cal-it-btn: var(--it-btn, normal);
+  --cal-ul-btn: var(--ul-btn, none);
+
+  /* ===== Colors bridges ===== */
+  --acc:   var(--color-brand, #7C5CFF);
+  --onAcc: var(--btn-primary-text, #ffffff);
+  --text:  var(--color-text, #e8f0ff);
+  --muted: var(--color-muted, #97aac4);
+
+  /* TG-safe backgrounds */
+  --cardBg:     var(--color-card, #101827);
   --cardBorder: var(--color-border, #263048);
-  --chipBg: var(--color-surface, #121a2a);
+  --chipBg:     var(--color-surface, #121a2a);
+  --pageBg:     var(--color-bg, #0f1219);
 
-  --radius: var(--radius-input, 12px);
-  --radiusBtn: var(--radius-btn, 14px);
-  --radiusCard: var(--radius-card, 16px);
+  /* ===== Radius bridges ===== */
+  --radiusInput: var(--radius-input, 12px);
+  --radiusBtn:   var(--radius-btn, 14px);
+  --radiusCard:  var(--radius-card, 16px);
+
+  /* spacing */
   --gap: 8px;
+
+  /* controls sizing (iPhone-ish) */
+  --ctl-h: 36px;        /* month nav + chips/slots height */
+  --day-h: 42px;        /* day cell height */
+  --btn-h: 48px;        /* main action buttons */
+
+  /* states */
+  --cal-ring: var(--glow-brand, 0 0 0 3px rgba(124,92,255,.26));
+  --cal-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
 }
 
-/* Enable color-mix only if supported */
-@supports (background: color-mix(in srgb, #000 50%, transparent)){
-  .blk-calendar{
-    --cardBg: var(--card-bg, color-mix(in srgb, var(--color-card, #101827) 92%, transparent));
-    --cardBorder: var(--card-border, color-mix(in srgb, var(--color-border, #263048) 72%, transparent));
-    --chipBg: var(--surface2, color-mix(in srgb, var(--color-surface, #121a2a) 88%, var(--color-bg, #0f1219)));
-  }
+/* ===================== Base typography ===================== */
+.blk-calendar, .blk-calendar *{ font-family: var(--cal-font-body); }
+.blk-calendar{
+  font-size: var(--cal-fs-body);
+  font-weight: var(--cal-fw-body);
+  font-style: var(--cal-it-body);
+  text-decoration: var(--cal-ul-body);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* ===================== Card ===================== */
 .blk-calendar .cal-card{
-  border:1px solid var(--cardBorder);
+  border: 1px solid var(--cardBorder);
   border-radius: var(--radiusCard);
   padding: 14px;
   background: var(--cardBg);
+  box-shadow: var(--cal-shadow);
 }
 
-/* Month bar */
+/* ===================== Block header ===================== */
+.blk-calendar .blk-head{ margin-bottom: 10px; }
+.blk-calendar .blk-title{
+  font-family: var(--cal-font-head);
+  font-size: var(--cal-fs-h2);
+  font-weight: var(--cal-fw-head);
+  font-style: var(--cal-it-head);
+  text-decoration: var(--cal-ul-head);
+  line-height: 1.15;
+}
+
+/* ===================== Month bar ===================== */
 .blk-calendar .cal-monthbar{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: var(--gap);
-  margin: 8px 0 4px;
+  margin: 8px 0 8px;
 }
+
+.blk-calendar .month-title{
+  font-family: var(--cal-font-head);
+  font-size: var(--cal-fs-h3);
+  font-weight: var(--cal-fw-head);
+  font-style: var(--cal-it-head);
+  text-decoration: var(--cal-ul-head);
+  opacity: .92;
+  text-align:center;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Month navigation buttons = real buttons */
 .blk-calendar .cal-monthbar .nav{
-  border:1px solid var(--cardBorder);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  min-width: 44px;
+  height: var(--ctl-h);
+  padding: 0 12px;
+
+  border-radius: var(--radiusBtn);
+  border: 1px solid var(--cardBorder);
   background: var(--chipBg);
   color: var(--text);
-  border-radius: var(--radius);
-  padding:4px 10px;
-  cursor:pointer;
-}
-.blk-calendar .month-title{ font-weight:600; opacity:.9 }
+  cursor: pointer;
 
-/* Week header & month grid */
+  font-family: var(--cal-font-btn);
+  font-size: var(--cal-fs-btn);
+  font-weight: var(--cal-fw-btn);
+  font-style: var(--cal-it-btn);
+  text-decoration: var(--cal-ul-btn);
+  line-height: 1;
+
+  transition: transform .12s ease, border-color .12s ease, filter .12s ease;
+}
+.blk-calendar .cal-monthbar .nav:hover{ filter: brightness(1.05); }
+.blk-calendar .cal-monthbar .nav:active{ transform: translateY(1px); }
+.blk-calendar .cal-monthbar .nav:focus-visible{
+  outline: none;
+  box-shadow: var(--cal-ring);
+}
+
+/* ===================== Week header & month grid ===================== */
 .blk-calendar .cal-weekhead{
   display:grid;
   grid-template-columns: repeat(7,1fr);
   gap: var(--gap);
-  opacity:.65;
-  font-size:.9em;
-  margin-bottom:6px;
+  margin-bottom: 8px;
 }
-.blk-calendar .cal-weekhead > div{ text-align:center; }
+.blk-calendar .cal-weekhead > div{
+  text-align:center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: calc(var(--cal-fw-body) + 200);
+  opacity: .9;
+}
 
+/* ===================== Month grid ===================== */
 .blk-calendar .cal-month{
   display:grid;
   grid-template-columns: repeat(7,1fr);
   gap: var(--gap);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-/* Day cell */
+/* Day cell = H3 size */
 .blk-calendar .day{
-  padding:10px;
+  height: var(--day-h);
+  padding: 0 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   text-align:center;
-  border-radius: var(--radius);
+
+  border-radius: var(--radiusInput);
   background: var(--chipBg);
   color: var(--text);
+  border: 1px solid var(--cardBorder);
   cursor:pointer;
   user-select:none;
-  border:1px solid var(--cardBorder);
+
+  font-family: var(--cal-font-body);
+  font-size: var(--cal-fs-h3);
+  font-weight: var(--cal-fw-body);
+  font-style: var(--cal-it-body);
+  text-decoration: var(--cal-ul-body);
+  line-height: 1;
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease, border-color .12s ease;
 }
+.blk-calendar .day:hover{ filter: brightness(1.05); }
+.blk-calendar .day:active{ transform: translateY(1px); }
+
+/* disabled */
 .blk-calendar .day.disabled{
   opacity:.35;
-  filter:grayscale(1);
-  cursor:default;
+  filter: grayscale(1);
+  cursor: default;
+  pointer-events: none;
 }
+
+/* today = subtle ring (brand) */
 .blk-calendar .day.today{
-  outline: 2px dashed rgba(255,255,255,.25);
-  outline-offset: 2px;
+  border-color: rgba(255,255,255,.14);
+  box-shadow: 0 0 0 2px rgba(124,92,255,.18);
 }
+
+/* active day */
 .blk-calendar .day.is-active{
   background: var(--acc);
   color: var(--onAcc);
   border-color: transparent;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
 }
 
-/* Groups */
+/* ===================== Groups ===================== */
 .blk-calendar .cal-group{
   border:1px solid var(--cardBorder);
   border-radius: var(--radiusCard);
@@ -102,129 +229,220 @@
   margin-top: 10px;
   background: var(--cardBg);
 }
-@supports (background: color-mix(in srgb, #000 50%, transparent)){
-  .blk-calendar .cal-group{
-    background: color-mix(in srgb, var(--cardBg) 78%, transparent);
-  }
-}
+
+/* Group headers = Head (H3) */
 .blk-calendar .cal-group__head{
-  font-weight: 600;
-  opacity: .9;
+  font-family: var(--cal-font-head);
+  font-size: var(--cal-fs-h3);
+  font-weight: var(--cal-fw-head);
+  font-style: var(--cal-it-head);
+  text-decoration: var(--cal-ul-head);
+  opacity: .92;
   margin-bottom: 8px;
 }
 
-/* Durations */
+/* ===================== Durations / chips ===================== */
 .blk-calendar .cal-durations{
   display:flex;
   flex-wrap:wrap;
   gap: var(--gap);
 }
+
 .blk-calendar .chip{
-  padding:6px 10px;
-  border-radius: var(--radius);
+  height: var(--ctl-h);
+  padding: 0 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  border-radius: var(--radiusBtn);     /* chips feel like buttons */
   border:1px solid var(--cardBorder);
   background: var(--chipBg);
   color: var(--text);
   cursor:pointer;
   user-select:none;
+
+  font-family: var(--cal-font-body);
+  font-size: var(--cal-fs-body);
+  font-weight: calc(var(--cal-fw-body) + 200);
+  font-style: var(--cal-it-body);
+  text-decoration: var(--cal-ul-body);
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
+.blk-calendar .chip:hover{ filter: brightness(1.05); }
+.blk-calendar .chip:active{ transform: translateY(1px); }
+.blk-calendar .chip:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
+
 .blk-calendar .chip.is-active{
   background: var(--acc);
   color: var(--onAcc);
   border-color: transparent;
+  box-shadow: 0 10px 24px rgba(0,0,0,.16);
 }
 
-/* Services list with toggles */
+/* ===================== Services list + switches ===================== */
 .blk-calendar .services-list{
   display:flex;
   flex-direction:column;
   gap:10px;
 }
+
 .blk-calendar .service-row{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  padding:8px 10px;
+  padding: 10px 12px;
+
   border:1px solid var(--cardBorder);
-  border-radius: var(--radius);
+  border-radius: var(--radiusInput);
   background: var(--chipBg);
 }
-.blk-calendar .srv-title{ opacity:.95; }
 
+.blk-calendar .srv-title{
+  opacity:.95;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-family: var(--cal-font-body);
+  font-size: var(--cal-fs-body);
+  font-weight: var(--cal-fw-body);
+}
+
+/* Switch: brand accent + round knob */
 .blk-calendar .srv-switch{
   position:relative;
-  width:44px;
-  height:24px;
-  border-radius:999px;
-  background: rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.18);
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
   cursor:pointer;
+
+  flex: 0 0 auto;
+  transition: filter .12s ease, box-shadow .12s ease, background .12s ease;
 }
+.blk-calendar .srv-switch:hover{ filter: brightness(1.05); }
+.blk-calendar .srv-switch:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
+
 .blk-calendar .srv-switch::after{
   content:'';
   position:absolute;
   top:2px;
   left:2px;
-  width:20px;
-  height:20px;
+  width:22px;
+  height:22px;
   border-radius:50%;
-  background:#fff;
-  transition: all .18s ease;
+
+  background: rgba(255,255,255,.92);
+  transition: left .18s ease, background .18s ease, transform .18s ease;
 }
+
 .blk-calendar .srv-switch.is-on{
   background: var(--acc);
   border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(124,92,255,.18);
 }
 .blk-calendar .srv-switch.is-on::after{
-  left:22px;
-  background: var(--onAcc);
+  left: 22px;
+  background: var(--btn-primary-text, #ffffff);
 }
 
-/* Slots */
+/* ===================== Slots ===================== */
 .blk-calendar .cal-slots{
   display:flex;
   flex-wrap:wrap;
   gap: var(--gap);
 }
+
 .blk-calendar .slot{
-  padding:8px 10px;
+  height: var(--ctl-h);
+  padding: 0 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
   border:1px solid var(--cardBorder);
-  border-radius: var(--radius);
+  border-radius: var(--radiusBtn);
   background: var(--chipBg);
   color: var(--text);
   cursor:pointer;
+
+  font-family: var(--cal-font-body);
+  font-size: var(--cal-fs-body);
+  font-weight: calc(var(--cal-fw-body) + 200);
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
+.blk-calendar .slot:hover{ filter: brightness(1.05); }
+.blk-calendar .slot:active{ transform: translateY(1px); }
+.blk-calendar .slot:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
+
 .blk-calendar .slot.is-active{
   background: var(--acc);
   color: var(--onAcc);
   border-color: transparent;
+  box-shadow: 0 10px 24px rgba(0,0,0,.16);
 }
 
-/* Buttons */
+/* ===================== Actions buttons ===================== */
 .blk-calendar .cal-actions{
   display:flex;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 .blk-calendar .cal-actions .btn{ width: 100%; }
 
 .blk-calendar .btn{
-  padding: 12px 14px;
+  height: var(--btn-h);
+  padding: 0 14px;
+
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
   border-radius: var(--radiusBtn);
   border: 1px solid var(--cardBorder);
   background: var(--chipBg);
   color: var(--text);
   cursor: pointer;
+
+  font-family: var(--cal-font-btn);
+  font-size: var(--cal-fs-btn);
+  font-weight: var(--cal-fw-btn);
+  font-style: var(--cal-it-btn);
+  text-decoration: var(--cal-ul-btn);
+  line-height: 1;
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
+.blk-calendar .btn:hover{ filter: brightness(1.05); }
+.blk-calendar .btn:active{ transform: translateY(1px); }
+.blk-calendar .btn:focus-visible{ outline: none; box-shadow: var(--cal-ring); }
 
 .blk-calendar .btn--primary{
   background: var(--acc);
   color: var(--onAcc);
   border-color: transparent;
-  font-weight: 700;
-  letter-spacing: .2px;
+  box-shadow: 0 14px 28px rgba(0,0,0,.16);
 }
-
+.blk-calendar .btn--primary:hover{ filter: brightness(1.03); }
 .blk-calendar .btn--ghost{
   background: rgba(255,255,255,.06);
+}
+
+/* ===================== Small polish ===================== */
+/* reduce motion if user prefers */
+@media (prefers-reduced-motion: reduce){
+  .blk-calendar .day,
+  .blk-calendar .chip,
+  .blk-calendar .slot,
+  .blk-calendar .btn,
+  .blk-calendar .srv-switch,
+  .blk-calendar .srv-switch::after{
+    transition: none !important;
+  }
 }
