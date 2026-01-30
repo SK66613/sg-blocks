@@ -8,10 +8,10 @@
       "tags": ["all", "booking", "calendar"],
       "version": "1.4.0",
       "files": {
-        "runtime": "calendar_booking/runtime.js",
-        "view": "calendar_booking/view.html",
-        "style": "calendar_booking/style.css",
-        "block": "calendar_booking/block.json"
+        "runtime": "calendar_booking_one/runtime.js",
+        "view": "calendar_booking_one/view.html",
+        "style": "calendar_booking_one/style.css",
+        "block": "calendar_booking_one/block.json"
       },
       "defaults": {
         "title": "Записаться на консультацию",
@@ -69,10 +69,10 @@
       "tags": ["all", "shop", "product", "stars", "payments"],
       "version": "1.0.0",
       "files": {
-        "runtime": "shop_stars_product/runtime.js",
-        "view": "shop_stars_product/view.html",
-        "style": "shop_stars_product/style.css",
-        "block": "shop_stars_product/block.json"
+        "runtime": "shop_stars_product_one/runtime.js",
+        "view": "shop_stars_product_one/view.html",
+        "style": "shop_stars_product_one/style.css",
+        "block": "shop_stars_product_one/block.json"
       },
       "defaults": {
         "title": "Товар",
@@ -130,10 +130,10 @@
   "tags": ["all", "games", "flappy"],
   "version": "1.0.0",
   "files": {
-    "runtime": "game_flappy/runtime.js",
-    "view": "game_flappy/view.html",
-    "style": "game_flappy/style.css",
-    "block": "game_flappy/block.json"
+    "runtime": "game_flappy_one/runtime.js",
+    "view": "game_flappy_one/view.html",
+    "style": "game_flappy_one/style.css",
+    "block": "game_flappy_one/block.json"
   },
   "defaults": {
     "title": "Flappy",
