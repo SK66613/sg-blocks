@@ -59,6 +59,14 @@
   /* states */
   --cal-ring: var(--glow-brand, 0 0 0 3px rgba(124,92,255,.26));
   --cal-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+
+  /* ===== Unified button tokens (PRIMARY/SECONDARY) ===== */
+  --cal-btn1-bg:   var(--btn-primary-bg, var(--acc));
+  --cal-btn1-text: var(--btn-primary-text, #ffffff);
+
+  --cal-btn2-bg:   var(--btn-secondary-bg, rgba(255,255,255,.08));
+  --cal-btn2-text: var(--btn-secondary-text, var(--text));
+  --cal-btn2-border: var(--cardBorder);
 }
 
 /* ===================== Base typography ===================== */
@@ -116,7 +124,7 @@
   text-overflow: ellipsis;
 }
 
-/* Month navigation buttons = real buttons */
+/* (1) Month navigation buttons = SECONDARY buttons */
 .blk-calendar .cal-monthbar .nav{
   display:inline-flex;
   align-items:center;
@@ -127,9 +135,9 @@
   padding: 0 12px;
 
   border-radius: var(--radiusBtn);
-  border: 1px solid var(--cardBorder);
-  background: var(--chipBg);
-  color: var(--text);
+  border: 1px solid var(--cal-btn2-border);
+  background: var(--cal-btn2-bg);
+  color: var(--cal-btn2-text);
   cursor: pointer;
 
   font-family: var(--cal-font-btn);
@@ -139,7 +147,7 @@
   text-decoration: var(--cal-ul-btn);
   line-height: 1;
 
-  transition: transform .12s ease, border-color .12s ease, filter .12s ease;
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 .blk-calendar .cal-monthbar .nav:hover{ filter: brightness(1.05); }
 .blk-calendar .cal-monthbar .nav:active{ transform: translateY(1px); }
@@ -215,8 +223,8 @@
 
 /* active day */
 .blk-calendar .day.is-active{
-  background: var(--acc);
-  color: var(--onAcc);
+  background: var(--cal-btn1-bg);
+  color: var(--cal-btn1-text);
   border-color: transparent;
   box-shadow: 0 10px 24px rgba(0,0,0,.18);
 }
@@ -248,6 +256,7 @@
   gap: var(--gap);
 }
 
+/* (2) chips = SECONDARY; active = PRIMARY */
 .blk-calendar .chip{
   height: var(--ctl-h);
   padding: 0 12px;
@@ -255,18 +264,19 @@
   align-items:center;
   justify-content:center;
 
-  border-radius: var(--radiusBtn);     /* chips feel like buttons */
-  border:1px solid var(--cardBorder);
-  background: var(--chipBg);
-  color: var(--text);
+  border-radius: var(--radiusBtn);
+  border: 1px solid var(--cal-btn2-border);
+  background: var(--cal-btn2-bg);
+  color: var(--cal-btn2-text);
   cursor:pointer;
   user-select:none;
 
-  font-family: var(--cal-font-body);
-  font-size: var(--cal-fs-body);
-  font-weight: calc(var(--cal-fw-body) + 200);
-  font-style: var(--cal-it-body);
-  text-decoration: var(--cal-ul-body);
+  font-family: var(--cal-font-btn);
+  font-size: var(--cal-fs-btn);
+  font-weight: var(--cal-fw-btn);
+  font-style: var(--cal-it-btn);
+  text-decoration: var(--cal-ul-btn);
+  line-height: 1;
 
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
@@ -275,10 +285,10 @@
 .blk-calendar .chip:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
 
 .blk-calendar .chip.is-active{
-  background: var(--acc);
-  color: var(--onAcc);
+  background: var(--cal-btn1-bg);
+  color: var(--cal-btn1-text);
   border-color: transparent;
-  box-shadow: 0 10px 24px rgba(0,0,0,.16);
+  box-shadow: var(--cal-ring);
 }
 
 /* ===================== Services list + switches ===================== */
@@ -288,6 +298,7 @@
   gap:10px;
 }
 
+/* (3) Service row stays surface-like (not button) */
 .blk-calendar .service-row{
   display:flex;
   align-items:center;
@@ -312,19 +323,19 @@
   font-weight: var(--cal-fw-body);
 }
 
-/* Switch: brand accent + round knob */
+/* (3) Switch: OFF = SECONDARY, ON = PRIMARY */
 .blk-calendar .srv-switch{
   position:relative;
   width: 46px;
   height: 26px;
   border-radius: 999px;
 
-  background: rgba(255,255,255,.10);
-  border: 1px solid rgba(255,255,255,.16);
+  background: var(--cal-btn2-bg);
+  border: 1px solid var(--cal-btn2-border);
   cursor:pointer;
 
   flex: 0 0 auto;
-  transition: filter .12s ease, box-shadow .12s ease, background .12s ease;
+  transition: filter .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
 }
 .blk-calendar .srv-switch:hover{ filter: brightness(1.05); }
 .blk-calendar .srv-switch:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
@@ -343,13 +354,13 @@
 }
 
 .blk-calendar .srv-switch.is-on{
-  background: var(--acc);
+  background: var(--cal-btn1-bg);
   border-color: transparent;
-  box-shadow: 0 0 0 3px rgba(124,92,255,.18);
+  box-shadow: var(--cal-ring);
 }
 .blk-calendar .srv-switch.is-on::after{
   left: 22px;
-  background: var(--btn-primary-text, #ffffff);
+  background: var(--cal-btn1-text);
 }
 
 /* ===================== Slots ===================== */
@@ -359,6 +370,7 @@
   gap: var(--gap);
 }
 
+/* (4) slots = SECONDARY; active = PRIMARY */
 .blk-calendar .slot{
   height: var(--ctl-h);
   padding: 0 12px;
@@ -366,15 +378,18 @@
   align-items:center;
   justify-content:center;
 
-  border:1px solid var(--cardBorder);
+  border: 1px solid var(--cal-btn2-border);
   border-radius: var(--radiusBtn);
-  background: var(--chipBg);
-  color: var(--text);
+  background: var(--cal-btn2-bg);
+  color: var(--cal-btn2-text);
   cursor:pointer;
 
-  font-family: var(--cal-font-body);
-  font-size: var(--cal-fs-body);
-  font-weight: calc(var(--cal-fw-body) + 200);
+  font-family: var(--cal-font-btn);
+  font-size: var(--cal-fs-btn);
+  font-weight: var(--cal-fw-btn);
+  font-style: var(--cal-it-btn);
+  text-decoration: var(--cal-ul-btn);
+  line-height: 1;
 
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
@@ -383,10 +398,10 @@
 .blk-calendar .slot:focus-visible{ outline:none; box-shadow: var(--cal-ring); }
 
 .blk-calendar .slot.is-active{
-  background: var(--acc);
-  color: var(--onAcc);
+  background: var(--cal-btn1-bg);
+  color: var(--cal-btn1-text);
   border-color: transparent;
-  box-shadow: 0 10px 24px rgba(0,0,0,.16);
+  box-shadow: var(--cal-ring);
 }
 
 /* ===================== Actions buttons ===================== */
@@ -405,9 +420,9 @@
   justify-content:center;
 
   border-radius: var(--radiusBtn);
-  border: 1px solid var(--cardBorder);
-  background: var(--chipBg);
-  color: var(--text);
+  border: 1px solid var(--cal-btn2-border);
+  background: var(--cal-btn2-bg);
+  color: var(--cal-btn2-text);
   cursor: pointer;
 
   font-family: var(--cal-font-btn);
@@ -423,15 +438,20 @@
 .blk-calendar .btn:active{ transform: translateY(1px); }
 .blk-calendar .btn:focus-visible{ outline: none; box-shadow: var(--cal-ring); }
 
+/* (5) primary */
 .blk-calendar .btn--primary{
-  background: var(--acc);
-  color: var(--onAcc);
+  background: var(--cal-btn1-bg);
+  color: var(--cal-btn1-text);
   border-color: transparent;
-  box-shadow: 0 14px 28px rgba(0,0,0,.16);
+  box-shadow: var(--cal-shadow);
 }
 .blk-calendar .btn--primary:hover{ filter: brightness(1.03); }
+
+/* (6) ghost = REAL secondary */
 .blk-calendar .btn--ghost{
-  background: rgba(255,255,255,.06);
+  background: var(--cal-btn2-bg);
+  color: var(--cal-btn2-text);
+  border: 1px solid var(--cal-btn2-border);
 }
 
 /* ===================== Small polish ===================== */
