@@ -38,10 +38,10 @@
       "tags": ["all", "sales", "qr", "loyalty"],
       "version": "1.0.1",
       "files": {
-        "runtime": "sales_qr/runtime.js",
-        "view": "sales_qr/view.html",
-        "style": "sales_qr/style.css",
-        "block": "sales_qr/block.json"
+        "runtime": "sales_qr_one/runtime.js",
+        "view": "sales_qr_one/view.html",
+        "style": "sales_qr_one/style.css",
+        "block": "sales_qr_one/block.json"
       },
       "defaults": {
         "title": "Ваш QR для оплаты",
