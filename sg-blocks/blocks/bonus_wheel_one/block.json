@@ -3,7 +3,7 @@
   "title": "Лояльность: Колесо бонусов",
   "category": "Лояльность / Бонусы",
   "version": "1.0.0",
-  "type": "bonusWheel",
+  "type": "htmlEmbed",
   "defaults": {
     "title": "Колесо бонусов",
     "subtitle": "Крути и получай призы",
