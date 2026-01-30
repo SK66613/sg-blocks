@@ -1,7 +1,6 @@
 // beer_bonus_wheel/runtime.js
-// SG block runtime (Telegram mini-app friendly)
-// - Uses ctx.api if provided, else falls back to POST /api/mini/<method>
-// - Scoped DOM + removable listeners
+// Wheel-track (cards) runtime — matches view.html you sent
+// API priority: ctx.api -> window.api -> POST /api/mini/<method>
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -18,20 +17,21 @@ export async function mount(root, props = {}, ctx = {}) {
     const n = Number(v);
     return Number.isFinite(n) ? n : d;
   };
+  const str = (v, d = "") => (v === undefined || v === null) ? d : String(v);
   const clamp01 = (v) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
   };
-  const str = (v, d = "") => (v === undefined || v === null) ? d : String(v);
 
-  // Minimal safe API wrapper
-  const apiFn = (typeof ctx.api === "function") ? ctx.api : (typeof win.api === "function" ? win.api : null);
+  // ---------- API
+  const apiFn =
+    (typeof ctx.api === "function") ? ctx.api :
+    (typeof win.api === "function") ? win.api :
+    null;
 
   async function apiCall(method, payload = {}) {
-    // Prefer injected API (it usually already includes auth/initData/app_public_id)
     if (apiFn) return await apiFn(method, payload);
 
-    // Fallback: same-origin Worker API
     const url = `/api/mini/${method}`;
     const initData = (ctx && ctx.initData) ? ctx.initData : (TG && TG.initData ? TG.initData : "");
     const body = {
@@ -39,12 +39,14 @@ export async function mount(root, props = {}, ctx = {}) {
       app_public_id: ctx && ctx.public_id ? String(ctx.public_id) : (payload.app_public_id || ""),
       init_data: initData
     };
+
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
       body: JSON.stringify(body),
     });
+
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || j.ok === false) {
       throw new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
@@ -52,311 +54,359 @@ export async function mount(root, props = {}, ctx = {}) {
     return j;
   }
 
-  // ---------- defaults (keep backward compatible with existing props)
-  const title = str(props.h1 ?? props.title, "Колесо бонусов");
+  // ---------- DOM (MATCHES YOUR view.html)
+  const titleEl  = root.querySelector('[data-bw-title]');
+  const pillEl   = root.querySelector('[data-picked-pill]');
+  const coinsEl  = root.querySelector('[data-coins]');
+  const pickedEl = root.querySelector('[data-picked]');
+  const wheelEl  = root.querySelector('[data-bonus-wheel]');
+  const trackEl  = root.querySelector('[data-wheel-track]');
+  const spinBtn  = root.querySelector('[data-spin]');
+  const claimBtn = root.querySelector('[data-claim]');
 
-  // Legacy fields support (img1..img4, t1..t4)
-  const legacyTexts = [props.t1, props.t2, props.t3, props.t4].map(v => str(v, "")).filter(Boolean);
-  const basePrizes = legacyTexts.length
-    ? legacyTexts.map((txt, i) => ({ text: txt, value: 0, color: ["#7c5cff", "#2dd4bf", "#5ddcff", "#fb7185"][i % 4] }))
-    : null;
+  if (!trackEl || !wheelEl || !spinBtn || !claimBtn) {
+    // view.html mismatch
+    return () => {};
+  }
 
-  const prizes = (Array.isArray(props.prizes) && props.prizes.length)
-    ? props.prizes
-    : (basePrizes || [
-        { text: "+5",  value: 5,  color: "#5ddcff" },
-        { text: "+10", value: 10, color: "#7c5cff" },
-        { text: "+20", value: 20, color: "#2dd4bf" },
-        { text: "0",   value: 0,  color: "#fbbf24" },
-        { text: "+15", value: 15, color: "#fb7185" },
-      ]);
-
+  // ---------- props
+  const title = str(props.title ?? props.h1, "Колесо бонусов");
   const spinCost = num(props.spin_cost ?? props.spin_cost_coins, 10);
 
-  // i18n texts (optional)
-  const i18n = props.i18n || {};
-  // legacy direct text props override i18n (so your current editor continues to work)
-  if (props.sub !== undefined) i18n.sub = props.sub;
-  if (props.spin !== undefined) i18n.spin = props.spin;
-  if (props.claim !== undefined) i18n.claim = props.claim;
-  if (props.pill !== undefined) i18n.hint_cost = props.pill;
-  const t = (k, d) => str(i18n[k], d);
-
-  // ---------- render (view.html already exists inside root)
-  const card = root.querySelector(".bw-card") || root;
-  const titleEl = root.querySelector("[data-bw-title]");
-  const subEl = root.querySelector("[data-bw-sub]");
-  const coinsEl = root.querySelector("[data-bw-coins]");
-  const cdEl = root.querySelector("[data-bw-cd]");
-  const spinBtn = root.querySelector("[data-spin-btn]");
-  const claimBtn = root.querySelector("[data-claim-btn]");
-  const hintEl = root.querySelector("[data-bw-hint]");
-  const canvas = root.querySelector("#bonusWheel");
+  const prizes = (Array.isArray(props.prizes) && props.prizes.length)
+    ? props.prizes.map(p => ({
+        code: str(p.code, ""),
+        name: str(p.name, ""),
+        img:  str(p.img, "")
+      }))
+    : [];
 
   if (titleEl) titleEl.textContent = title;
-  if (subEl) subEl.textContent = t("sub", "Крути и забирай бонусы");
-  if (spinBtn) spinBtn.textContent = t("spin", "Крутить");
-  if (claimBtn) claimBtn.textContent = t("claim", "Забрать");
-  if (hintEl) hintEl.textContent = t("hint_cost", `Стоимость: ${spinCost}`);
 
-  // ---------- state (from ctx.state if your mini runtime passes it)
-  const state = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
-  let coins = num(state.coins, 0);
-  let wheel = state.wheel || {}; // {claim_cooldown_left_ms, has_unclaimed, last_prize_title, last_prize_code}
+  // ---------- state
+  // Prefer ctx.state, else global MiniState (if your runtime has it), else empty
+  const getMiniState = () => (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
+  const getWheelState = () => (getMiniState().wheel || {});
+  const getCoins = () => num(getMiniState().coins, 0);
 
-  function setCoins(v) {
-    coins = num(v, 0);
-    if (coinsEl) coinsEl.textContent = String(coins);
-  }
-
-  function setCooldown(ms) {
-    const left = Math.max(0, num(ms, 0));
-    if (cdEl) cdEl.textContent = left ? formatMs(left) : t("ready", "Готово");
-  }
-
-  function setButtons() {
-    const canSpin = coins >= spinCost && !wheel.has_unclaimed && num(wheel.claim_cooldown_left_ms, 0) <= 0;
-    const canClaim = !!wheel.has_unclaimed;
-
-    if (spinBtn) {
-      spinBtn.disabled = !canSpin;
-      spinBtn.setAttribute("aria-disabled", (!canSpin).toString());
+  function applyFreshState(fresh) {
+    if (!fresh) return;
+    if (typeof win.applyServerState === "function") {
+      // your global helper (good)
+      win.applyServerState(fresh);
+      return;
     }
-    if (claimBtn) {
-      claimBtn.disabled = !canClaim;
-      claimBtn.setAttribute("aria-disabled", (!canClaim).toString());
-    }
-
-    if (hintEl) {
-      if (wheel.has_unclaimed) hintEl.textContent = t("hint_unclaimed", "Есть незабранный приз");
-      else if (num(wheel.claim_cooldown_left_ms, 0) > 0) hintEl.textContent = t("hint_cooldown", "Подожди кулдаун");
-      else hintEl.textContent = t("hint_cost", `Стоимость: ${spinCost}`);
-    }
+    // fallback: merge into MiniState
+    win.MiniState = win.MiniState || {};
+    for (const k in fresh) win.MiniState[k] = fresh[k];
   }
 
-  function formatMs(ms) {
-    const s = Math.ceil(ms / 1000);
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${s}s`;
+  // ---------- haptics
+  function haptic(level = "light") {
+    try {
+      if (TG?.HapticFeedback) {
+        if (level === "selection") TG.HapticFeedback.selectionChanged();
+        else TG.HapticFeedback.impactOccurred(level);
+        return;
+      }
+    } catch (_) {}
+    try { win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12); } catch (_) {}
   }
 
-  // ---------- wheel drawing / animation
-  const DPR = Math.max(1, win.devicePixelRatio || 1);
-  const ctx2d = canvas ? canvas.getContext("2d") : null;
+  // ---------- render prizes into track
+  function renderTrack() {
+    trackEl.innerHTML = prizes.map(pr => {
+      const code = String(pr.code || "");
+      const name = String(pr.name || "");
+      const img  = String(pr.img || "");
+      return `
+        <button class="bonus" type="button" data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}">
+          ${img ? `<img src="${escapeAttr(img)}" alt="">` : `<div class="bonus__ph" aria-hidden="true"></div>`}
+          <span>${escapeHtml(name)}</span>
+        </button>
+      `;
+    }).join("");
+  }
 
-  let animRaf = 0;
-  let angle = 0; // radians
+  // minimal escaping helpers
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
+
+  renderTrack();
+
+  const items = () => Array.from(trackEl.children);
+  let N = items().length || 1;
+
+  // ---------- UI helpers
+  function setPillIdle() {
+    if (!pillEl) return;
+    pillEl.classList.add("muted");
+    pillEl.textContent = 'Нажми «Крутануть»';
+  }
+
+  function setPillByIndex(idx) {
+    const its = items();
+    if (!its.length || !pillEl) return;
+    const it = its[idx];
+    const name = it?.dataset?.name || "—";
+    const img = it?.querySelector("img")?.src || "";
+    pillEl.classList.remove("muted");
+    pillEl.innerHTML = img ? `<img src="${escapeAttr(img)}" alt=""><span>${escapeHtml(name)}</span>` : escapeHtml(name);
+  }
+
+  function syncCoins() {
+    if (coinsEl) coinsEl.textContent = String(getCoins());
+  }
+
+  function refreshClaimBtn() {
+    const ws = getWheelState();
+    const has = !!ws.has_unclaimed;
+
+    // текст
+    if (!has) {
+      claimBtn.disabled = true;
+      claimBtn.textContent = "Нет приза к выдаче";
+      return;
+    }
+
+    const rem = num(ws.claim_cooldown_left_ms, 0);
+    if (rem <= 0) {
+      claimBtn.disabled = false;
+      claimBtn.textContent = "Забрать бонус";
+      return;
+    }
+
+    claimBtn.disabled = true;
+    const totalSec = Math.floor(rem / 1000);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    claimBtn.textContent = "Доступно через " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  // ---------- wheel-track animation (your “cards carousel”)
+  let STEP = 114; // px between cards, auto-detect below
+  let curr = 0;   // float index
+  let interacted = false;
   let spinning = false;
 
-  function resizeCanvas() {
-    if (!canvas || !ctx2d) return;
-    const box = canvas.getBoundingClientRect();
-    const w = Math.max(10, Math.round(box.width));
-    const h = Math.max(10, Math.round(box.height));
-    canvas.width = Math.round(w * DPR);
-    canvas.height = Math.round(h * DPR);
-    ctx2d.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawWheel();
+  const mod = (a, n) => ((a % n) + n) % n;
+
+  function measureStep() {
+    const its = items();
+    if (its.length < 2) return;
+    const a = its[0].getBoundingClientRect();
+    const b = its[1].getBoundingClientRect();
+    const dx = Math.round(b.left - a.left);
+    if (dx > 40 && dx < 320) STEP = dx;
   }
 
-  function drawWheel() {
-    if (!canvas || !ctx2d) return;
-    const w = canvas.getBoundingClientRect().width;
-    const h = canvas.getBoundingClientRect().height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const r = Math.min(w, h) * 0.46;
+  function updateUI() {
+    const its = items();
+    N = its.length || 1;
 
-    ctx2d.clearRect(0, 0, w, h);
+    its.forEach((node, i) => {
+      let dx = i - curr;
+      dx = mod(dx + N / 2, N) - N / 2;
 
-    // background disc
-    ctx2d.save();
-    ctx2d.translate(cx, cy);
-    ctx2d.rotate(angle);
+      const x = dx * STEP;
+      const s = 1 - Math.min(Math.abs(dx) * 0.16, 0.48);
 
-    const n = prizes.length;
-    const step = (Math.PI * 2) / n;
+      node.style.transform = `translate(-50%,-50%) translateX(${x}px) scale(${s})`;
+      node.style.zIndex = String(1000 - Math.abs(dx) * 10);
+      node.classList.toggle("active", Math.round(Math.abs(dx)) === 0);
+    });
 
-    for (let i = 0; i < n; i++) {
-      const a0 = i * step - Math.PI / 2;
-      const a1 = a0 + step;
+    if (interacted) setPillByIndex(mod(Math.round(curr), N));
+    else setPillIdle();
 
-      ctx2d.beginPath();
-      ctx2d.moveTo(0, 0);
-      ctx2d.arc(0, 0, r, a0, a1);
-      ctx2d.closePath();
-      ctx2d.fillStyle = prizes[i].color || "#7c5cff";
-      ctx2d.globalAlpha = 0.92;
-      ctx2d.fill();
+    syncCoins();
+    refreshClaimBtn();
 
-      // text
-      const mid = (a0 + a1) / 2;
-      ctx2d.save();
-      ctx2d.rotate(mid);
-      ctx2d.textAlign = "right";
-      ctx2d.textBaseline = "middle";
-      ctx2d.fillStyle = "#ffffff";
-      ctx2d.globalAlpha = 0.95;
-      ctx2d.font = "700 16px Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx2d.fillText(String(prizes[i].text || ""), r * 0.82, 0);
-      ctx2d.restore();
-    }
-
-    // inner circle
-    ctx2d.globalAlpha = 1;
-    ctx2d.beginPath();
-    ctx2d.arc(0, 0, r * 0.18, 0, Math.PI * 2);
-    ctx2d.closePath();
-    ctx2d.fillStyle = "rgba(0,0,0,.22)";
-    ctx2d.fill();
-
-    ctx2d.restore();
-
-    // pointer
-    ctx2d.save();
-    ctx2d.translate(cx, cy);
-    ctx2d.beginPath();
-    ctx2d.moveTo(0, -r - 6);
-    ctx2d.lineTo(-10, -r + 10);
-    ctx2d.lineTo(10, -r + 10);
-    ctx2d.closePath();
-    ctx2d.fillStyle = "rgba(255,255,255,.92)";
-    ctx2d.fill();
-    ctx2d.restore();
+    // lock spin if not enough coins or currently spinning
+    const cost = spinCost;
+    const canSpin = (getCoins() >= cost) && !spinning;
+    spinBtn.classList.toggle("is-locked", !canSpin);
+    spinBtn.disabled = !canSpin;
   }
 
-  function stopAnim() {
-    if (animRaf) cancelAnimationFrame(animRaf);
-    animRaf = 0;
+  function nearest(currIdx, targetIdx) {
+    let t = targetIdx;
+    while (t - currIdx > N / 2) t -= N;
+    while (currIdx - t > N / 2) t += N;
+    return t;
   }
 
-  function animateSpin(targetTurns = 5, extra = Math.random() * Math.PI * 2) {
-    stopAnim();
-    spinning = true;
+  function spinTo(targetIdx, laps = 1, dur = 1200) {
+    return new Promise((resolve) => {
+      const base = nearest(curr, targetIdx);
+      const dir = (base >= curr ? 1 : -1) || 1;
+      const to = base + dir * (laps * N);
+      const from = curr;
 
-    const start = angle;
-    const target = start + targetTurns * Math.PI * 2 + extra;
-    const startT = performance.now();
-    const dur = 1600;
+      const t0 = performance.now();
+      let lastPulse = 0;
 
-    function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+      function tick(t) {
+        const k = Math.min((t - t0) / dur, 1);
+        curr = from + (to - from) * (1 - Math.pow(1 - k, 3));
+        updateUI();
 
-    const tick = (now) => {
-      const t01 = Math.min(1, (now - startT) / dur);
-      angle = start + (target - start) * easeOutCubic(t01);
-      drawWheel();
-      if (t01 < 1) animRaf = requestAnimationFrame(tick);
-      else {
-        spinning = false;
-        animRaf = 0;
+        const period = 80 + 180 * k;
+        if (t - lastPulse >= period) { haptic("light"); lastPulse = t; }
+
+        if (k < 1) requestAnimationFrame(tick);
+        else {
+          curr = to;
+          interacted = true;
+          updateUI();
+          resolve();
+        }
       }
-    };
-    animRaf = requestAnimationFrame(tick);
+
+      requestAnimationFrame(tick);
+    });
   }
+
+  // initial measure after layout
+  requestAnimationFrame(() => {
+    measureStep();
+    updateUI();
+  });
+
+  // ---------- cooldown ticker (UI only)
+  let cdTimer = 0;
+  function startCooldownTicker() {
+    if (cdTimer) return;
+    cdTimer = win.setInterval(() => {
+      const st = getMiniState();
+      const ws = st.wheel || (st.wheel = {});
+      const left = Math.max(0, num(ws.claim_cooldown_left_ms, 0) - 1000);
+      ws.claim_cooldown_left_ms = left;
+      refreshClaimBtn();
+      if (left <= 0) {
+        win.clearInterval(cdTimer);
+        cdTimer = 0;
+        updateUI();
+      }
+    }, 1000);
+  }
+  if (num(getWheelState().claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
   // ---------- actions
   async function doSpin() {
     if (spinning) return;
+
+    const coins = getCoins();
+    if (coins < spinCost) {
+      haptic("medium");
+      // simple user feedback
+      if (pillEl) { pillEl.classList.remove("muted"); pillEl.textContent = `Недостаточно монет. Нужно ${spinCost} 🪙`; }
+      return;
+    }
+
+    spinning = true;
+    updateUI();
+
+    const MIN_SPIN_MS = num(props.min_spin_ms, 1600);
+    const FINAL_LAPS  = num(props.final_laps, 1);
+    const FINAL_DUR   = num(props.final_dur, 1200);
+
+    const startTs = performance.now();
+
+    // free-run while waiting (optional: very light)
+    let free = true;
+    const FREE_RPS = 1;
+    const FREE_SPEED = (FREE_RPS * N) / 1000;
+    let last = performance.now();
+    function freeLoop(now) {
+      if (!free) return;
+      const dt = now - last; last = now;
+      curr = mod(curr + FREE_SPEED * dt, N);
+      updateUI();
+      requestAnimationFrame(freeLoop);
+    }
+    requestAnimationFrame(freeLoop);
+
     try {
-      spinning = true;
-      setButtons();
-
-      // optimistic spin animation while waiting
-      animateSpin(6);
-
-      const res = await apiCall("wheel.spin", {
-        cost: spinCost,
-        // optional: tell server about prize table (if server needs it). Keep backward compatible.
-        prizes: prizes.map(p => ({ text: p.text, value: p.value })),
-      });
-
-      // expected shape: { ok:true, coins, wheel:{...}, prize:{title,code,value} }
-      if (res && typeof res === "object") {
-        if (res.coins !== undefined) setCoins(res.coins);
-        if (res.wheel) wheel = res.wheel;
-        if (wheel && res.prize) {
-          wheel.has_unclaimed = true;
-          wheel.last_prize_title = res.prize.title || res.prize.text || "";
-          wheel.last_prize_code = res.prize.code || "";
-        }
-        if (wheel && wheel.claim_cooldown_left_ms !== undefined) setCooldown(wheel.claim_cooldown_left_ms);
+      let r;
+      try {
+        r = await apiCall("wheel.spin", {});
+      } catch (e) {
+        r = null;
       }
 
-      // stop quickly if we still spinning too long
-      win.setTimeout(() => { spinning = false; setButtons(); }, 250);
-    } catch (e) {
+      const elapsed = performance.now() - startTs;
+      if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
+
+      free = false;
+
+      if (!r || r.ok === false) {
+        throw new Error((r && (r.error || r.message)) || "spin_failed");
+      }
+
+      // support both: {fresh_state:{...}} and direct {coins,wheel,prize}
+      if (r.fresh_state) applyFreshState(r.fresh_state);
+      else applyFreshState(r);
+
+      // find prize index by code (server should return r.prize.code)
+      const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
+      const its = items();
+      let idx = its.findIndex(n => String(n.dataset.code || "") === code);
+      if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
+
+      await spinTo(idx, FINAL_LAPS, FINAL_DUR);
+
+      const ws = getWheelState();
+      if (pickedEl) pickedEl.textContent = ws.last_prize_title ? `Выпало: ${ws.last_prize_title}` : "";
+
+      // start cooldown ticker if needed
+      if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
+
+    } finally {
       spinning = false;
-      setButtons();
-      try { TG && TG.showPopup && TG.showPopup({ title: "Ошибка", message: String(e.message || e), buttons: [{ type: "ok" }] }); }
-      catch(_){ alert(String(e.message || e)); }
+      updateUI();
     }
   }
 
   async function doClaim() {
     if (spinning) return;
+    if (claimBtn.disabled) return;
+
+    spinning = true;
+    updateUI();
+
     try {
-      spinning = true;
-      setButtons();
+      const r = await apiCall("wheel.claim", {});
+      if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "claim_failed");
 
-      const res = await apiCall("wheel.claim", {});
+      if (r.fresh_state) applyFreshState(r.fresh_state);
+      else applyFreshState(r);
 
-      if (res && typeof res === "object") {
-        if (res.coins !== undefined) setCoins(res.coins);
-        if (res.wheel) wheel = res.wheel;
-        wheel.has_unclaimed = false;
-        if (wheel && wheel.claim_cooldown_left_ms !== undefined) setCooldown(wheel.claim_cooldown_left_ms);
-      }
+      if (pickedEl) pickedEl.textContent = "";
+      const ws = getWheelState();
+      if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
+      // small feedback
+      haptic("selection");
+    } finally {
       spinning = false;
-      setButtons();
-    } catch (e) {
-      spinning = false;
-      setButtons();
-      try { TG && TG.showPopup && TG.showPopup({ title: "Ошибка", message: String(e.message || e), buttons: [{ type: "ok" }] }); }
-      catch(_){ alert(String(e.message || e)); }
+      updateUI();
     }
   }
-
-  // ---------- bind
-  const onResize = () => resizeCanvas();
-  win.addEventListener("resize", onResize);
 
   const onSpin = (e) => { e.preventDefault(); doSpin(); };
   const onClaim = (e) => { e.preventDefault(); doClaim(); };
 
-  spinBtn && spinBtn.addEventListener("click", onSpin);
-  claimBtn && claimBtn.addEventListener("click", onClaim);
+  spinBtn.addEventListener("click", onSpin);
+  claimBtn.addEventListener("click", onClaim);
 
-  // init render
-  setCoins(coins);
-  setCooldown(num(wheel.claim_cooldown_left_ms, 0));
-  resizeCanvas();
-  setButtons();
-
-  // cooldown ticker
-  let cdTimer = 0;
-  function startCooldownTicker() {
-    if (cdTimer) return;
-    cdTimer = win.setInterval(() => {
-      const left = Math.max(0, num(wheel.claim_cooldown_left_ms, 0) - 1000);
-      wheel.claim_cooldown_left_ms = left;
-      setCooldown(left);
-      if (left <= 0) {
-        win.clearInterval(cdTimer);
-        cdTimer = 0;
-        setButtons();
-      }
-    }, 1000);
-  }
-  if (num(wheel.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
+  // initial UI
+  updateUI();
 
   // cleanup
   return () => {
-    stopAnim();
-    win.removeEventListener("resize", onResize);
-    spinBtn && spinBtn.removeEventListener("click", onSpin);
-    claimBtn && claimBtn.removeEventListener("click", onClaim);
-    if (cdTimer) win.clearInterval(cdTimer);
+    try { cdTimer && win.clearInterval(cdTimer); } catch (_) {}
+    spinBtn.removeEventListener("click", onSpin);
+    claimBtn.removeEventListener("click", onClaim);
   };
 }
