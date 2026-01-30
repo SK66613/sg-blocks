@@ -1,13 +1,5 @@
-/* ===== Bonus Wheel (scoped) — SG tokens / typography / radius =====
-   Uses:
-   Colors:  --color-bg/surface/card/border/text/muted/brand/brand-soft
-   Buttons: --btn-primary-bg/text, --btn-secondary-bg/text
-   Radius:  --radius-card/btn/input
-   Type:    --font-body/head/btn, --fs-*, --fw-*, --it-*, --ul-*
-   Shadow:  --shadow-soft, --glow-brand
-*/
+/* ===== Bonus Wheel (cards carousel) — SG tokens / typography / radius ===== */
 
-/* ===================== Bridges (tokens) ===================== */
 .blk-bonus-wheel{
   /* Typography bridges */
   --bw-font-body: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
@@ -33,13 +25,12 @@
   --bw-text:  var(--color-text, #e8f0ff);
   --bw-muted: var(--color-muted, #97aac4);
 
-  --bw-bg:     var(--color-bg, #0f1219);
-  --bw-surface:var(--color-surface, #121a2a);
   --bw-card:   var(--color-card, #101827);
+  --bw-surface:var(--color-surface, #121a2a);
   --bw-border: var(--color-border, #263048);
 
   --bw-acc:     var(--color-brand, #7C5CFF);
-  --bw-acc-soft:var(--color-brand-soft, #2A2352);
+  --bw-onAcc:   var(--btn-primary-text, #ffffff);
 
   /* Buttons */
   --bw-btn-primary-bg:   var(--btn-primary-bg, var(--bw-acc));
@@ -52,22 +43,21 @@
   --bw-r-btn:   var(--radius-btn, 14px);
   --bw-r-input: var(--radius-input, 12px);
 
-  /* Shadows */
+  /* Shadow/ring */
   --bw-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
   --bw-ring:   var(--glow-brand, 0 0 0 3px rgba(124,92,255,.26));
 
   /* Sizes */
   --bw-wheel-h: 180px;
   --bw-item: 96px;
-  --bw-ctl-h: 44px; /* кнопки */
   --bw-gap: 10px;
 }
 
-/* Base typography */
 .blk-bonus-wheel,
 .blk-bonus-wheel *{
   font-family: var(--bw-font-body);
 }
+
 .blk-bonus-wheel{
   font-size: var(--bw-fs-body);
   font-weight: var(--bw-fw-body);
@@ -77,17 +67,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ===================== Card wrapper ===================== */
+/* Card */
 .blk-bonus-wheel .bonus-card{
-  border: 1px solid var(--bw-border);
-  border-radius: var(--bw-r-card);
   padding: 14px;
+  border-radius: var(--bw-r-card);
+  border: 1px solid var(--bw-border);
   background: var(--bw-card);
   box-shadow: var(--bw-shadow);
   overflow: hidden;
 }
 
-/* Title (H2) */
+/* Title */
 .blk-bonus-wheel .bonus-card .h2{
   margin: 0 0 10px;
   font-family: var(--bw-font-head);
@@ -98,7 +88,7 @@
   line-height: 1.15;
 }
 
-/* ===================== Header row ===================== */
+/* Head row */
 .blk-bonus-wheel .bonus-head{
   display:flex;
   align-items:center;
@@ -107,7 +97,6 @@
   margin: 0 0 10px;
 }
 
-/* Picked pill */
 .blk-bonus-wheel .picked-pill{
   display:flex;
   align-items:center;
@@ -115,11 +104,12 @@
   min-height: 40px;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid var(--bw-border);
-  background: var(--bw-surface);
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
   font-weight: calc(var(--bw-fw-body) + 200);
   max-width: 100%;
 }
+
 .blk-bonus-wheel .picked-pill img{
   width: 28px;
   height: 28px;
@@ -127,28 +117,20 @@
   object-fit: cover;
   display:block;
 }
+
 .blk-bonus-wheel .picked-pill.muted{
-  opacity: .82;
+  opacity: .78;
   font-weight: var(--bw-fw-body);
-  background: linear-gradient(135deg, rgba(124,92,255,.14), rgba(42,35,82,.35));
-  border-color: rgba(255,255,255,.10);
+  background: linear-gradient(135deg, rgba(124,92,255,.14), rgba(255,255,255,.04));
 }
 
-/* Coins text */
-.blk-bonus-wheel [data-coins]{
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
-}
-
-/* ===================== Wheel ===================== */
+/* Wheel (fixed height, no vertical scroll) */
 .blk-bonus-wheel .bonus-wheel{
   position: relative;
   height: var(--bw-wheel-h);
   overflow: hidden;
   border-radius: var(--bw-r-card);
-  border: 1px solid rgba(255,255,255,.06);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 60%);
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0) 60%);
   margin-top: 6px;
 }
 
@@ -160,9 +142,10 @@
   user-select: none;
   cursor: grab;
 }
+
 .blk-bonus-wheel.dragging .wheel-track{ cursor: grabbing; }
 
-/* Item */
+/* Bonus card item */
 .blk-bonus-wheel .bonus-wheel .bonus{
   all: unset;
   position: absolute;
@@ -170,18 +153,21 @@
   top: 50%;
   width: var(--bw-item);
   height: var(--bw-item);
-  border-radius: var(--bw-r-card);
+  border-radius: calc(var(--bw-r-card) - 0px);
   overflow: hidden;
   transform: translate(-50%, -50%);
   will-change: transform;
   transition: transform .25s ease, filter .25s ease, opacity .25s ease, box-shadow .25s ease;
 }
+
 .blk-bonus-wheel .bonus-wheel .bonus img{
   width: 100%;
   height: 100%;
   object-fit: cover;
   display:block;
 }
+
+/* label below card */
 .blk-bonus-wheel .bonus-wheel .bonus span{
   position: absolute;
   left: 50%;
@@ -196,28 +182,28 @@
 
 /* inactive */
 .blk-bonus-wheel .bonus-wheel .bonus:not(.active){
-  filter: grayscale(.18) brightness(.96);
+  filter: grayscale(.18) brightness(.95);
   opacity: .9;
 }
 
-/* active highlight uses brand */
+/* active highlight */
 .blk-bonus-wheel .bonus-wheel .bonus.active{
   box-shadow:
     0 0 0 2px rgba(124,92,255,.55) inset,
-    0 10px 28px rgba(124,92,255,.30),
-    0 0 22px rgba(124,92,255,.22);
+    0 10px 28px rgba(124,92,255,.28),
+    0 0 22px rgba(124,92,255,.18);
 }
 
-/* Center glow */
+/* center glow */
 .blk-bonus-wheel .bonus-wheel .wheel-center{
-  pointer-events:none;
-  position:absolute;
-  inset:0;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
   background: radial-gradient(ellipse at center, rgba(124,92,255,.12), transparent 55%);
   mask: linear-gradient(#000 30%, transparent 80%);
 }
 
-/* ===================== Actions ===================== */
+/* Actions row */
 .blk-bonus-wheel .actions{
   margin-top: 12px;
   display: grid;
@@ -226,13 +212,14 @@
   align-items: center;
 }
 
-/* Buttons (SG tokens) */
 .blk-bonus-wheel .actions .btn{
-  min-height: var(--bw-ctl-h);
+  min-height: 44px;
   padding: 0 14px;
+
   border-radius: var(--bw-r-btn);
   border: 1px solid var(--bw-border);
   cursor: pointer;
+
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -246,6 +233,7 @@
 
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
+
 .blk-bonus-wheel .actions .btn:active{ transform: translateY(1px); }
 .blk-bonus-wheel .actions .btn:focus-visible{ outline:none; box-shadow: var(--bw-ring); }
 
@@ -255,6 +243,7 @@
   border-color: transparent;
   box-shadow: 0 14px 28px rgba(0,0,0,.16);
 }
+
 .blk-bonus-wheel .actions .btn:not(.primary){
   background: var(--bw-btn-secondary-bg);
   color: var(--bw-btn-secondary-text);
@@ -266,71 +255,20 @@
   box-shadow: none;
 }
 
-/* status text */
 .blk-bonus-wheel .actions [data-picked]{
   opacity: .85;
   color: var(--bw-muted);
   white-space: nowrap;
-  overflow:hidden;
+  overflow: hidden;
   text-overflow: ellipsis;
   max-width: 28vw;
 }
 
-/* "locked" визуал, но не ломаем клики тоста */
-.blk-bonus-wheel .actions .btn.is-locked{
-  opacity: .65;
-}
+/* locked state */
+.blk-bonus-wheel .actions .btn.is-locked{ opacity: .65; }
 .blk-bonus-wheel .actions .btn.is-locked:active{ transform:none; }
 
-/* ===================== Toasts (scoped) ===================== */
-.blk-bonus-wheel .toasts{
-  position: fixed;
-  right: 16px;
-  bottom: calc(env(safe-area-inset-bottom,0px) + 16px);
-  z-index: 100000;
-  display: grid;
-  gap: 8px;
-  width: min(92vw, 320px);
-  pointer-events: none;
-}
-.blk-bonus-wheel .toast{
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: var(--bw-r-btn);
-  color: var(--bw-text);
-
-  background: rgba(18,20,24,.96);
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 10px 24px rgba(0,0,0,.35);
-
-  transform: translateX(120%);
-  opacity: 0;
-  animation: bw-toast-in .25s ease forwards;
-}
-.blk-bonus-wheel .toast--error{
-  border-color: rgba(255,107,107,.45);
-  box-shadow: 0 10px 24px rgba(255,107,107,.15);
-}
-.blk-bonus-wheel .toast--ok{
-  border-color: rgba(55,214,122,.45);
-  box-shadow: 0 10px 24px rgba(55,214,122,.15);
-}
-.blk-bonus-wheel .toast__close{
-  margin-left: auto;
-  opacity: .7;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-@keyframes bw-toast-in{ to { transform: translateX(0); opacity: 1; } }
-@keyframes bw-toast-out{ to { transform: translateX(120%); opacity: 0; } }
-
-/* ===================== Reduce motion ===================== */
+/* Reduce motion */
 @media (prefers-reduced-motion: reduce){
   .blk-bonus-wheel .bonus-wheel .bonus,
   .blk-bonus-wheel .actions .btn{
