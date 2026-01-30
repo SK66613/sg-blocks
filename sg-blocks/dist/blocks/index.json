@@ -89,7 +89,7 @@
     },
 
     {
-  "key": "beer_bonus_wheel",
+  "key": "bonus_wheel_one",
   "title": "Лояльность: Колесо бонусов",
   "category": "Лояльность / Бонусы",
   "tags": ["all", "loyalty", "wheel", "bonus", "beer"],
