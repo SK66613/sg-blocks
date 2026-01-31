@@ -238,6 +238,7 @@ export async function mount(root, props = {}, ctx = {}) {
     syncCoins();
     refreshClaimBtn();
 
+    // lock spin if not enough coins or currently spinning
     // lock spin if not enough coins OR currently spinning OR has unclaimed prize
     const ws = getWheelState();
     const hasUnclaimed = !!ws.has_unclaimed;
@@ -248,16 +249,10 @@ export async function mount(root, props = {}, ctx = {}) {
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
 
-    // (опционально) подсказка на кнопке
-    if (hasUnclaimed) {
-      spinBtn.textContent = "Сначала забери приз";
-    } else {
-      // верни твой дефолт, если у тебя он другой — подставь
-      spinBtn.textContent = "Крутануть";
-      // или так, если хочешь показывать стоимость:
-      // spinBtn.textContent = cost > 0 ? `Крутануть за ${cost} 🪙` : 'Крутануть';
-    }
-
+    // (опционально) показать стоимость на кнопке
+    // если хочешь — раскомментируй
+    // spinBtn.textContent = cost > 0 ? `Крутануть за ${cost} 🪙` : 'Крутануть';
+  }
 
   function nearest(currIdx, targetIdx) {
     let t = targetIdx;
