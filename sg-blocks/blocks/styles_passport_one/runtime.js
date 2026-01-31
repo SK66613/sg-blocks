@@ -40,33 +40,54 @@ export async function mount(root, props = {}, ctx = {}) {
     (typeof win.api === "function") ? win.api :
     null;
 
-  async function apiCall(method, payload = {}) {
-    if (apiFn) return await apiFn(method, payload);
+  async function apiCall(pathSeg, body = {}) {
+    if (apiFn) return await apiFn(pathSeg, body);
 
-    const url = `/api/mini/${method}`;
+    const url = `/api/mini/${pathSeg}`;
     const initData = (ctx && ctx.initData) ? ctx.initData : (TG && TG.initData ? TG.initData : "");
-    const body = {
-      ...payload,
-      app_public_id: ctx && ctx.public_id ? String(ctx.public_id) : (payload.app_public_id || ""),
-      init_data: initData
+
+    // tg_user обязателен для воркера
+    const u =
+      (ctx && (ctx.tg_user || ctx.tgUser)) ||
+      (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ||
+      null;
+
+    const tg_user = u ? {
+      id: u.id,
+      username: u.username,
+      first_name: u.first_name,
+      last_name: u.last_name
+    } : (ctx && ctx.tg && ctx.tg.id ? { id: ctx.tg.id } : null);
+
+    const payload = {
+      ...body,
+      init_data: initData,
+      tg_user,
+      app_public_id: (ctx && (ctx.public_id || ctx.publicId)) ? String(ctx.public_id || ctx.publicId) : (body.app_public_id || "")
     };
 
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || j.ok === false) {
-      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+      const err = new Error((j && (j.error || j.message)) || `API ${pathSeg} failed (${r.status})`);
       err.status = r.status;
       err.payload = j;
       throw err;
     }
     return j;
   }
+
+  // единый “event” вызов под твой воркер
+  async function apiEvent(type, payload = {}) {
+    return await apiCall("event", { type, payload });
+  }
+
 
   // ---------- DOM
   const titleEl = root.querySelector("[data-pp-title]");
@@ -243,7 +264,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
   async function refreshFromServer(){
     try{
-      const j = await apiCall("state", {});
+      const j = await apiEvent("state", {});
+
       const st = j && (j.state || j.fresh_state || j.fresh || j.data) ? (j.state || j.fresh_state || j.fresh || j.data) : j;
       applyState(st);
     }catch(_){}
@@ -259,14 +281,16 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function collectDirectPin(styleId, pin){
-    const res = await apiCall("public.event", { type:"style.collect", payload:{ style_id: styleId, pin } });
+    const res = await apiEvent("style.collect", { style_id: styleId, pin });
+
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
 
   async function collectBotPin(styleId){
     // asks bot to request PIN in chat
-    await apiCall("public.event", { type:"passport.pin_start", payload:{ style_id: styleId } });
+    await apiEvent("passport.pin_start", { style_id: styleId });
+
     await uiAlert("Я попросил бота запросить PIN в чате ✅\nВведите PIN в переписке с ботом, и штамп появится тут.");
   }
 
