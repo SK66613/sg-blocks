@@ -1,5 +1,5 @@
 // beer_bonus_wheel/runtime.js
-// Wheel-track (cards) runtime — matches view.html you sent
+// Wheel-track (cards) runtime — matches view.html
 // API priority: ctx.api -> window.api -> POST /api/mini/<method>
 
 export async function mount(root, props = {}, ctx = {}) {
@@ -49,7 +49,10 @@ export async function mount(root, props = {}, ctx = {}) {
 
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || j.ok === false) {
-      throw new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+      err.status = r.status;
+      err.payload = j;
+      throw err;
     }
     return j;
   }
@@ -71,32 +74,40 @@ export async function mount(root, props = {}, ctx = {}) {
 
   // ---------- props
   const title = str(props.title ?? props.h1, "Колесо бонусов");
-  const spinCost = num(props.spin_cost ?? props.spin_cost_coins, 10);
 
+  // prizes: теперь поддерживаем coins
   const prizes = (Array.isArray(props.prizes) && props.prizes.length)
     ? props.prizes.map(p => ({
-        code: str(p.code, ""),
-        name: str(p.name, ""),
-        img:  str(p.img, "")
+        code:  str(p.code, ""),
+        name:  str(p.name, ""),
+        img:   str(p.img, ""),
+        coins: Math.max(0, Math.floor(num(p.coins, 0))),
       }))
     : [];
 
   if (titleEl) titleEl.textContent = title;
 
   // ---------- state
-  // Prefer ctx.state, else global MiniState (if your runtime has it), else empty
   const getMiniState = () => (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
   const getWheelState = () => (getMiniState().wheel || {});
   const getCoins = () => num(getMiniState().coins, 0);
 
+  // актуальная стоимость спина: сначала из MiniState.config.wheel.spin_cost (потому что воркер читает cfg),
+  // иначе из props.spin_cost
+  function getSpinCost(){
+    const st = getMiniState();
+    const fromCfg = num(st?.config?.wheel?.spin_cost, NaN);
+    if (Number.isFinite(fromCfg)) return Math.max(0, Math.round(fromCfg));
+    const fromProps = num(props.spin_cost ?? props.spin_cost_coins, 10);
+    return Math.max(0, Math.round(fromProps));
+  }
+
   function applyFreshState(fresh) {
     if (!fresh) return;
     if (typeof win.applyServerState === "function") {
-      // your global helper (good)
       win.applyServerState(fresh);
       return;
     }
-    // fallback: merge into MiniState
     win.MiniState = win.MiniState || {};
     for (const k in fresh) win.MiniState[k] = fresh[k];
   }
@@ -113,24 +124,30 @@ export async function mount(root, props = {}, ctx = {}) {
     try { win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12); } catch (_) {}
   }
 
+  // minimal escaping helpers
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
+
   // ---------- render prizes into track
   function renderTrack() {
     trackEl.innerHTML = prizes.map(pr => {
       const code = String(pr.code || "");
       const name = String(pr.name || "");
       const img  = String(pr.img || "");
+      const coins = Math.max(0, Math.floor(Number(pr.coins || 0)));
+
+      // маленький бейдж монет (если coins>0)
+      const badge = coins > 0 ? `<span class="bonus__badge">${coins} 🪙</span>` : '';
+
       return `
         <button class="bonus" type="button" data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}">
           ${img ? `<img src="${escapeAttr(img)}" alt="">` : `<div class="bonus__ph" aria-hidden="true"></div>`}
+          ${badge}
           <span>${escapeHtml(name)}</span>
         </button>
       `;
     }).join("");
   }
-
-  // minimal escaping helpers
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
 
   renderTrack();
 
@@ -162,7 +179,6 @@ export async function mount(root, props = {}, ctx = {}) {
     const ws = getWheelState();
     const has = !!ws.has_unclaimed;
 
-    // текст
     if (!has) {
       claimBtn.disabled = true;
       claimBtn.textContent = "Нет приза к выдаче";
@@ -183,7 +199,7 @@ export async function mount(root, props = {}, ctx = {}) {
     claimBtn.textContent = "Доступно через " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
 
-  // ---------- wheel-track animation (your “cards carousel”)
+  // ---------- wheel-track animation
   let STEP = 114; // px between cards, auto-detect below
   let curr = 0;   // float index
   let interacted = false;
@@ -223,10 +239,14 @@ export async function mount(root, props = {}, ctx = {}) {
     refreshClaimBtn();
 
     // lock spin if not enough coins or currently spinning
-    const cost = spinCost;
+    const cost = getSpinCost();
     const canSpin = (getCoins() >= cost) && !spinning;
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
+
+    // (опционально) показать стоимость на кнопке
+    // если хочешь — раскомментируй
+    // spinBtn.textContent = cost > 0 ? `Крутануть за ${cost} 🪙` : 'Крутануть';
   }
 
   function nearest(currIdx, targetIdx) {
@@ -267,7 +287,6 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  // initial measure after layout
   requestAnimationFrame(() => {
     measureStep();
     updateUI();
@@ -296,11 +315,14 @@ export async function mount(root, props = {}, ctx = {}) {
   async function doSpin() {
     if (spinning) return;
 
+    const costNow = getSpinCost();
     const coins = getCoins();
-    if (coins < spinCost) {
+    if (coins < costNow) {
       haptic("medium");
-      // simple user feedback
-      if (pillEl) { pillEl.classList.remove("muted"); pillEl.textContent = `Недостаточно монет. Нужно ${spinCost} 🪙`; }
+      if (pillEl) {
+        pillEl.classList.remove("muted");
+        pillEl.textContent = `Недостаточно монет. Нужно ${costNow} 🪙, у тебя ${coins} 🪙`;
+      }
       return;
     }
 
@@ -313,7 +335,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
     const startTs = performance.now();
 
-    // free-run while waiting (optional: very light)
+    // free-run while waiting
     let free = true;
     const FREE_RPS = 1;
     const FREE_SPEED = (FREE_RPS * N) / 1000;
@@ -328,11 +350,22 @@ export async function mount(root, props = {}, ctx = {}) {
     requestAnimationFrame(freeLoop);
 
     try {
-      let r;
+      let r = null;
       try {
         r = await apiCall("wheel.spin", {});
       } catch (e) {
-        r = null;
+        // красиво покажем NOT_ENOUGH_COINS
+        if (e && (e.status === 409 || e.status === 400) && e.payload && e.payload.error === 'NOT_ENOUGH_COINS') {
+          const have = num(e.payload.have, coins);
+          const need = num(e.payload.need, costNow);
+          if (pillEl) {
+            pillEl.classList.remove("muted");
+            pillEl.textContent = `Не хватает монет: нужно ${need} 🪙, у тебя ${have} 🪙`;
+          }
+          haptic("medium");
+          return;
+        }
+        throw e;
       }
 
       const elapsed = performance.now() - startTs;
@@ -344,11 +377,11 @@ export async function mount(root, props = {}, ctx = {}) {
         throw new Error((r && (r.error || r.message)) || "spin_failed");
       }
 
-      // support both: {fresh_state:{...}} and direct {coins,wheel,prize}
+      // apply state
       if (r.fresh_state) applyFreshState(r.fresh_state);
       else applyFreshState(r);
 
-      // find prize index by code (server should return r.prize.code)
+      // prize index by code
       const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
       const its = items();
       let idx = its.findIndex(n => String(n.dataset.code || "") === code);
@@ -359,7 +392,6 @@ export async function mount(root, props = {}, ctx = {}) {
       const ws = getWheelState();
       if (pickedEl) pickedEl.textContent = ws.last_prize_title ? `Выпало: ${ws.last_prize_title}` : "";
 
-      // start cooldown ticker if needed
       if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
     } finally {
@@ -386,7 +418,6 @@ export async function mount(root, props = {}, ctx = {}) {
       const ws = getWheelState();
       if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
-      // small feedback
       haptic("selection");
     } finally {
       spinning = false;
