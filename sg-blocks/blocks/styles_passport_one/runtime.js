@@ -34,14 +34,14 @@ export async function mount(root, props = {}, ctx = {}) {
     alert(String(msg||""));
   }
 
-  // ---------- resolve public_id (CRITICAL)
+  // ---------- resolve public_id
   const pid =
-    str(ctx.publicId || ctx.public_id || ctx.publicID || "", "").trim() ||
-    str(props.app_public_id || props.public_id || props.publicId || "", "").trim() ||
+    str(ctx.publicId || ctx.public_id || "", "").trim() ||
+    str(props.app_public_id || props.public_id || "", "").trim() ||
     str(win.SG_APP_PUBLIC_ID || "", "").trim();
 
   if (!pid){
-    await uiAlert("❌ stylesPassport: не найден public_id (ctx.publicId). Проверь, что рантайм прокидывает ctx.publicId.");
+    await uiAlert("❌ stylesPassport: не найден public_id");
     return;
   }
 
@@ -52,17 +52,14 @@ export async function mount(root, props = {}, ctx = {}) {
     null;
 
   async function apiCall(method, payload = {}) {
-    // 1) если рантайм уже дал api(method,payload) — используем
     if (apiFn) return await apiFn(method, payload);
 
-    // 2) fallback: прямой fetch в воркер
     const url = `/api/mini/${encodeURIComponent(method)}?public_id=${encodeURIComponent(pid)}`;
 
     const initData =
       (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
       (TG && TG.initData ? TG.initData : "");
 
-    // tg_user обязателен для воркера
     const u =
       (ctx && (ctx.tg_user || ctx.tgUser)) ||
       (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ||
@@ -73,7 +70,7 @@ export async function mount(root, props = {}, ctx = {}) {
       username: u.username,
       first_name: u.first_name,
       last_name: u.last_name
-    } : (ctx && ctx.tg && ctx.tg.id ? { id: ctx.tg.id } : null);
+    } : null;
 
     const body = {
       ...payload,
@@ -124,12 +121,12 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalSub    = root.querySelector("[data-pp-modal-sub]");
   const modalErr    = root.querySelector("[data-pp-modal-err]");
 
-  // ---------- props (defaults)
+  // ---------- props
   const P = props || {};
   const styles = Array.isArray(P.styles) ? P.styles : [];
   const gridCols = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
   const requirePin = !!P.require_pin;
-  const collectMode = str(P.collect_mode, "bot_pin"); // bot_pin | direct_pin
+  const collectMode = str(P.collect_mode, "bot_pin");
   const btnCollect = str(P.btn_collect, "Отметить");
   const btnDone = str(P.btn_done, "Получено");
 
@@ -138,8 +135,8 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   // ---------- state
-  let collected = new Set(); // style_id
-  let busy = new Set();      // style_id currently sending
+  let collected = new Set();
+  let busy = new Set();
   let selectedStyleId = "";
   let selectedStyleName = "";
 
@@ -149,50 +146,35 @@ export async function mount(root, props = {}, ctx = {}) {
     if (!modalEl) return;
     modalEl.hidden = !v;
     if (!v){
-      if (modalErr) { modalErr.hidden = true; modalErr.textContent = ""; }
-      if (pinInp) pinInp.value = "";
+      if (modalErr){ modalErr.hidden=true; modalErr.textContent=""; }
+      if (pinInp) pinInp.value="";
     } else {
-      setTimeout(()=>{ try{ pinInp && pinInp.focus && pinInp.focus(); }catch(_){} }, 50);
+      setTimeout(()=>{ try{ pinInp && pinInp.focus(); }catch(_){} },50);
     }
   }
 
   function escapeHtml(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#039;");
+    return String(s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
   function renderHeader(){
-    if (titleEl) titleEl.textContent = str(P.title, "Паспорт");
-    if (subEl) subEl.textContent = str(P.subtitle, "");
-
-    const coverUrl = str(P.cover_url, "").trim();
+    if (titleEl) titleEl.textContent = str(P.title,"Паспорт");
+    if (subEl) subEl.textContent = str(P.subtitle,"");
+    const coverUrl = str(P.cover_url,"").trim();
     if (coverEl && coverImg){
-      if (coverUrl){
-        coverEl.hidden = false;
-        coverImg.src = coverUrl;
-      } else {
-        coverEl.hidden = true;
-        coverImg.removeAttribute("src");
-      }
+      if (coverUrl){ coverEl.hidden=false; coverImg.src=coverUrl; }
+      else { coverEl.hidden=true; coverImg.removeAttribute("src"); }
     }
   }
 
   function renderProgress(){
     const total = styles.length;
     const got = collected.size;
-    if (!progWrap || !progBar || !progTxt) return;
-
-    if (!total){
-      progWrap.hidden = true;
-      return;
-    }
-    progWrap.hidden = false;
-    const pct = total ? clamp01(got / total) : 0;
-    progBar.style.width = `${Math.round(pct * 100)}%`;
+    if (!progWrap||!progBar||!progTxt) return;
+    if (!total){ progWrap.hidden=true; return; }
+    progWrap.hidden=false;
+    const pct = total?clamp01(got/total):0;
+    progBar.style.width = `${Math.round(pct*100)}%`;
     progTxt.textContent = `${got}/${total}`;
   }
 
@@ -200,53 +182,36 @@ export async function mount(root, props = {}, ctx = {}) {
     const enabled = !!P.reward_enabled;
     const total = styles.length;
     const got = collected.size;
-
     if (!rewardWrap) return;
-    if (!enabled || !total || got < total){
-      rewardWrap.hidden = true;
-      return;
-    }
-
-    rewardWrap.hidden = false;
-    if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
-    if (rewardText) rewardText.textContent = str(P.reward_text, "");
-
-    // визуальный код (не redeem)
-    const pref = str(P.reward_code_prefix, "PASS-");
-    const tgIdStr = str((ctx && ctx.tg && ctx.tg.id) || (TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id), "");
-    const code = pref + tgIdStr.slice(-6);
-    if (rewardCode){
-      rewardCode.hidden = false;
-      rewardCode.textContent = code;
-    }
+    if (!enabled || !total || got<total){ rewardWrap.hidden=true; return; }
+    rewardWrap.hidden=false;
+    if (rewardTitle) rewardTitle.textContent=str(P.reward_title,"🎁 Приз");
+    if (rewardText) rewardText.textContent=str(P.reward_text,"");
+    const pref=str(P.reward_code_prefix,"PASS-");
+    const tgId=str(TG?.initDataUnsafe?.user?.id||"");
+    if (rewardCode){ rewardCode.hidden=false; rewardCode.textContent=pref+tgId.slice(-6); }
   }
 
-  function cardHtml(st, idx){
-    const sid = getStyleId(st);
-    const done = sid && isDone(sid);
-    const img = str(st && st.image, "").trim();
-    const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
-    const desc = str(st && (st.desc || st.subtitle), "");
-
-    const disabled = !sid || done || busy.has(sid);
-    const badge = done ? "✓" : `${idx+1}`;
-
+  function cardHtml(st,idx){
+    const sid=getStyleId(st);
+    const done=sid && isDone(sid);
+    const img=str(st.image,"").trim();
+    const name=str(st.name||st.title,sid||`#${idx+1}`);
+    const desc=str(st.desc||st.subtitle,"");
+    const disabled=!sid||done||busy.has(sid);
+    const badge=done?"✓":`${idx+1}`;
     return `
-      <div class="pp-card" data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
+      <div class="pp-card" data-sid="${escapeHtml(sid)}">
         <div class="pp-badge">${escapeHtml(badge)}</div>
         <div class="pp-card-top">
-          <div class="pp-ico">
-            ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
-          </div>
+          <div class="pp-ico">${img?`<img src="${escapeHtml(img)}">`:`<span>★</span>`}</div>
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
-            ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
+            ${desc?`<div class="pp-desc">${escapeHtml(desc)}</div>`:''}
           </div>
         </div>
         <div class="pp-card-bot">
-          <button class="pp-btn ${done ? "" : "primary"}" type="button" ${disabled ? "disabled" : ""}>
-            ${escapeHtml(done ? btnDone : btnCollect)}
-          </button>
+          <button ${disabled?"disabled":""}>${escapeHtml(done?btnDone:btnCollect)}</button>
         </div>
       </div>
     `;
@@ -254,118 +219,69 @@ export async function mount(root, props = {}, ctx = {}) {
 
   function renderGrid(){
     if (!gridEl) return;
-    gridEl.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
-    gridEl.innerHTML = styles.map(cardHtml).join("");
-
+    gridEl.style.gridTemplateColumns=`repeat(${gridCols},1fr)`;
+    gridEl.innerHTML=styles.map(cardHtml).join("");
     gridEl.querySelectorAll(".pp-card").forEach(card=>{
-      const sid = card.getAttribute("data-sid") || "";
-      const btn = card.querySelector("button");
-      if (!btn) return;
-
-      btn.addEventListener("click", async ()=>{
-        if (!sid) return;
-        if (isDone(sid)) return;
-        if (busy.has(sid)) return;
-        await onCollectClick(sid);
-      });
+      const sid=card.dataset.sid;
+      const btn=card.querySelector("button");
+      btn.onclick=()=>{ if(sid && !isDone(sid) && !busy.has(sid)) onCollectClick(sid); };
     });
   }
 
-  async function refreshFromServer(){
-    const j = await apiCall("state", {});
-    const st = (j && j.state) ? j.state : j;
-    applyState(st);
+  async function refresh(){
+    const j=await apiCall("state",{});
+    applyState(j.state||j);
   }
 
   function applyState(st){
-    collected = new Set(Array.isArray(st && st.styles) ? st.styles.map(x=>String(x||"")) : []);
-    renderProgress();
-    renderReward();
-    renderGrid();
+    collected=new Set(Array.isArray(st.styles)?st.styles.map(String):[]);
+    renderProgress(); renderReward(); renderGrid();
   }
 
-  async function collectDirectPin(styleId, pin){
-    const res = await apiCall("style.collect", { style_id: styleId, pin });
-    if (res && res.fresh_state) applyState(res.fresh_state);
-    else await refreshFromServer();
+  async function collectDirectPin(styleId,pin){
+    const r=await apiCall("style.collect",{style_id:styleId,pin});
+    if(r.fresh_state) applyState(r.fresh_state); else await refresh();
   }
 
   async function collectBotPin(styleId){
-    // ✅ ключевая правка: НЕ через event, а как wheel — прямой метод
-    await apiCall("passport.pin_start", { style_id: styleId });
-    await uiAlert("Я попросил бота запросить PIN в чате ✅\nВведите PIN в переписке с ботом — штамп появится тут.");
+    await apiCall("passport.pin_start",{style_id:styleId});
+    await uiAlert("Я попросил бота запросить PIN в чате.\nВведите PIN в переписке с ботом.");
   }
 
   async function collectNoPin(styleId){
-    const res = await apiCall("style.collect", { style_id: styleId, pin: "" });
-    if (res && res.fresh_state) applyState(res.fresh_state);
-    else await refreshFromServer();
+    const r=await apiCall("style.collect",{style_id:styleId,pin:""});
+    if(r.fresh_state) applyState(r.fresh_state); else await refresh();
   }
 
   async function onCollectClick(styleId){
-    busy.add(styleId);
-    renderGrid();
-
+    busy.add(styleId); renderGrid();
     try{
-      haptic("light");
-
-      if (requirePin){
-        if (collectMode === "direct_pin"){
-          selectedStyleId = styleId;
-          selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
-          if (modalTitle) modalTitle.textContent = "Введите PIN";
-          if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
+      if(requirePin){
+        if(collectMode==="direct_pin"){
+          selectedStyleId=styleId;
           setModalVisible(true);
-        } else {
+        }else{
           await collectBotPin(styleId);
         }
-      } else {
+      }else{
         await collectNoPin(styleId);
       }
-    } catch (e){
-      await uiAlert((e && e.message) ? e.message : "Ошибка");
-    } finally {
-      busy.delete(styleId);
-      renderGrid();
-    }
+    }catch(e){ await uiAlert(e.message||"Ошибка"); }
+    finally{ busy.delete(styleId); renderGrid(); }
   }
 
-  // modal events
-  if (modalOk){
-    modalOk.addEventListener("click", async ()=>{
-      const pin = str(pinInp && pinInp.value, "").trim();
-      if (!pin){
-        if (modalErr){ modalErr.hidden=false; modalErr.textContent="Введите PIN"; }
-        return;
-      }
-      if (modalErr){ modalErr.hidden=true; modalErr.textContent=""; }
-
-      try{
-        haptic("light");
-        await collectDirectPin(selectedStyleId, pin);
-        setModalVisible(false);
-      } catch (e){
-        const msg = (e && e.message) ? e.message : "PIN неверный";
-        if (modalErr){
-          modalErr.hidden=false;
-          modalErr.textContent = msg;
-        } else {
-          await uiAlert(msg);
-        }
-      }
-    });
+  if(modalOk){
+    modalOk.onclick=async()=>{
+      const pin=str(pinInp?.value,"").trim();
+      if(!pin){ if(modalErr){modalErr.hidden=false;modalErr.textContent="Введите PIN";} return; }
+      try{ await collectDirectPin(selectedStyleId,pin); setModalVisible(false); }
+      catch(e){ if(modalErr){modalErr.hidden=false;modalErr.textContent=e.message||"PIN неверный";} }
+    };
   }
-  if (modalCancel) modalCancel.addEventListener("click", ()=> setModalVisible(false));
-  if (modalClose)  modalClose.addEventListener("click", ()=> setModalVisible(false));
+  if(modalCancel) modalCancel.onclick=()=>setModalVisible(false);
+  if(modalClose) modalClose.onclick=()=>setModalVisible(false);
 
-  // ---------- init
-  renderHeader();
-  renderGrid();
-
-  try{
-    if (ctx && ctx.state) applyState(ctx.state);
-    else await refreshFromServer();
-  }catch(e){
-    await uiAlert((e && e.message) ? e.message : "Не удалось загрузить состояние");
-  }
+  renderHeader(); renderGrid();
+  try{ ctx.state?applyState(ctx.state):await refresh(); }
+  catch(e){ await uiAlert(e.message||"Не удалось загрузить"); }
 }
