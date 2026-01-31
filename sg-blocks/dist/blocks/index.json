@@ -129,6 +129,44 @@
   }
 },
 
+    {
+  "key": "styles_passport_one",
+  "title": "Паспорт / Штампы (PIN через бота)",
+  "category": "Лояльность / Акции",
+  "tags": ["all", "loyalty", "passport", "stamps", "pin", "promo"],
+  "version": "2.0.0",
+  "files": {
+    "runtime": "styles_passport_one/runtime.js",
+    "view": "styles_passport_one/view.html",
+    "style": "styles_passport_one/style.css",
+    "block": "styles_passport_one/block.json"
+  },
+  "defaults": {
+    "title": "Паспорт",
+    "subtitle": "",
+    "cover_url": "",
+    "grid_cols": 3,
+
+    "require_pin": true,
+    "collect_mode": "bot_pin",
+
+    "btn_collect": "Отметить",
+    "btn_done": "Получено",
+
+    "reward_enabled": true,
+    "reward_title": "🎁 Приз",
+    "reward_text": "Покажите кассиру этот экран, чтобы получить подарок.",
+    "reward_code_prefix": "PASS-",
+
+    "styles": [
+      { "code": "day1", "name": "День 1", "desc": "", "image": "" },
+      { "code": "day2", "name": "День 2", "desc": "", "image": "" },
+      { "code": "day3", "name": "День 3", "desc": "", "image": "" }
+    ]
+  }
+},
+
+
     
     {
  "key": "game_flappy_one",
