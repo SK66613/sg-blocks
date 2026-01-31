@@ -51,19 +51,16 @@ export async function mount(root, props = {}, ctx = {}) {
     (typeof win.api === "function") ? win.api :
     null;
 
-  async function apiCall(pathSeg, body = {}) {
-    // Если у тебя в рендерере блоков уже есть api(method,payload) — используем её.
-    // ВАЖНО: твой старый window.api ожидает 'style.collect' и т.п.
-    if (apiFn){
-      // Попробуем оба формата:
-      // 1) api('event', {type,payload}) — если кто-то сделал так
-      // 2) api('style.collect', {...}) — старый формат
-      if (pathSeg === "event" && body && body.type) return await apiFn("event", body);
-      return await apiFn(pathSeg, body);
-    }
+  async function apiCall(method, payload = {}) {
+    // 1) если рантайм уже дал api(method,payload) — используем
+    if (apiFn) return await apiFn(method, payload);
 
-    const url = `/api/mini/${pathSeg}?public_id=${encodeURIComponent(pid)}`;
-    const initData = (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) : (TG && TG.initData ? TG.initData : "");
+    // 2) fallback: прямой fetch в воркер
+    const url = `/api/mini/${encodeURIComponent(method)}?public_id=${encodeURIComponent(pid)}`;
+
+    const initData =
+      (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
+      (TG && TG.initData ? TG.initData : "");
 
     // tg_user обязателен для воркера
     const u =
@@ -78,8 +75,8 @@ export async function mount(root, props = {}, ctx = {}) {
       last_name: u.last_name
     } : (ctx && ctx.tg && ctx.tg.id ? { id: ctx.tg.id } : null);
 
-    const payload = {
-      ...body,
+    const body = {
+      ...payload,
       init_data: initData,
       tg_user,
       app_public_id: pid
@@ -89,22 +86,17 @@ export async function mount(root, props = {}, ctx = {}) {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || j.ok === false) {
-      const err = new Error((j && (j.error || j.message)) || `API ${pathSeg} failed (${r.status})`);
+      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
       err.status = r.status;
       err.payload = j;
       throw err;
     }
     return j;
-  }
-
-  // единый event-вызов (как у тебя в воркере handleMiniApi)
-  async function apiEvent(type, payload = {}) {
-    return await apiCall("event", { type, payload });
   }
 
   // ---------- DOM
@@ -280,14 +272,12 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function refreshFromServer(){
-    // В воркере уже есть type==='state' endpoint
     const j = await apiCall("state", {});
     const st = (j && j.state) ? j.state : j;
     applyState(st);
   }
 
   function applyState(st){
-    // buildState отдаёт styles:[] как список собранных style_id
     collected = new Set(Array.isArray(st && st.styles) ? st.styles.map(x=>String(x||"")) : []);
     renderProgress();
     renderReward();
@@ -295,18 +285,19 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function collectDirectPin(styleId, pin){
-    const res = await apiEvent("style.collect", { style_id: styleId, pin });
+    const res = await apiCall("style.collect", { style_id: styleId, pin });
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
 
   async function collectBotPin(styleId){
-    await apiEvent("passport.pin_start", { style_id: styleId });
+    // ✅ ключевая правка: НЕ через event, а как wheel — прямой метод
+    await apiCall("passport.pin_start", { style_id: styleId });
     await uiAlert("Я попросил бота запросить PIN в чате ✅\nВведите PIN в переписке с ботом — штамп появится тут.");
   }
 
   async function collectNoPin(styleId){
-    const res = await apiEvent("style.collect", { style_id: styleId, pin: "" });
+    const res = await apiCall("style.collect", { style_id: styleId, pin: "" });
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
