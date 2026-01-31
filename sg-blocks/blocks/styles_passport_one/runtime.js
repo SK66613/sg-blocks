@@ -1,6 +1,6 @@
 // stylesPassport/runtime.js
 // Universal passport (stamps/collection) — SG blocks format.
-// API priority: ctx.api -> window.api -> POST /api/mini/<method>
+// API priority: ctx.api -> window.api -> POST /api/mini/<method>?public_id=...
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -34,6 +34,17 @@ export async function mount(root, props = {}, ctx = {}) {
     alert(String(msg||""));
   }
 
+  // ---------- resolve public_id (CRITICAL)
+  const pid =
+    str(ctx.publicId || ctx.public_id || ctx.publicID || "", "").trim() ||
+    str(props.app_public_id || props.public_id || props.publicId || "", "").trim() ||
+    str(win.SG_APP_PUBLIC_ID || "", "").trim();
+
+  if (!pid){
+    await uiAlert("❌ stylesPassport: не найден public_id (ctx.publicId). Проверь, что рантайм прокидывает ctx.publicId.");
+    return;
+  }
+
   // ---------- API
   const apiFn =
     (typeof ctx.api === "function") ? ctx.api :
@@ -41,10 +52,18 @@ export async function mount(root, props = {}, ctx = {}) {
     null;
 
   async function apiCall(pathSeg, body = {}) {
-    if (apiFn) return await apiFn(pathSeg, body);
+    // Если у тебя в рендерере блоков уже есть api(method,payload) — используем её.
+    // ВАЖНО: твой старый window.api ожидает 'style.collect' и т.п.
+    if (apiFn){
+      // Попробуем оба формата:
+      // 1) api('event', {type,payload}) — если кто-то сделал так
+      // 2) api('style.collect', {...}) — старый формат
+      if (pathSeg === "event" && body && body.type) return await apiFn("event", body);
+      return await apiFn(pathSeg, body);
+    }
 
-    const url = `/api/mini/${pathSeg}`;
-    const initData = (ctx && ctx.initData) ? ctx.initData : (TG && TG.initData ? TG.initData : "");
+    const url = `/api/mini/${pathSeg}?public_id=${encodeURIComponent(pid)}`;
+    const initData = (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) : (TG && TG.initData ? TG.initData : "");
 
     // tg_user обязателен для воркера
     const u =
@@ -63,7 +82,7 @@ export async function mount(root, props = {}, ctx = {}) {
       ...body,
       init_data: initData,
       tg_user,
-      app_public_id: (ctx && (ctx.public_id || ctx.publicId)) ? String(ctx.public_id || ctx.publicId) : (body.app_public_id || "")
+      app_public_id: pid
     };
 
     const r = await fetch(url, {
@@ -83,11 +102,10 @@ export async function mount(root, props = {}, ctx = {}) {
     return j;
   }
 
-  // единый “event” вызов под твой воркер
+  // единый event-вызов (как у тебя в воркере handleMiniApi)
   async function apiEvent(type, payload = {}) {
     return await apiCall("event", { type, payload });
   }
-
 
   // ---------- DOM
   const titleEl = root.querySelector("[data-pp-title]");
@@ -123,8 +141,6 @@ export async function mount(root, props = {}, ctx = {}) {
   const btnCollect = str(P.btn_collect, "Отметить");
   const btnDone = str(P.btn_done, "Получено");
 
-  // IMPORTANT: one-campaign mode (for now)
-  // style_id stored in D1: just code (back-compat). Later we'll do campaignId:code.
   function getStyleId(st){
     return str(st && st.code, "").trim();
   }
@@ -148,6 +164,15 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
+  function escapeHtml(s){
+    return String(s||"")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
   function renderHeader(){
     if (titleEl) titleEl.textContent = str(P.title, "Паспорт");
     if (subEl) subEl.textContent = str(P.subtitle, "");
@@ -167,9 +192,8 @@ export async function mount(root, props = {}, ctx = {}) {
   function renderProgress(){
     const total = styles.length;
     const got = collected.size;
-    if (!progWrap || !progBar || !progTxt){
-      return;
-    }
+    if (!progWrap || !progBar || !progTxt) return;
+
     if (!total){
       progWrap.hidden = true;
       return;
@@ -195,8 +219,10 @@ export async function mount(root, props = {}, ctx = {}) {
     if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
     if (rewardText) rewardText.textContent = str(P.reward_text, "");
 
+    // визуальный код (не redeem)
     const pref = str(P.reward_code_prefix, "PASS-");
-    const code = pref + str(ctx && (ctx.tg && ctx.tg.id), "").slice(-6); // визуальный код (не redeem)
+    const tgIdStr = str((ctx && ctx.tg && ctx.tg.id) || (TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id), "");
+    const code = pref + tgIdStr.slice(-6);
     if (rewardCode){
       rewardCode.hidden = false;
       rewardCode.textContent = code;
@@ -214,11 +240,11 @@ export async function mount(root, props = {}, ctx = {}) {
     const badge = done ? "✓" : `${idx+1}`;
 
     return `
-      <div class="pp-card" data-sid="${sid}" data-done="${done ? 1 : 0}">
-        <div class="pp-badge">${badge}</div>
+      <div class="pp-card" data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
+        <div class="pp-badge">${escapeHtml(badge)}</div>
         <div class="pp-card-top">
           <div class="pp-ico">
-            ${img ? `<img alt="" src="${img}">` : `<span class="pp-ico-ph">★</span>`}
+            ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
           </div>
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
@@ -234,15 +260,6 @@ export async function mount(root, props = {}, ctx = {}) {
     `;
   }
 
-  function escapeHtml(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#039;");
-  }
-
   function renderGrid(){
     if (!gridEl) return;
     gridEl.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
@@ -252,50 +269,44 @@ export async function mount(root, props = {}, ctx = {}) {
       const sid = card.getAttribute("data-sid") || "";
       const btn = card.querySelector("button");
       if (!btn) return;
+
       btn.addEventListener("click", async ()=>{
         if (!sid) return;
         if (isDone(sid)) return;
         if (busy.has(sid)) return;
-
-        await onCollectClick(sid, card);
+        await onCollectClick(sid);
       });
     });
   }
 
   async function refreshFromServer(){
-    try{
-      const j = await apiEvent("state", {});
-
-      const st = j && (j.state || j.fresh_state || j.fresh || j.data) ? (j.state || j.fresh_state || j.fresh || j.data) : j;
-      applyState(st);
-    }catch(_){}
+    // В воркере уже есть type==='state' endpoint
+    const j = await apiCall("state", {});
+    const st = (j && j.state) ? j.state : j;
+    applyState(st);
   }
 
   function applyState(st){
-    // expects: styles[] = collected style ids
+    // buildState отдаёт styles:[] как список собранных style_id
     collected = new Set(Array.isArray(st && st.styles) ? st.styles.map(x=>String(x||"")) : []);
     renderProgress();
     renderReward();
-    // re-render buttons (cheap: full rerender)
     renderGrid();
   }
 
   async function collectDirectPin(styleId, pin){
     const res = await apiEvent("style.collect", { style_id: styleId, pin });
-
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
 
   async function collectBotPin(styleId){
-    // asks bot to request PIN in chat
     await apiEvent("passport.pin_start", { style_id: styleId });
-
-    await uiAlert("Я попросил бота запросить PIN в чате ✅\nВведите PIN в переписке с ботом, и штамп появится тут.");
+    await uiAlert("Я попросил бота запросить PIN в чате ✅\nВведите PIN в переписке с ботом — штамп появится тут.");
   }
 
   async function collectNoPin(styleId){
-    const res = await apiCall("public.event", { type:"style.collect", payload:{ style_id: styleId } });
+    const res = await apiEvent("style.collect", { style_id: styleId, pin: "" });
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
@@ -321,8 +332,7 @@ export async function mount(root, props = {}, ctx = {}) {
         await collectNoPin(styleId);
       }
     } catch (e){
-      const msg = (e && e.message) ? e.message : "Ошибка";
-      await uiAlert(msg);
+      await uiAlert((e && e.message) ? e.message : "Ошибка");
     } finally {
       busy.delete(styleId);
       renderGrid();
@@ -344,11 +354,12 @@ export async function mount(root, props = {}, ctx = {}) {
         await collectDirectPin(selectedStyleId, pin);
         setModalVisible(false);
       } catch (e){
+        const msg = (e && e.message) ? e.message : "PIN неверный";
         if (modalErr){
           modalErr.hidden=false;
-          modalErr.textContent = (e && e.message) ? e.message : "PIN неверный";
+          modalErr.textContent = msg;
         } else {
-          await uiAlert((e && e.message) ? e.message : "PIN неверный");
+          await uiAlert(msg);
         }
       }
     });
@@ -360,10 +371,10 @@ export async function mount(root, props = {}, ctx = {}) {
   renderHeader();
   renderGrid();
 
-  // take initial state from ctx if present
-  if (ctx && ctx.state){
-    applyState(ctx.state);
-  } else {
-    await refreshFromServer();
+  try{
+    if (ctx && ctx.state) applyState(ctx.state);
+    else await refreshFromServer();
+  }catch(e){
+    await uiAlert((e && e.message) ? e.message : "Не удалось загрузить состояние");
   }
 }
