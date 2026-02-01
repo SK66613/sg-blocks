@@ -298,11 +298,12 @@ export async function mount(root, props = {}, ctx = {}) {
     else await refreshFromServer();
   }
 
-  async function collectNoPin(styleId){
-    const res = await apiCollect(styleId, "");
-    if (res && res.fresh_state) applyState(res.fresh_state);
-    else await refreshFromServer();
-  }
+async function collectNoPin(styleId){
+  const res = await apiCall("style.collect", { style_id: styleId, pin: "" });
+  if (res && res.fresh_state) applyState(res.fresh_state);
+  else await refreshFromServer();
+}
+
 
   async function collectBotPin(styleId){
     // WARNING: your current worker DOES NOT have passport.pin_start / pin_pending handling.
