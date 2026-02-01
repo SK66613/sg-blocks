@@ -205,15 +205,64 @@ if (!publicId){
   }
 
   function renderReward(){
-    const enabled = !!P.reward_enabled;
-    const total = styles.length;
-    const got = collected.size;
+  const enabled = !!P.reward_enabled;
+  const total = styles.length;
+  const got = collected.size;
 
-    if (!rewardWrap) return;
-    if (!enabled || !total || got < total){
-      rewardWrap.hidden = true;
-      return;
+  if (!rewardWrap) return;
+
+  // показываем блок только когда реально всё собрано
+  if (!enabled || !total || got < total){
+    rewardWrap.hidden = true;
+    return;
+  }
+
+  rewardWrap.hidden = false;
+  if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
+  if (rewardText)  rewardText.textContent  = str(P.reward_text, "");
+
+  // ====== БЕРЁМ РЕЗУЛЬТАТ С СЕРВЕРА (воркер кладёт в state.passport_reward)
+  const pr = (state && state.passport_reward) ? state.passport_reward : null;
+
+  let codeToShow = "";
+  let hint = "";
+
+  // 1) физический приз: есть redeem_code
+  if (pr && pr.redeem_code){
+    codeToShow = String(pr.redeem_code);
+    hint = ""; // можно оставить пусто
+  }
+  // 2) монетный приз: redeem-кода нет, но есть coins
+  else if (pr && Number(pr.coins) > 0){
+    codeToShow = ""; // код не нужен
+    hint = `Начислено монет: ${Number(pr.coins)}`;
+  }
+  // 3) fallback: если сервер ещё не выдал / state не обновился
+  else {
+    // если хочешь вообще НЕ показывать ничего — оставь пусто и спрячем
+    codeToShow = "";
+    hint = "Приз готовится… обновите экран";
+  }
+
+  if (rewardCode){
+    if (codeToShow){
+      rewardCode.hidden = false;
+      rewardCode.textContent = codeToShow;
+    } else {
+      rewardCode.hidden = true;
+      rewardCode.textContent = "";
     }
+  }
+
+  // если хочешь показывать подсказку в rewardText — можно дописать:
+  if (hint){
+    if (rewardText){
+      const base = str(P.reward_text, "");
+      rewardText.textContent = base ? (base + "\n\n" + hint) : hint;
+    }
+  }
+}
+
 
     rewardWrap.hidden = false;
     if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
