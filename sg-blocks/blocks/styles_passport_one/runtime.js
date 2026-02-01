@@ -50,11 +50,10 @@ export async function mount(root, props = {}, ctx = {}) {
     // If legacy api exists — use it directly (like old passport did)
     if (apiFn) return await apiFn(pathSeg, body);
 
-if (!publicId){
-  // Studio/preview mode: no api + no publicId => can't call backend, just return stub
-  return { ok:false, error:'NO_PUBLIC_ID' };
-}
-
+    if (!publicId){
+      // Studio/preview mode: no api + no publicId => can't call backend, just return stub
+      return { ok:false, error:'NO_PUBLIC_ID' };
+    }
 
     const initData = (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) : (TG && TG.initData ? TG.initData : "");
 
@@ -146,6 +145,7 @@ if (!publicId){
   }
 
   // ---------- state
+  let state = null; // keep the latest server state (needed for passport_reward)
   let collected = new Set();
   let busy = new Set();
   let selectedStyleId = "";
@@ -205,75 +205,53 @@ if (!publicId){
   }
 
   function renderReward(){
-  const enabled = !!P.reward_enabled;
-  const total = styles.length;
-  const got = collected.size;
+    const enabled = !!P.reward_enabled;
+    const total = styles.length;
+    const got = collected.size;
 
-  if (!rewardWrap) return;
+    if (!rewardWrap) return;
 
-  // показываем блок только когда реально всё собрано
-  if (!enabled || !total || got < total){
-    rewardWrap.hidden = true;
-    return;
-  }
-
-  rewardWrap.hidden = false;
-  if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
-  if (rewardText)  rewardText.textContent  = str(P.reward_text, "");
-
-  // ====== БЕРЁМ РЕЗУЛЬТАТ С СЕРВЕРА (воркер кладёт в state.passport_reward)
-  const pr = (state && state.passport_reward) ? state.passport_reward : null;
-
-  let codeToShow = "";
-  let hint = "";
-
-  // 1) физический приз: есть redeem_code
-  if (pr && pr.redeem_code){
-    codeToShow = String(pr.redeem_code);
-    hint = ""; // можно оставить пусто
-  }
-  // 2) монетный приз: redeem-кода нет, но есть coins
-  else if (pr && Number(pr.coins) > 0){
-    codeToShow = ""; // код не нужен
-    hint = `Начислено монет: ${Number(pr.coins)}`;
-  }
-  // 3) fallback: если сервер ещё не выдал / state не обновился
-  else {
-    // если хочешь вообще НЕ показывать ничего — оставь пусто и спрячем
-    codeToShow = "";
-    hint = "Приз готовится… обновите экран";
-  }
-
-  if (rewardCode){
-    if (codeToShow){
-      rewardCode.hidden = false;
-      rewardCode.textContent = codeToShow;
-    } else {
-      rewardCode.hidden = true;
-      rewardCode.textContent = "";
+    // show only when complete
+    if (!enabled || !total || got < total){
+      rewardWrap.hidden = true;
+      return;
     }
-  }
-
-  // если хочешь показывать подсказку в rewardText — можно дописать:
-  if (hint){
-    if (rewardText){
-      const base = str(P.reward_text, "");
-      rewardText.textContent = base ? (base + "\n\n" + hint) : hint;
-    }
-  }
-}
-
 
     rewardWrap.hidden = false;
     if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
-    if (rewardText) rewardText.textContent = str(P.reward_text, "");
 
-    const pref = str(P.reward_code_prefix, "PASS-");
-    const tgIdStr = str((ctx && ctx.tg && ctx.tg.id) || (TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id), "");
-    const code = pref + tgIdStr.slice(-6);
+    // worker puts result into state.passport_reward
+    const pr = (state && state.passport_reward) ? state.passport_reward : null;
+
+    let codeToShow = "";
+    let hint = "";
+
+    if (pr && pr.redeem_code){
+      // physical prize => show redeem code
+      codeToShow = String(pr.redeem_code);
+      hint = str(P.reward_text, "");
+    } else if (pr && Number(pr.coins) > 0){
+      // coins prize => show hint only
+      hint = str(P.reward_text, "");
+      const coinsLine = `Начислено монет: ${Number(pr.coins)}`;
+      hint = hint ? (hint + "\n\n" + coinsLine) : coinsLine;
+    } else {
+      // no server reward yet (or reward disabled on server)
+      hint = str(P.reward_text, "");
+      const extra = "Приз готовится… обновите экран";
+      hint = hint ? (hint + "\n\n" + extra) : extra;
+    }
+
+    if (rewardText) rewardText.textContent = hint;
+
     if (rewardCode){
-      rewardCode.hidden = false;
-      rewardCode.textContent = code;
+      if (codeToShow){
+        rewardCode.hidden = false;
+        rewardCode.textContent = codeToShow;
+      } else {
+        rewardCode.hidden = true;
+        rewardCode.textContent = "";
+      }
     }
   }
 
@@ -328,14 +306,14 @@ if (!publicId){
   }
 
   async function refreshFromServer(){
-    // DO NOT swallow errors silently (temporary debug)
     const j = await apiState();
     const st = (j && (j.state || j.fresh_state || j.fresh || j.data)) ? (j.state || j.fresh_state || j.fresh || j.data) : j;
     applyState(st);
   }
 
   function applyState(st){
-    collected = new Set(Array.isArray(st && st.styles) ? st.styles.map(x=>String(x||"")) : []);
+    state = st || {};
+    collected = new Set(Array.isArray(state.styles) ? state.styles.map(x=>String(x||"")) : []);
     renderProgress();
     renderReward();
     renderGrid();
@@ -345,20 +323,19 @@ if (!publicId){
     const res = await apiCollect(styleId, pin);
     if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
+    // applyState/refreshFromServer already rerenders reward
   }
 
-async function collectNoPin(styleId){
-  const res = await apiCall("style.collect", { style_id: styleId, pin: "" });
-  if (res && res.fresh_state) applyState(res.fresh_state);
-  else await refreshFromServer();
-}
-
+  async function collectNoPin(styleId){
+    const res = await apiCollect(styleId, "");
+    if (res && res.fresh_state) applyState(res.fresh_state);
+    else await refreshFromServer();
+  }
 
   async function collectBotPin(styleId){
     // WARNING: your current worker DOES NOT have passport.pin_start / pin_pending handling.
     // This will not work until we add it in worker.
     await uiAlert("⚠️ Режим bot_pin пока не включён в воркере. Используй direct_pin (модалка).");
-    // If you later add worker support: apiCall("passport.pin_start", {style_id})
   }
 
   async function onCollectClick(styleId){
