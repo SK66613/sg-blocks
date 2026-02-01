@@ -50,11 +50,11 @@ export async function mount(root, props = {}, ctx = {}) {
     // If legacy api exists — use it directly (like old passport did)
     if (apiFn) return await apiFn(pathSeg, body);
 
-    if (!publicId){
-      const e = new Error("NO_PUBLIC_ID: stylesPassport needs ctx.publicId or props.app_public_id for fetch fallback");
-      e.code = "NO_PUBLIC_ID";
-      throw e;
-    }
+if (!publicId){
+  // Studio/preview mode: no api + no publicId => can't call backend, just return stub
+  return { ok:false, error:'NO_PUBLIC_ID' };
+}
+
 
     const initData = (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) : (TG && TG.initData ? TG.initData : "");
 
