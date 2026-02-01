@@ -33,7 +33,7 @@
     "reward_title": "🎁 Приз",
     "reward_text": "Покажите кассиру этот экран, чтобы получить подарок.",
     "reward_code_prefix": "PASS-",
-    "reward_prize_code": ""
+    "reward_prize_code": "",
     "styles": [
       {
         "code": "day1",
