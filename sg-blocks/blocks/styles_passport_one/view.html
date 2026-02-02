@@ -1,7 +1,7 @@
 <section class="blk blk-passport" data-passport>
   <div class="pp-head">
     <div class="pp-head-text">
-      <div class="pp-title" data-pp-title>Паспорт</div>
+      <h2 class="pp-title" data-pp-title>Паспорт</h2>
       <div class="pp-sub" data-pp-subtitle></div>
     </div>
     <div class="pp-cover" data-pp-cover hidden>
@@ -15,6 +15,18 @@
   </div>
 
   <div class="pp-grid" data-pp-grid></div>
+
+  <!-- QR view (shown on complete if enabled) -->
+  <div class="pp-qr" data-pp-qr hidden>
+    <div class="pp-qr-card">
+      <div class="pp-qr-title" data-pp-qr-title>🎁 Получите приз</div>
+      <div class="pp-qr-imgwrap">
+        <canvas data-pp-qr-canvas width="260" height="260"></canvas>
+      </div>
+      <div class="pp-qr-text" data-pp-qr-text></div>
+      <div class="pp-qr-code" data-pp-qr-code hidden></div>
+    </div>
+  </div>
 
   <div class="pp-reward" data-pp-reward hidden>
     <div class="pp-reward-card">
