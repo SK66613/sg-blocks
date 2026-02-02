@@ -1,8 +1,6 @@
 // stylesPassport/runtime.js
 // Passport (stamps/collection) — SG blocks format.
 // Works with legacy window.api('style.collect', payload) AND with fetch fallback to /api/mini/*?public_id=...
-// Completion QR: like sales_qr_one — build https://t.me/<bot>?start=redeem_<token> (or use deep_link from server),
-// then render QR via quickchart into canvas.
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -36,52 +34,47 @@ export async function mount(root, props = {}, ctx = {}) {
     alert(String(msg||""));
   }
 
-  function escapeHtml(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#039;");
-  }
-
-  function getTgUser(){
-    const u =
-      (ctx && (ctx.tg_user || ctx.tgUser)) ||
-      (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ||
-      null;
-    if (u && u.id) return u;
-    return null;
-  }
-
   // ---------- API adapter (legacy-first)
   const apiFn =
     (typeof ctx.api === "function") ? ctx.api :
     (typeof win.api === "function") ? win.api :
     null;
 
+  // public_id is required for fetch fallback (for worker verify)
   const publicId =
     str(ctx.publicId || ctx.public_id || ctx.publicID, "").trim() ||
     str(props.app_public_id || props.public_id || props.publicId, "").trim() ||
     str(win.SG_APP_PUBLIC_ID || win.APP_PUBLIC_ID, "").trim();
 
   async function apiCall(pathSeg, body = {}) {
+    // If legacy api exists — use it directly (like old passport did)
     if (apiFn) return await apiFn(pathSeg, body);
 
-    if (!publicId) return { ok:false, error:"NO_PUBLIC_ID" };
+    if (!publicId){
+      // Studio/preview mode: no api + no publicId => can't call backend, just return stub
+      return { ok:false, error:'NO_PUBLIC_ID' };
+    }
 
-    const initData =
-      (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
-      (TG && TG.initData ? TG.initData : "");
+    const initData = (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) : (TG && TG.initData ? TG.initData : "");
 
-    const tg_user = getTgUser();
+    const u =
+      (ctx && (ctx.tg_user || ctx.tgUser)) ||
+      (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ||
+      null;
+
+    const tg_user = u ? {
+      id: u.id,
+      username: u.username,
+      first_name: u.first_name,
+      last_name: u.last_name
+    } : (ctx && ctx.tg && ctx.tg.id ? { id: ctx.tg.id } : null);
 
     const url = `/api/mini/${pathSeg}?public_id=${encodeURIComponent(publicId)}`;
+
     const payload = {
       ...body,
       init_data: initData,
       tg_user,
-      tg_user_id: tg_user && tg_user.id ? String(tg_user.id) : undefined,
       app_public_id: publicId
     };
 
@@ -93,14 +86,24 @@ export async function mount(root, props = {}, ctx = {}) {
     });
 
     const j = await r.json().catch(() => null);
-    if (!r.ok || !j) throw new Error(`API ${pathSeg} failed (${r.status})`);
-    if (j.ok === false) throw new Error(String(j.error || j.message || "API_ERROR"));
+    if (!r.ok || !j || j.ok === false) {
+      const err = new Error((j && (j.error || j.message)) || `API ${pathSeg} failed (${r.status})`);
+      err.status = r.status;
+      err.payload = j;
+      throw err;
+    }
     return j;
   }
 
-  // worker supports /api/mini/state and /api/mini/style.collect
-  async function apiState(){ return await apiCall("state", {}); }
-  async function apiCollect(style_id, pin){ return await apiCall("style.collect", { style_id, pin }); }
+  // Our internal wrappers
+  async function apiState(){
+    // worker supports /api/mini/state
+    return await apiCall("state", {});
+  }
+  async function apiCollect(style_id, pin){
+    // worker supports type === 'style.collect' when called as /api/mini/style.collect
+    return await apiCall("style.collect", { style_id, pin });
+  }
 
   // ---------- DOM
   const titleEl = root.querySelector("[data-pp-title]");
@@ -118,124 +121,63 @@ export async function mount(root, props = {}, ctx = {}) {
   const rewardText = root.querySelector("[data-pp-reward-text]");
   const rewardCode = root.querySelector("[data-pp-reward-code]");
 
+  // QR completion view (optional in view.html)
   const qrWrap   = root.querySelector("[data-pp-qr]");
   const qrTitle  = root.querySelector("[data-pp-qr-title]");
   const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
 
-  const modalEl    = root.querySelector("[data-pp-modal]");
-  const pinInp     = root.querySelector("[data-pp-pin-inp]");
-  const modalOk    = root.querySelector("[data-pp-modal-ok]");
-  const modalCancel= root.querySelector("[data-pp-modal-cancel]");
-  const modalClose = root.querySelector("[data-pp-modal-close]");
-  const modalTitle = root.querySelector("[data-pp-modal-title]");
-  const modalSub   = root.querySelector("[data-pp-modal-sub]");
-  const modalErr   = root.querySelector("[data-pp-modal-err]");
+  const modalEl  = root.querySelector("[data-pp-modal]");
+  const pinInp   = root.querySelector("[data-pp-pin-inp]");
+  const modalOk  = root.querySelector("[data-pp-modal-ok]");
+  const modalCancel = root.querySelector("[data-pp-modal-cancel]");
+  const modalClose  = root.querySelector("[data-pp-modal-close]");
+  const modalTitle  = root.querySelector("[data-pp-modal-title]");
+  const modalSub    = root.querySelector("[data-pp-modal-sub]");
+  const modalErr    = root.querySelector("[data-pp-modal-err]");
 
   // ---------- props
   const P = props || {};
   const styles = Array.isArray(P.styles) ? P.styles : [];
-
-  const gridCols   = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
+  const gridCols = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
   const requirePin = !!P.require_pin;
-  const collectMode= str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin
-
+  // IMPORTANT: to match what "worked": direct_pin (prompt/modal) is the working mode
+  const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin (bot_pin needs extra worker logic)
   const btnCollect = str(P.btn_collect, "Отметить");
-  const btnDone    = str(P.btn_done, "Получено");
+  const btnDone = str(P.btn_done, "Получено");
 
-  // Completion -> QR view (simple like sales_qr_one)
-  const completeShowQr    = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
-  const completeHideHeader= !!P.complete_hide_header;
-
-  const qrTitleText = str(P.qr_title, "🎁 Получите приз");
-  const qrHelpText  = str(P.qr_text, "Покажите этот QR кассиру, чтобы получить подарок.");
-  const qrShowCodeText = !!P.qr_show_code_text;
-
-  // redeem token endpoint (worker side)
-  const redeemStartPrefix = str(P.redeem_start_prefix, "redeem_"); // inside /start
-  const redeemTtlSec      = Math.max(30, num(P.redeem_ttl_sec, 600));
-  const redeemRefreshSec  = Math.max(0,  num(P.redeem_refresh_sec, 0)); // 0 disables auto refresh
-  const redeemTokenPathTpl= str(P.redeem_token_path, "/api/public/app/{publicId}/redeem/token");
-
-  // QR image service (same approach as sales_qr_one)
-  const qrService = str(P.qr_service, "https://quickchart.io/qr");
-  const qrSize    = Math.max(120, num(P.qr_size, 260));
-  const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
-
-  function getStyleId(st){ return str(st && st.code, "").trim(); }
+  function getStyleId(st){
+    return str(st && st.code, "").trim();
+  }
 
   // ---------- state
-  let state = null;
+  let state = null; // keep the latest server state (needed for passport_reward)
   let collected = new Set();
   let busy = new Set();
   let selectedStyleId = "";
   let selectedStyleName = "";
 
-  // redeem link cached
-  let redeemLink = "";
-  let redeemTimer = null;
-
-  function normalizeCollected(st){
-    const out = new Set();
-    if (!st) return out;
-
-    // common variants
-    const candidates = [
-      st.styles,
-      st.collected,
-      st.stamps,
-      st.done_styles,
-      st.styles_done,
-      st.collected_styles,
-      st.styles_collected,
-      st.passport && st.passport.styles,
-      st.passport && st.passport.collected
-    ];
-
-    let arr = null;
-    for (const c of candidates){
-      if (Array.isArray(c)) { arr = c; break; }
-    }
-
-    if (arr){
-      for (const it of arr){
-        if (it === null || it === undefined) continue;
-        if (typeof it === "string" || typeof it === "number") out.add(String(it));
-        else if (typeof it === "object"){
-          const v = it.code || it.style_id || it.styleId || it.id || it.key;
-          if (v !== undefined && v !== null) out.add(String(v));
-        }
-      }
-      return out;
-    }
-
-    // map/object form: { day1:true, day2:true }
-    const map = st.styles_map || st.collected_map || st.stamps_map;
-    if (map && typeof map === "object"){
-      for (const k of Object.keys(map)){
-        if (map[k]) out.add(String(k));
-      }
-    }
-
-    return out;
-  }
-
-  function isDone(styleId){ return collected.has(String(styleId)); }
-  function isComplete(){
-    const total = styles.length;
-    return total > 0 && collected.size >= total;
-  }
+  function isDone(styleId){ return collected.has(styleId); }
 
   function setModalVisible(v){
     if (!modalEl) return;
     modalEl.hidden = !v;
     if (!v){
-      if (modalErr){ modalErr.hidden = true; modalErr.textContent = ""; }
+      if (modalErr) { modalErr.hidden = true; modalErr.textContent = ""; }
       if (pinInp) pinInp.value = "";
     } else {
-      setTimeout(()=>{ try{ pinInp && pinInp.focus && pinInp.focus(); }catch(_){ } }, 50);
+      setTimeout(()=>{ try{ pinInp && pinInp.focus && pinInp.focus(); }catch(_){} }, 50);
     }
+  }
+
+  function escapeHtml(s){
+    return String(s||"")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
   }
 
   function renderHeader(){
@@ -256,35 +198,179 @@ export async function mount(root, props = {}, ctx = {}) {
 
   function renderProgress(){
     const total = styles.length;
-    const done = collected.size;
-    const show = total > 0;
+    const got = collected.size;
+    if (!progWrap || !progBar || !progTxt) return;
 
-    if (progWrap) progWrap.hidden = !show;
-    if (!show) return;
+    if (!total){
+      progWrap.hidden = true;
+      return;
+    }
+    progWrap.hidden = false;
+    const pct = total ? clamp01(got / total) : 0;
+    progBar.style.width = `${Math.round(pct * 100)}%`;
+    progTxt.textContent = `${got}/${total}`;
+  }
 
-    const p = total ? clamp01(done/total) : 0;
-    if (progBar) progBar.style.width = `${Math.round(p*100)}%`;
-    if (progTxt) progTxt.textContent = `${done}/${total}`;
+
+  // ===== QR helpers (like sales_qr_one, but redeem_<code>)
+  const completeShowQr = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
+  const completeHideHeader = (P.complete_hide_header === undefined) ? true : !!P.complete_hide_header;
+
+  const qrTitleText = str(P.qr_title, "🎁 Получите приз");
+  const qrHelpText  = str(P.qr_text, "Покажите этот QR кассиру, чтобы получить подарок.");
+  const qrShowCodeText = !!P.qr_show_code_text;
+
+  const qrService = str(P.qr_service, "https://quickchart.io/qr");
+  const qrSize    = Math.max(120, num(P.qr_size, 260));
+  const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
+
+  function getRedeemDeepLink(){
+    const pr = (state && state.passport_reward) ? state.passport_reward : null;
+    const code = pr && pr.redeem_code ? String(pr.redeem_code) : "";
+    if (!code) return "";
+    const bot = state && (state.bot_username || state.botUsername) ? String(state.bot_username || state.botUsername).replace(/^@/,'').trim() : "";
+    if (bot) return `https://t.me/${bot}?start=redeem_${encodeURIComponent(code)}`;
+    // fallback: embed just the start-payload (cashier can paste into bot if needed)
+    return `redeem_${code}`;
+  }
+
+  function setQrVisible(v){
+    if (!qrWrap) return;
+    qrWrap.hidden = !v;
+  }
+
+  function setQrTextLink(text){
+    if (!qrCodeText) return;
+    if (qrShowCodeText){
+      qrCodeText.hidden = false;
+      qrCodeText.textContent = text || "";
+    }else{
+      qrCodeText.hidden = true;
+      qrCodeText.textContent = "";
+    }
+  }
+
+  async function renderQr(){
+    if (!qrWrap) return;
+
+    const total = styles.length;
+    const got = collected.size;
+    const pr = (state && state.passport_reward) ? state.passport_reward : null;
+    const hasCode = !!(pr && pr.redeem_code);
+
+    // показываем QR только когда паспорт собран и есть redeem_code
+    if (!completeShowQr || !total || got < total || !hasCode){
+      setQrVisible(false);
+      return;
+    }
+
+    setQrVisible(true);
+    if (qrTitle) qrTitle.textContent = qrTitleText;
+    if (qrText)  qrText.textContent  = qrHelpText;
+
+    const link = getRedeemDeepLink();
+    setQrTextLink(link);
+
+    if (!qrCanvas) return;
+
+    // ensure canvas size matches props
+    try{
+      qrCanvas.width = qrSize;
+      qrCanvas.height = qrSize;
+    }catch(_){}
+
+    const ctx2 = qrCanvas.getContext("2d");
+    if (!ctx2) return;
+
+    // white bg
+    ctx2.fillStyle = "#fff";
+    ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
+
+    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(link)}`;
+
+    await new Promise((resolve)=>{
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = ()=>{
+        ctx2.drawImage(img, 0, 0, qrCanvas.width, qrCanvas.height);
+        resolve();
+      };
+      img.onerror = ()=>{
+        // если сервис недоступен — оставим белый квадрат, но покажем текст
+        resolve();
+      };
+      img.src = qUrl;
+    });
+  }
+
+  async function renderMode(){
+    const total = styles.length;
+    const got = collected.size;
+    const done = total > 0 && got >= total;
+
+    if (gridEl) gridEl.hidden = !!(completeShowQr && done);
+
+    if (completeShowQr && done){
+      if (completeHideHeader){
+        const head = root.querySelector(".pp-head");
+        const prog = root.querySelector(".pp-progress");
+        if (head) head.style.display = "none";
+        if (prog) prog.style.display = "none";
+      }
+      await renderQr();
+    }else{
+      const head = root.querySelector(".pp-head");
+      const prog = root.querySelector(".pp-progress");
+      if (head) head.style.display = "";
+      if (prog) prog.style.display = "";
+      setQrVisible(false);
+    }
   }
 
   function renderReward(){
+    const enabled = !!P.reward_enabled;
+    const total = styles.length;
+    const got = collected.size;
+
     if (!rewardWrap) return;
-    const en = (P.reward_enabled === undefined) ? true : !!P.reward_enabled;
-    const show = en && isComplete();
 
-    rewardWrap.hidden = !show;
-    if (!show) return;
+    // show only when complete
+    if (!enabled || !total || got < total){
+      rewardWrap.hidden = true;
+      return;
+    }
 
+    rewardWrap.hidden = false;
     if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
-    if (rewardText) rewardText.textContent = str(P.reward_text, "");
 
-    // if server returned redeem_code (legacy), show it
-    const pr = state && state.passport_reward ? state.passport_reward : null;
-    const redeem = pr && pr.redeem_code ? String(pr.redeem_code) : "";
+    // worker puts result into state.passport_reward
+    const pr = (state && state.passport_reward) ? state.passport_reward : null;
+
+    let codeToShow = "";
+    let hint = "";
+
+    if (pr && pr.redeem_code){
+      // physical prize => show redeem code
+      codeToShow = String(pr.redeem_code);
+      hint = str(P.reward_text, "");
+    } else if (pr && Number(pr.coins) > 0){
+      // coins prize => show hint only
+      hint = str(P.reward_text, "");
+      const coinsLine = `Начислено монет: ${Number(pr.coins)}`;
+      hint = hint ? (hint + "\n\n" + coinsLine) : coinsLine;
+    } else {
+      // no server reward yet (or reward disabled on server)
+      hint = str(P.reward_text, "");
+      const extra = "Приз готовится… обновите экран";
+      hint = hint ? (hint + "\n\n" + extra) : extra;
+    }
+
+    if (rewardText) rewardText.textContent = hint;
+
     if (rewardCode){
-      if (redeem){
+      if (codeToShow){
         rewardCode.hidden = false;
-        rewardCode.textContent = redeem;
+        rewardCode.textContent = codeToShow;
       } else {
         rewardCode.hidden = true;
         rewardCode.textContent = "";
@@ -298,14 +384,13 @@ export async function mount(root, props = {}, ctx = {}) {
     const img = str(st && st.image, "").trim();
     const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
     const desc = str(st && (st.desc || st.subtitle), "");
+
     const disabled = !sid || done || busy.has(sid);
+    const badge = done ? "✓" : `${idx+1}`;
 
     return `
-      <button class="pp-card" type="button"
-        data-sid="${escapeHtml(sid)}"
-        data-done="${done ? 1 : 0}"
-        ${disabled ? "disabled" : ""}>
-        <div class="pp-badge">${escapeHtml(done ? "✓" : String(idx+1))}</div>
+      <div class="pp-card" data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
+        <div class="pp-badge">${escapeHtml(badge)}</div>
         <div class="pp-card-top">
           <div class="pp-ico">
             ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
@@ -313,10 +398,14 @@ export async function mount(root, props = {}, ctx = {}) {
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
-            <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
           </div>
         </div>
-      </button>
+        <div class="pp-card-bot">
+          <button class="pp-btn ${done ? "" : "primary"}" type="button" ${disabled ? "disabled" : ""}>
+            ${escapeHtml(done ? btnDone : btnCollect)}
+          </button>
+        </div>
+      </div>
     `;
   }
 
@@ -327,7 +416,10 @@ export async function mount(root, props = {}, ctx = {}) {
 
     gridEl.querySelectorAll(".pp-card").forEach(card=>{
       const sid = card.getAttribute("data-sid") || "";
-      card.addEventListener("click", async ()=>{
+      const btn = card.querySelector("button");
+      if (!btn) return;
+
+      btn.addEventListener("click", async ()=>{
         if (!sid) return;
         if (isDone(sid)) return;
         if (busy.has(sid)) return;
@@ -336,179 +428,38 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  function setQrVisible(v){
-    if (!qrWrap) return;
-    qrWrap.hidden = !v;
-  }
-
-  function setQrTextLink(link){
-    if (qrCodeText){
-      if (qrShowCodeText){
-        qrCodeText.hidden = false;
-        qrCodeText.textContent = link || "";
-      } else {
-        qrCodeText.hidden = true;
-        qrCodeText.textContent = "";
-      }
-    }
-  }
-
-  async function fetchRedeemLink(){
-    if (!publicId) throw new Error("NO_PUBLIC_ID");
-
-    const initData =
-      (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
-      (TG && TG.initData ? TG.initData : "");
-
-    const url = redeemTokenPathTpl.replace("{publicId}", encodeURIComponent(publicId));
-    const payload = { init_data: initData, ttl_sec: redeemTtlSec };
-
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type":"application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
-
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || !j) throw new Error(`redeem/token HTTP ${r.status}`);
-    if (j.ok === false) throw new Error(String(j.error || j.message || "redeem/token error"));
-
-    // support {result:{...}} and direct
-    const d = j.result || j;
-
-    if (d.deep_link) return String(d.deep_link);
-    const bot = d.bot_username ? String(d.bot_username).replace(/^@/,'') : "";
-    const token = d.token ? String(d.token) : "";
-    if (bot && token) return `https://t.me/${bot}?start=${encodeURIComponent(redeemStartPrefix + token)}`;
-
-    throw new Error("redeem/token missing deep_link or bot_username+token");
-  }
-
-  async function renderQr(){
-    if (!qrWrap) return;
-    if (!completeShowQr || !isComplete()){
-      setQrVisible(false);
-      return;
-    }
-
-    setQrVisible(true);
-    if (qrTitle) qrTitle.textContent = qrTitleText;
-    if (qrText) qrText.textContent = qrHelpText;
-
-    // ensure link
-    try{
-      redeemLink = await fetchRedeemLink();
-    }catch(e){
-      // show fallback text
-      const msg = e && e.message ? e.message : String(e);
-      setQrTextLink("QR: ошибка токена ("+msg+")");
-      return;
-    }
-
-    setQrTextLink(redeemLink);
-
-    // draw via quickchart like sales_qr_one
-    if (!qrCanvas) return;
-    const canvas = qrCanvas;
-    const ctx2 = canvas.getContext("2d");
-    if (!ctx2) return;
-
-    // clear
-    ctx2.clearRect(0,0,canvas.width,canvas.height);
-
-    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(redeemLink)}`;
-
-await new Promise((resolve)=>{
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-
-  img.onload = ()=>{
-    const w = canvas.width, h = canvas.height;
-    ctx2.fillStyle = "#fff";
-    ctx2.fillRect(0,0,w,h);
-    ctx2.drawImage(img, 0, 0, w, h);
-    resolve(true);
-  };
-
-  img.onerror = ()=>{
-    // fallback: рисуем хотя бы текст, чтобы видно было, что QR режим включился
-    const w = canvas.width, h = canvas.height;
-    ctx2.fillStyle = "#fff";
-    ctx2.fillRect(0,0,w,h);
-    ctx2.fillStyle = "#000";
-    ctx2.font = "12px ui-monospace, Menlo, Consolas, monospace";
-    const txt = "QR load error";
-    ctx2.fillText(txt, 10, 20);
-    resolve(false);
-  };
-
-  img.src = qUrl;
-});
-
-  }
-
-  async function renderMode(){
-    const done = isComplete();
-
-    if (gridEl) gridEl.hidden = !!(completeShowQr && done);
-
-    if (completeShowQr && done){
-      if (completeHideHeader){
-        const head = root.querySelector(".pp-head");
-        const prog = root.querySelector(".pp-progress");
-        if (head) head.style.display = "none";
-        if (prog) prog.style.display = "none";
-      }
-      await renderQr();
-    } else {
-      const head = root.querySelector(".pp-head");
-      const prog = root.querySelector(".pp-progress");
-      if (head) head.style.display = "";
-      if (prog) prog.style.display = "";
-      setQrVisible(false);
-    }
-  }
-
-  function parseStateFromResponse(j){
-    if (!j) return null;
-    // many workers wrap {ok:true, state:{...}}
-    const st = (j.state || j.fresh_state || j.fresh || j.data || j.result) ? (j.state || j.fresh_state || j.fresh || j.data || j.result) : j;
-    return st;
-  }
-
   async function refreshFromServer(){
     const j = await apiState();
-    const st = parseStateFromResponse(j);
+    const st = (j && (j.state || j.fresh_state || j.fresh || j.data)) ? (j.state || j.fresh_state || j.fresh || j.data) : j;
     applyState(st);
   }
 
-function applyState(st){
-  state = st || {};
-  collected = normalizeCollected(state);
-  renderProgress();
-  renderReward();
-  renderGrid();
-  // важно: если паспорт complete — показать QR режим
-  renderMode().catch(()=>{});
-}
-
+  function applyState(st){
+    state = st || {};
+    collected = new Set(Array.isArray(state.styles) ? state.styles.map(x=>String(x||"")) : []);
+    renderProgress();
+    renderReward();
+    renderGrid();
+    // completion -> QR
+    try{ await renderMode(); }catch(_){ }
+  }
 
   async function collectDirectPin(styleId, pin){
     const res = await apiCollect(styleId, pin);
-    const st = parseStateFromResponse(res && (res.fresh_state || res.state || res.result || res));
-    if (st) applyState(st);
+    if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
+    // applyState/refreshFromServer already rerenders reward
   }
 
   async function collectNoPin(styleId){
     const res = await apiCollect(styleId, "");
-    const st = parseStateFromResponse(res && (res.fresh_state || res.state || res.result || res));
-    if (st) applyState(st);
+    if (res && res.fresh_state) applyState(res.fresh_state);
     else await refreshFromServer();
   }
 
   async function collectBotPin(styleId){
+    // WARNING: your current worker DOES NOT have passport.pin_start / pin_pending handling.
+    // This will not work until we add it in worker.
     await uiAlert("⚠️ Режим bot_pin пока не включён в воркере. Используй direct_pin (модалка).");
   }
 
@@ -526,92 +477,56 @@ function applyState(st){
           if (modalTitle) modalTitle.textContent = "Введите PIN";
           if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
           setModalVisible(true);
-          return;
         } else {
           await collectBotPin(styleId);
         }
       } else {
         await collectNoPin(styleId);
       }
-
-      // completion mode
-      await renderMode();
-      haptic("success");
-    } catch (e) {
-      haptic("error");
-      const msg = e && e.message ? e.message : String(e);
-      await uiAlert(msg);
+    } catch (e){
+      await uiAlert((e && e.message) ? e.message : "Ошибка");
     } finally {
       busy.delete(styleId);
       renderGrid();
     }
   }
 
-  // ---------- modal wiring
-  if (modalCancel) modalCancel.addEventListener("click", ()=>setModalVisible(false));
-  if (modalClose) modalClose.addEventListener("click", ()=>setModalVisible(false));
-
+  // modal events
   if (modalOk){
     modalOk.addEventListener("click", async ()=>{
-      if (!selectedStyleId) return;
-      const pin = pinInp ? String(pinInp.value||"").trim() : "";
-      if (requirePin && !pin){
-        if (modalErr){ modalErr.hidden = false; modalErr.textContent = "Введите PIN"; }
+      const pin = str(pinInp && pinInp.value, "").trim();
+      if (!pin){
+        if (modalErr){ modalErr.hidden=false; modalErr.textContent="Введите PIN"; }
         return;
       }
-      if (modalErr){ modalErr.hidden = true; modalErr.textContent = ""; }
+      if (modalErr){ modalErr.hidden=true; modalErr.textContent=""; }
 
-      modalOk.disabled = true;
       try{
+        haptic("light");
         await collectDirectPin(selectedStyleId, pin);
         setModalVisible(false);
-        await renderMode();
-        haptic("success");
       } catch (e){
-        const msg = e && e.message ? e.message : String(e);
-        if (modalErr){ modalErr.hidden = false; modalErr.textContent = msg; }
-        else await uiAlert(msg);
-        haptic("error");
-      } finally {
-        modalOk.disabled = false;
+        const msg = (e && e.message) ? e.message : "PIN неверный";
+        if (modalErr){
+          modalErr.hidden=false;
+          modalErr.textContent = msg;
+        } else {
+          await uiAlert(msg);
+        }
       }
     });
   }
-
-  if (pinInp){
-    pinInp.addEventListener("keydown", (e)=>{
-      if (e.key === "Enter"){
-        e.preventDefault();
-        modalOk && modalOk.click();
-      }
-    });
-  }
+  if (modalCancel) modalCancel.addEventListener("click", ()=> setModalVisible(false));
+  if (modalClose)  modalClose.addEventListener("click", ()=> setModalVisible(false));
 
   // ---------- init
   renderHeader();
   renderGrid();
-  renderProgress();
-  renderReward();
-  setQrVisible(false);
 
-  // initial server state
   try{
-    await refreshFromServer();
-    await renderMode();
-
-    // auto refresh redeem QR if enabled
-    if (redeemRefreshSec > 0){
-      redeemTimer = setInterval(async ()=>{
-        if (!isComplete()) return;
-        try{ await renderQr(); }catch(_){}
-      }, redeemRefreshSec * 1000);
-    }
-  }catch(_){
-    // ignore in studio preview
+    if (ctx && ctx.state) applyState(ctx.state);
+    else await refreshFromServer();
+  }catch(e){
+    await uiAlert((e && e.message) ? e.message : "Не удалось загрузить состояние");
   }
-
-  // cleanup
-  return () => {
-    try{ redeemTimer && clearInterval(redeemTimer); }catch(_){}
-  };
 }
