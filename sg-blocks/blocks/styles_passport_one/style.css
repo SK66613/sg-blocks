@@ -8,7 +8,6 @@
   --pp-gap: var(--section-gap, 12px);
 
   /* ===== Typography bridges (constructor-friendly) ===== */
-  /* Берём ТОЛЬКО из твоих глобальных токенов. Фолбэки уже в :root */
   --pp-font-body: var(--font-body);
   --pp-font-head: var(--font-head, var(--pp-font-body));
   --pp-font-btn:  var(--font-btn,  var(--pp-font-body));
@@ -44,16 +43,18 @@
   --pp-r-btn:   var(--radius-btn, 14px);
   --pp-r-inp:   var(--radius-input, 12px);
 
-  /* ===== Shadows ===== */
+  /* ===== Shadows / ring ===== */
   --pp-shadow:  var(--shadow-card, 0 16px 40px rgba(0,0,0,.18));
   --pp-shadow2: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+  --pp-ring:    var(--glow-brand, 0 0 0 3px rgba(124,92,255,.26));
 
-  /* ===== Sheet tuning (can be moved to constructor later) ===== */
-  --pp-sheet-gap: 10px; /* зазор над таббаром */
+  /* ===== Sheet tuning ===== */
+  --pp-sheet-gap: 10px;
   --pp-sheet-radius: calc(var(--pp-r-card) + 6px);
 
   color: var(--pp-text);
   font-family: var(--pp-font-body);
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ===== header ===== */
@@ -94,7 +95,7 @@
   overflow:hidden;
   flex: 0 0 auto;
   border: 1px solid var(--pp-border);
-  background: rgba(255,255,255,.03);
+  background: color-mix(in srgb, var(--pp-card), transparent 80%);
 }
 .blk-passport .pp-cover img{
   width:100%;
@@ -112,7 +113,7 @@
 .blk-passport .pp-progress-bar{
   height: 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,.06);
+  background: color-mix(in srgb, var(--pp-card), transparent 80%);
   border: 1px solid var(--pp-border);
   overflow:hidden;
 }
@@ -120,7 +121,7 @@
   display:block;
   height:100%;
   width:0%;
-  background: linear-gradient(90deg, var(--pp-brand), rgba(124,92,255,.55));
+  background: linear-gradient(90deg, var(--pp-brand), color-mix(in srgb, var(--pp-brand), transparent 45%));
   border-radius: 999px;
 }
 .blk-passport .pp-progress-text{
@@ -147,7 +148,7 @@
 
   position: relative;
   border-radius: var(--pp-r-card);
-  background: rgba(255,255,255,.03);
+  background: var(--pp-card);
   border: 1px solid var(--pp-border);
   overflow:hidden;
   min-height: 108px;
@@ -155,9 +156,26 @@
   padding: 12px;
   cursor: pointer;
   color: inherit;
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
-.blk-passport .pp-card:active{
-  transform: translateY(1px);
+
+/* лёгкое “glass” сверху (не ломает тему) */
+.blk-passport .pp-card::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, #fff, transparent 92%),
+    transparent
+  );
+  pointer-events:none;
+}
+
+.blk-passport .pp-card:active{ transform: translateY(1px); }
+.blk-passport .pp-card:focus-visible{
+  outline:none;
+  box-shadow: var(--pp-ring);
 }
 .blk-passport .pp-card.is-disabled{
   opacity:.55;
@@ -167,8 +185,8 @@
 
 /* done state */
 .blk-passport .pp-card[data-done="1"]{
-  background: linear-gradient(180deg, rgba(124,92,255,.16), rgba(255,255,255,.02));
-  border-color: rgba(124,92,255,.40);
+  border-color: color-mix(in srgb, var(--pp-brand), transparent 55%);
+  box-shadow: 0 10px 24px rgba(0,0,0,.14);
 }
 
 .blk-passport .pp-badge{
@@ -177,10 +195,11 @@
   right:10px;
   font-size: 11px;
   color: var(--pp-muted);
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
+  background: color-mix(in srgb, #000, transparent 78%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 40%);
   padding: 4px 8px;
   border-radius: 999px;
+  z-index: 1;
 }
 
 .blk-passport .pp-card-top{
@@ -188,14 +207,16 @@
   gap:10px;
   align-items:flex-start;
   width:100%;
+  position: relative;
+  z-index: 1;
 }
 
 .blk-passport .pp-ico{
   width: 44px;
   height: 44px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
+  border-radius: calc(var(--pp-r-card) - 2px);
+  background: color-mix(in srgb, var(--pp-surface), transparent 20%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
   overflow:hidden;
   flex:0 0 auto;
   display:flex;
@@ -222,7 +243,7 @@
   display:flex;
   align-items:center;
   justify-content:center;
-  background: rgba(0,0,0,.28);
+  background: color-mix(in srgb, #000, transparent 72%);
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
   font-size: 16px;
@@ -259,7 +280,7 @@
   text-decoration: var(--pp-ul-btn);
   font-size: var(--pp-fs-btn);
   color: var(--pp-text);
-  opacity: .9;
+  opacity: .92;
 }
 .blk-passport .pp-card[data-done="0"] .pp-action{
   color: var(--btnPrimaryText, var(--pp-onbrand));
@@ -268,9 +289,7 @@
   padding: 6px 10px;
   border-radius: var(--pp-r-btn);
 }
-.blk-passport .pp-card[data-done="1"] .pp-action{
-  color: var(--pp-muted);
-}
+.blk-passport .pp-card[data-done="1"] .pp-action{ color: var(--pp-muted); }
 
 /* ===== reward ===== */
 .blk-passport .pp-reward{
@@ -278,13 +297,13 @@
 }
 .blk-passport .pp-reward-card{
   border-radius: var(--pp-r-card);
-  border: 1px solid rgba(124,92,255,.35);
-  background: rgba(124,92,255,.10);
+  border: 1px solid color-mix(in srgb, var(--pp-brand), transparent 55%);
+  background: color-mix(in srgb, var(--pp-brand), transparent 88%);
   box-shadow: var(--pp-shadow2);
   padding: 14px;
 }
 .blk-passport .pp-reward-title{
-  font-weight: 900;
+  font-weight: var(--pp-fw-head);
   font-size: 15px;
 }
 .blk-passport .pp-reward-text{
@@ -297,23 +316,21 @@
 }
 .blk-passport .pp-reward-code{
   margin-top: 10px;
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
+  background: color-mix(in srgb, #000, transparent 82%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 40%);
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 900;
   letter-spacing: .06em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
-.blk-passport .pp-reward .pp-btn{
-  margin-top: 12px;
-}
+.blk-passport .pp-reward .pp-btn{ margin-top: 12px; }
 
-/* ===== shared QR card (used inside sheet) ===== */
+/* ===== shared QR card (inside sheet) ===== */
 .blk-passport .pp-qr-card{
   border-radius: var(--pp-r-card);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
+  border: 1px solid var(--pp-border);
+  background: var(--pp-card);
   box-shadow: var(--pp-shadow2);
   padding: 14px;
   display: grid;
@@ -332,7 +349,7 @@
   width: min(240px, 72vw);
   aspect-ratio: 1 / 1;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.10);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
   background: #fff;
   overflow: hidden;
   display:flex;
@@ -352,8 +369,8 @@
 }
 .blk-passport .pp-qr-code{
   margin-top: 2px;
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
+  background: color-mix(in srgb, #000, transparent 82%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 40%);
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 900;
@@ -367,17 +384,14 @@
   inset: 0;
   z-index: 9999;
 }
-.blk-passport .pp-modal[hidden]{
-  display: none !important;
-}
+.blk-passport .pp-modal[hidden]{ display:none !important; }
 .blk-passport .pp-modal-backdrop{
   position:absolute;
   inset:0;
   background: rgba(0,0,0,.52);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-
 .blk-passport .pp-modal-card{
   position:absolute;
   left: 16px;
@@ -394,7 +408,7 @@
   padding: 14px;
 }
 .blk-passport .pp-modal-title{
-  font-weight: 900;
+  font-weight: var(--pp-fw-head);
   font-size: 16px;
 }
 .blk-passport .pp-modal-sub{
@@ -406,12 +420,16 @@
   width: 100%;
   margin-top: 10px;
   border-radius: var(--pp-r-inp);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
+  border: 1px solid var(--pp-border);
+  background: color-mix(in srgb, var(--pp-card), transparent 15%);
   color: var(--pp-text);
   padding: 12px;
   font-size: 16px;
   outline:none;
+}
+.blk-passport .pp-modal-inp:focus{
+  box-shadow: var(--pp-ring);
+  border-color: transparent;
 }
 .blk-passport .pp-modal-actions{
   margin-top: 10px;
@@ -422,8 +440,8 @@
 /* Buttons */
 .blk-passport .pp-btn{
   border-radius: var(--pp-r-btn);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
+  border: 1px solid var(--pp-border);
+  background: color-mix(in srgb, var(--pp-card), transparent 20%);
   color: var(--pp-text);
   font-family: var(--pp-font-btn);
   font-weight: var(--pp-fw-btn);
@@ -432,59 +450,57 @@
   font-size: var(--pp-fs-btn);
   padding: 10px 12px;
   cursor:pointer;
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
+.blk-passport .pp-btn:hover{ filter: brightness(1.05); }
+.blk-passport .pp-btn:active{ transform: translateY(1px); }
+.blk-passport .pp-btn:focus-visible{ outline:none; box-shadow: var(--pp-ring); }
+
 .blk-passport .pp-btn.primary{
   background: var(--btnPrimaryBg, var(--btn-primary-bg, var(--pp-brand)));
   color: var(--btnPrimaryText, var(--btn-primary-text, #fff));
-  border-color: rgba(0,0,0,.0);
+  border-color: transparent;
 }
 .blk-passport .pp-btn.ghost{
-  background: rgba(255,255,255,.04);
+  background: color-mix(in srgb, var(--pp-card), transparent 35%);
 }
-.blk-passport .pp-modal-actions .pp-btn{
-  flex: 1;
-}
-.blk-passport .pp-btn[disabled]{
-  opacity:.55;
-  cursor: default;
-}
+.blk-passport .pp-modal-actions .pp-btn{ flex: 1; }
+.blk-passport .pp-btn[disabled]{ opacity:.55; cursor: default; }
 .blk-passport .pp-modal-err{
   margin-top: 8px;
   color: #ffb3b3;
   font-size: 12px;
 }
 
-/* ===== bottom sheet (QR) — pro card style (uses your tabbar + safe-bottom tokens) ===== */
+/* ===== bottom sheet (QR) — pro card style ===== */
 
 .blk-passport .pp-sheet{
   position: fixed;
   inset: 0;
   z-index: 9998;
 }
-.blk-passport .pp-sheet[hidden]{
-  display: none !important;
-}
+.blk-passport .pp-sheet[hidden]{ display:none !important; }
 
 .blk-passport .pp-sheet-backdrop{
   position:absolute;
   inset:0;
   background: rgba(0,0,0,.52);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-/* панель как отдельная card */
+/* panel as floating card */
 .blk-passport .pp-sheet-panel{
   position:absolute;
   left: 10px;
   right: 10px;
 
-  /* ✅ НЕ липнем к меню: tabbar-h + safe-bottom + gap */
   bottom: calc(var(--tabbar-h, 64px) + var(--safe-bottom, 0px) + var(--pp-sheet-gap));
 
   border-radius: var(--pp-sheet-radius);
   background: var(--pp-surface);
-  border: 1px solid rgba(255,255,255,.10);
+  border: 1px solid var(--pp-border);
 
   box-shadow:
     0 18px 60px rgba(0,0,0,.45),
@@ -492,7 +508,7 @@
 
   padding: 12px 14px 14px;
 
-  transform: translateY(22px);
+  transform: translateY(24px);
   opacity: 0;
   transition:
     transform .22s cubic-bezier(.2,.8,.2,1),
@@ -512,17 +528,21 @@
   width: 44px;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255,255,255,.22);
+  background: color-mix(in srgb, var(--pp-muted), transparent 55%);
   margin: 2px auto 10px;
 }
 
-.blk-passport .pp-sheet .pp-qr-card{
-  width: 100%;
-}
+.blk-passport .pp-sheet .pp-qr-card{ width: 100%; }
 
 @media (max-width: 360px){
+  .blk-passport .pp-sheet-panel{ left: 6px; right: 6px; }
+}
+
+/* reduce motion (как в календаре) */
+@media (prefers-reduced-motion: reduce){
+  .blk-passport .pp-card,
+  .blk-passport .pp-btn,
   .blk-passport .pp-sheet-panel{
-    left: 6px;
-    right: 6px;
+    transition: none !important;
   }
 }
