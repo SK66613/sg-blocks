@@ -436,7 +436,14 @@
   font-size: 12px;
 }
 
-/* ===== bottom sheet (QR) ===== */
+/* ===== bottom sheet (QR) — pro card style ===== */
+
+/* настройка высоты нижнего меню (можешь подогнать под свой таббар) */
+.blk-passport{
+  --pp-tabbar-h: var(--tabbar-h, 74px); /* было/нет токена — ставим дефолт */
+  --pp-sheet-gap: 10px;                 /* воздушный зазор от меню */
+}
+
 .blk-passport .pp-sheet{
   position: fixed;
   inset: 0;
@@ -445,30 +452,74 @@
 .blk-passport .pp-sheet[hidden]{
   display: none !important;
 }
+
 .blk-passport .pp-sheet-backdrop{
   position:absolute;
   inset:0;
   background: rgba(0,0,0,.52);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
+
+/* панель как отдельная card */
 .blk-passport .pp-sheet-panel{
   position:absolute;
-  left:0; right:0; bottom:0;
-  padding: 12px var(--container-pad, 16px) calc(16px + env(safe-area-inset-bottom));
-  border-radius: 18px 18px 0 0;
+  left: 10px;
+  right: 10px;
+
+  /* 👇 НЕ липнем к меню: поднимаем на высоту таббара + safe-area + gap */
+  bottom: calc(var(--pp-tabbar-h) + env(safe-area-inset-bottom) + var(--pp-sheet-gap));
+
+  /* card look */
+  border-radius: 22px;
   background: var(--pp-surface);
-  border-top: 1px solid var(--pp-border);
-  box-shadow: var(--pp-shadow);
-  transform: translateY(110%);
-  transition: transform .18s ease;
+  border: 1px solid rgba(255,255,255,.10);
+
+  /* мягче тень */
+  box-shadow:
+    0 18px 60px rgba(0,0,0,.45),
+    0 2px 10px rgba(0,0,0,.25);
+
+  /* внутрянка */
+  padding: 12px 14px 14px;
+
+  /* iOS-like motion */
+  transform: translateY(22px);
+  opacity: 0;
+  transition:
+    transform .22s cubic-bezier(.2,.8,.2,1),
+    opacity   .18s ease;
+
+  /* если контента много — скролл внутри */
+  max-height: min(72vh, 560px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* состояние открыто */
 .blk-passport .pp-sheet.is-open .pp-sheet-panel{
   transform: translateY(0);
+  opacity: 1;
 }
+
+/* ручка */
 .blk-passport .pp-sheet-handle{
   width: 44px;
   height: 5px;
   border-radius: 999px;
   background: rgba(255,255,255,.22);
-  margin: 0 auto 10px;
+  margin: 2px auto 10px;
+}
+
+/* чуть “воздуха” вокруг QR внутри card */
+.blk-passport .pp-sheet .pp-qr-card{
+  width: 100%;
+}
+
+/* на очень маленьких экранах убираем боковые отступы */
+@media (max-width: 360px){
+  .blk-passport .pp-sheet-panel{
+    left: 6px;
+    right: 6px;
+  }
 }
