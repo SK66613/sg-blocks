@@ -130,13 +130,16 @@ export async function mount(root, props = {}, ctx = {}) {
   const rewardTitle= root.querySelector("[data-pp-reward-title]");
   const rewardText = root.querySelector("[data-pp-reward-text]");
   const rewardCode = root.querySelector("[data-pp-reward-code]");
+  // QR bottom sheet
+  const sheetEl   = root.querySelector("[data-pp-sheet]");
+  const sheetCloseEls = root.querySelectorAll("[data-pp-sheet-close]");
 
-  // QR completion view (optional in view.html)
-  const qrWrap   = root.querySelector("[data-pp-qr]");
   const qrTitle  = root.querySelector("[data-pp-qr-title]");
   const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
+
+  const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
   const modalEl  = root.querySelector("[data-pp-modal]");
   const pinInp   = root.querySelector("[data-pp-pin-inp]");
@@ -230,11 +233,30 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrSize    = Math.max(120, num(P.qr_size, 260));
   const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
-  function setQrVisible(v){
-    if (!qrWrap) return;
-    qrWrap.hidden = !v;
+  
+  function openSheet(){
+    if (!sheetEl) return;
+    sheetEl.hidden = false;
+    sheetEl.classList.add("is-open");
   }
 
+  function closeSheet(){
+    if (!sheetEl) return;
+    sheetEl.classList.remove("is-open");
+    setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
+  }
+
+  // close on backdrop / handle
+  try{
+    sheetCloseEls && sheetCloseEls.forEach && sheetCloseEls.forEach(el=>{
+      el.addEventListener("click", closeSheet);
+    });
+  }catch(_){}
+
+  function setQrVisible(v){
+    if (v) openSheet();
+    else closeSheet();
+  }
   function setQrTextLink(text){
     if (!qrCodeText) return;
     if (qrShowCodeText){
@@ -271,10 +293,18 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function renderQr(){
-    if (!qrWrap) return;
+    if (!sheetEl) return;
 
     if (!completeShowQr || !isComplete()){
       setQrVisible(false);
+
+  // Open QR bottom sheet from reward card button
+  if (openQrBtn){
+    openQrBtn.addEventListener("click", async ()=>{
+      openSheet();
+      try{ await renderQr(); }catch(_){ }
+    });
+  }
       return;
     }
 
@@ -330,28 +360,27 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
+  
   async function renderMode(){
     const done = isComplete();
 
+    // hide cards after completion (QR is shown via bottom sheet)
     if (gridEl) gridEl.hidden = !!(completeShowQr && done);
 
-    if (completeShowQr && done){
-      if (completeHideHeader){
-        const head = root.querySelector(".pp-head");
-        const prog = root.querySelector(".pp-progress");
-        if (head) head.style.display = "none";
-        if (prog) prog.style.display = "none";
-      }
-      await renderQr();
-    }else{
+    if (completeShowQr && done && completeHideHeader){
+      const head = root.querySelector(".pp-head");
+      const prog = root.querySelector(".pp-progress");
+      if (head) head.style.display = "none";
+      if (prog) prog.style.display = "none";
+    } else {
       const head = root.querySelector(".pp-head");
       const prog = root.querySelector(".pp-progress");
       if (head) head.style.display = "";
       if (prog) prog.style.display = "";
-      setQrVisible(false);
     }
-  }
 
+    // do NOT auto-open QR here — QR opens from the reward button
+  }
   function renderReward(){
     const enabled = !!P.reward_enabled;
     if (!rewardWrap) return;
@@ -397,6 +426,7 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
+  
   function cardHtml(st, idx){
     const sid = getStyleId(st);
     const done = sid && isDone(sid);
@@ -408,7 +438,9 @@ export async function mount(root, props = {}, ctx = {}) {
     const badge = done ? "✓" : `${idx+1}`;
 
     return `
-      <div class="pp-card" data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
+      <div class="pp-card ${disabled ? "is-disabled" : ""}" role="button" tabindex="${disabled ? "-1" : "0"}"
+        aria-disabled="${disabled ? "true" : "false"}"
+        data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
         <div class="pp-badge">${escapeHtml(badge)}</div>
         <div class="pp-card-top">
           <div class="pp-ico">
@@ -417,12 +449,8 @@ export async function mount(root, props = {}, ctx = {}) {
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
+            <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
           </div>
-        </div>
-        <div class="pp-card-bot">
-          <button class="pp-btn ${done ? "" : "primary"}" type="button" ${disabled ? "disabled" : ""}>
-            ${escapeHtml(done ? btnDone : btnCollect)}
-          </button>
         </div>
       </div>
     `;
@@ -435,18 +463,25 @@ export async function mount(root, props = {}, ctx = {}) {
 
     gridEl.querySelectorAll(".pp-card").forEach(card=>{
       const sid = card.getAttribute("data-sid") || "";
-      const btn = card.querySelector("button");
-      if (!btn) return;
+      const isDisabled = card.classList.contains("is-disabled") || card.getAttribute("aria-disabled")==="true";
 
-      btn.addEventListener("click", async ()=>{
+      async function go(){
         if (!sid) return;
+        if (isDisabled) return;
         if (isDone(sid)) return;
         if (busy.has(sid)) return;
         await onCollectClick(sid);
+      }
+
+      card.addEventListener("click", go);
+      card.addEventListener("keydown", (e)=>{
+        if (e.key === "Enter" || e.key === " "){
+          e.preventDefault();
+          go();
+        }
       });
     });
   }
-
   // ----- normalize collected (so old worker formats don't break)
   function normalizeCollected(st){
     const out = new Set();
@@ -585,6 +620,14 @@ export async function mount(root, props = {}, ctx = {}) {
   renderProgress();
   renderReward();
   setQrVisible(false);
+
+  // Open QR bottom sheet from reward card button
+  if (openQrBtn){
+    openQrBtn.addEventListener("click", async ()=>{
+      openSheet();
+      try{ await renderQr(); }catch(_){ }
+    });
+  }
 
   try{
     if (ctx && ctx.state) await applyState(ctx.state);
