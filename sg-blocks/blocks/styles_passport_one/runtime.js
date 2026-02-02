@@ -419,20 +419,33 @@ export async function mount(root, props = {}, ctx = {}) {
 
     const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(redeemLink)}`;
 
-    await new Promise((resolve)=>{
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = ()=>{
-        // fit to canvas
-        const w = canvas.width, h = canvas.height;
-        ctx2.fillStyle = "#fff";
-        ctx2.fillRect(0,0,w,h);
-        ctx2.drawImage(img, 0, 0, w, h);
-        resolve();
-      };
-      img.onerror = ()=>resolve();
-      img.src = qUrl;
-    });
+await new Promise((resolve)=>{
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+
+  img.onload = ()=>{
+    const w = canvas.width, h = canvas.height;
+    ctx2.fillStyle = "#fff";
+    ctx2.fillRect(0,0,w,h);
+    ctx2.drawImage(img, 0, 0, w, h);
+    resolve(true);
+  };
+
+  img.onerror = ()=>{
+    // fallback: рисуем хотя бы текст, чтобы видно было, что QR режим включился
+    const w = canvas.width, h = canvas.height;
+    ctx2.fillStyle = "#fff";
+    ctx2.fillRect(0,0,w,h);
+    ctx2.fillStyle = "#000";
+    ctx2.font = "12px ui-monospace, Menlo, Consolas, monospace";
+    const txt = "QR load error";
+    ctx2.fillText(txt, 10, 20);
+    resolve(false);
+  };
+
+  img.src = qUrl;
+});
+
   }
 
   async function renderMode(){
@@ -470,13 +483,16 @@ export async function mount(root, props = {}, ctx = {}) {
     applyState(st);
   }
 
-  function applyState(st){
-    state = st || {};
-    collected = normalizeCollected(state);
-    renderProgress();
-    renderReward();
-    renderGrid();
-  }
+function applyState(st){
+  state = st || {};
+  collected = normalizeCollected(state);
+  renderProgress();
+  renderReward();
+  renderGrid();
+  // важно: если паспорт complete — показать QR режим
+  renderMode().catch(()=>{});
+}
+
 
   async function collectDirectPin(styleId, pin){
     const res = await apiCollect(styleId, pin);
