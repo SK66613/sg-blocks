@@ -3,11 +3,7 @@
 .blk-passport{
   padding: 0;
 
-  /* ВАЖНО: чтобы ничего не "выпирало" и не давало горизонтальный скролл */
-  overflow-x: hidden;
-  -webkit-tap-highlight-color: transparent;
-
-  /* box sizing для всех элементов блока */
+  /* ===== Layout bridges (from app.css / constructor) ===== */
   --pp-pad: var(--container-pad, 16px);
   --pp-gap: var(--section-gap, 12px);
 
@@ -31,7 +27,7 @@
   --pp-it-btn: var(--it-btn, normal);
   --pp-ul-btn: var(--ul-btn, none);
 
-  /* ===== Colors ===== */
+  /* ===== Color bridges ===== */
   --pp-bg:        var(--color-bg, #0f1219);
   --pp-surface:   var(--surface, var(--color-surface, #121a2a));
   --pp-card:      var(--card-bg, var(--color-card, #101827));
@@ -39,9 +35,9 @@
   --pp-text:      var(--text, var(--color-text, #e8f0ff));
   --pp-muted:     var(--muted, var(--color-muted, #97aac4));
 
-  --pp-brand:     var(--accent, var(--color-brand, #7C5CFF));
-  --pp-brand-soft:var(--accentSoft, var(--color-brand-soft, rgba(124,92,255,.18)));
-  --pp-onbrand:   var(--onAccent, var(--btn-primary-text, #fff));
+  --pp-brand:      var(--accent, var(--color-brand, #7C5CFF));
+  --pp-brand-soft: var(--color-brand-soft, color-mix(in srgb, var(--pp-brand), transparent 82%));
+  --pp-onbrand:    var(--onAccent, var(--btn-primary-text, #fff));
 
   /* ===== Radius ===== */
   --pp-r-card:  var(--radius-card, 16px);
@@ -59,35 +55,44 @@
 
   color: var(--pp-text);
   font-family: var(--pp-font-body);
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* box sizing inside */
-.blk-passport, .blk-passport * , .blk-passport *::before, .blk-passport *::after{
+/* ✅ ВАЖНО: чтобы ничего не “выпирало” вправо */
+.blk-passport, .blk-passport *{
   box-sizing: border-box;
 }
+.blk-passport{
+  overflow-x: hidden;
+}
 
-/* ===========================================================
-   BIG CARD like Calendar:
-   pp-head (top) + pp-progress (middle) + pp-grid (bottom)
-   =========================================================== */
+/* ===== Outer card like Calendar (.cal-card) ===== */
+.blk-passport{
+  padding: var(--pp-pad);
+}
+.blk-passport > .pp-head,
+.blk-passport > .pp-progress,
+.blk-passport > .pp-grid,
+.blk-passport > .pp-reward{
+  padding-left: 0;
+  padding-right: 0;
+}
 
-/* ===== header (TOP OF CARD) ===== */
+.blk-passport{
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-r-card);
+  background: var(--pp-card);
+  box-shadow: var(--pp-shadow2);
+}
+
+/* ===== header ===== */
 .blk-passport .pp-head{
   display:flex;
   gap:12px;
   align-items:flex-start;
   justify-content:space-between;
-
-  margin: var(--pp-pad);
-  margin-bottom: 0;
-
   padding: 14px;
-  background: var(--pp-card);
-  border: 1px solid var(--pp-border);
-  border-bottom: none;
-  border-radius: var(--pp-r-card) var(--pp-r-card) 0 0;
-
-  box-shadow: var(--pp-shadow2);
+  padding-bottom: 10px;
 }
 
 .blk-passport .pp-title{
@@ -110,7 +115,6 @@
   line-height: 1.25;
 }
 
-/* cover stays optional */
 .blk-passport .pp-cover{
   width: 56px;
   height: 56px;
@@ -118,7 +122,7 @@
   overflow:hidden;
   flex: 0 0 auto;
   border: 1px solid var(--pp-border);
-  background: color-mix(in srgb, var(--pp-card), transparent 80%);
+  background: color-mix(in srgb, var(--pp-surface), transparent 35%);
 }
 .blk-passport .pp-cover img{
   width:100%;
@@ -127,102 +131,81 @@
   display:block;
 }
 
-/* ===== progress (MIDDLE OF CARD) ===== */
+/* ===== progress ===== */
 .blk-passport .pp-progress{
-  margin: 0 var(--pp-pad);
   padding: 0 14px 12px;
-
-  background: var(--pp-card);
-  border-left: 1px solid var(--pp-border);
-  border-right: 1px solid var(--pp-border);
-  border-bottom: none;
-
-  /* чтобы тень не “дублилась”, тень только на .pp-head */
 }
-
 .blk-passport .pp-progress-bar{
   height: 10px;
   border-radius: 999px;
 
-  /* пустой = brand soft */
+  /* ✅ трек = brand-soft */
   background: var(--pp-brand-soft);
-  border: 1px solid var(--pp-border);
+
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 35%);
   overflow:hidden;
 }
-
 .blk-passport .pp-progress-bar i{
   display:block;
   height:100%;
   width:0%;
-  /* заполненный = brand/accent */
-  background: linear-gradient(90deg,
-    var(--pp-brand),
-    color-mix(in srgb, var(--pp-brand), transparent 35%)
-  );
+  /* ✅ заполнение = brand/accent */
+  background: var(--pp-brand);
   border-radius: 999px;
 }
-
 .blk-passport .pp-progress-text{
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--pp-muted);
 }
 
-/* ===== grid/cards (BOTTOM OF CARD) ===== */
+/* ===== grid/cards ===== */
 .blk-passport .pp-grid{
-  margin: 0 var(--pp-pad) var(--pp-pad);
-  padding: 12px 14px 14px;
-
-  background: var(--pp-card);
-  border: 1px solid var(--pp-border);
-  border-top: none;
-  border-radius: 0 0 var(--pp-r-card) var(--pp-r-card);
-
+  padding: 0 14px 14px;
   display:grid;
   gap: var(--pp-gap);
   grid-template-columns: repeat(3, minmax(0, 1fr));
-
-  /* защита от горизонтального скролла */
-  overflow-x: hidden;
 }
 
-/* ===========================================================
-   CARD ITEM (внутри сетки) — новый 2-рядный layout
-   Row1: name left + round img right
-   Row2: square img left + desc right
-   =========================================================== */
+/* адаптив как у календаря: на узких = 2 колонки */
+@media (max-width: 430px){
+  .blk-passport .pp-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 .blk-passport .pp-card{
   appearance: none;
-  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 0%);
-  background: color-mix(in srgb, var(--pp-surface), transparent 55%);
-  border-radius: var(--pp-r-card);
+  border: none;
+  text-align: left;
 
+  width: 100%;              /* ✅ чтобы button не был шире колонки */
+  min-width: 0;             /* ✅ иначе flex может “выпереть” */
+  overflow: hidden;
+
+  position: relative;
+  border-radius: var(--pp-r-card);
+  background: color-mix(in srgb, var(--pp-surface), transparent 15%);
+  border: 1px solid var(--pp-border);
   padding: 12px;
-  min-height: 108px;
   cursor: pointer;
   color: inherit;
 
-  position: relative;
-  overflow: hidden;
+  display:flex;
+  align-items:center;       /* ✅ убирает “пустой низ” */
+  min-height: 92px;         /* ✅ меньше воздуха */
 
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 .blk-passport .pp-card:active{ transform: translateY(1px); }
 .blk-passport .pp-card:focus-visible{ outline:none; box-shadow: var(--pp-ring); }
-.blk-passport .pp-card.is-disabled{
-  opacity:.55;
-  cursor: default;
-  transform: none;
-}
+.blk-passport .pp-card.is-disabled{ opacity:.55; cursor: default; transform:none; }
 
-/* done state */
 .blk-passport .pp-card[data-done="1"]{
   border-color: color-mix(in srgb, var(--pp-brand), transparent 55%);
-  box-shadow: 0 10px 24px rgba(0,0,0,.14);
+  background: color-mix(in srgb, var(--pp-brand), transparent 88%);
 }
 
-/* badge */
 .blk-passport .pp-badge{
   position:absolute;
   top:10px;
@@ -233,130 +216,91 @@
   border: 1px solid color-mix(in srgb, var(--pp-border), transparent 40%);
   padding: 4px 8px;
   border-radius: 999px;
-  z-index: 2;
+  z-index: 1;
 }
 
-/* card inner */
 .blk-passport .pp-card-top{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  width:100%;
+  min-width: 0;             /* ✅ */
   position: relative;
   z-index: 1;
-  display: grid;
-  gap: 10px;
 }
 
-/* row1 */
-.blk-passport .pp-row1{
+.blk-passport .pp-ico{
+  width: 44px;
+  height: 44px;
+  border-radius: calc(var(--pp-r-card) - 2px);
+  background: color-mix(in srgb, var(--pp-card), transparent 35%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
+  overflow:hidden;
+  flex:0 0 auto;
   display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 10px;
+  align-items:center;
+  justify-content:center;
+  position: relative;
+}
+.blk-passport .pp-ico img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.blk-passport .pp-ico .pp-ico-ph{
+  font-size: 16px;
+  color: var(--pp-muted);
+}
+
+/* lock overlay when NOT done */
+.blk-passport .pp-card[data-done="0"] .pp-ico::after{
+  content: "🔒";
+  position: absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: color-mix(in srgb, #000, transparent 72%);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  font-size: 16px;
+}
+
+.blk-passport .pp-txt{
+  flex: 1;
+  min-width: 0;            /* ✅ */
 }
 .blk-passport .pp-name{
-  font-family: var(--pp-font-head);
   font-weight: var(--pp-fw-head);
   font-style: var(--pp-it-head);
   text-decoration: var(--pp-ul-head);
   line-height: 1.15;
   font-size: 14px;
-  min-width: 0;
-  overflow:hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-/* круглая картинка справа */
-.blk-passport .pp-ico-round{
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  overflow:hidden;
-  flex: 0 0 auto;
-
-  /* фон под картинкой прозрачный */
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
-}
-.blk-passport .pp-ico-round img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-
-/* row2 */
-.blk-passport .pp-row2{
-  display:flex;
-  gap: 10px;
-  align-items:flex-start;
-}
-
-/* квадратная картинка слева */
-.blk-passport .pp-ico-square{
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  overflow:hidden;
-  flex: 0 0 auto;
-
-  /* фон под картинкой прозрачный */
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
-}
-.blk-passport .pp-ico-square img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-
 .blk-passport .pp-desc{
-  flex: 1;
-  min-width: 0;
-  margin-top: 2px;
-
+  margin-top: 4px;
   font-size: 12px;
   font-weight: var(--pp-fw-body);
   font-style: var(--pp-it-body);
   text-decoration: var(--pp-ul-body);
   color: var(--pp-muted);
   line-height: 1.25;
-
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
-/* lock overlay when NOT done (на квадратной иконке) */
-.blk-passport .pp-card[data-done="0"] .pp-ico-square::after{
-  content: "🔒";
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  background: color-mix(in srgb, #000, transparent 72%);
-  backdrop-filter: blur(1px);
-  -webkit-backdrop-filter: blur(1px);
-  font-size: 16px;
-
-  /* позиционируем поверх square-иконки */
-  transform: translate(0, 0);
+/* ✅ убираем “кнопку Отметить” как визуальный элемент (карточка кликабельная) */
+.blk-passport .pp-action{
+  display: none !important;
 }
 
-/* Трюк: чтобы ::after сел ровно поверх .pp-ico-square */
-.blk-passport .pp-ico-square{ position: relative; }
-
-/* ===========================================================
-   REWARD (оставляем отдельно, ниже big-card)
-   =========================================================== */
+/* ===== reward ===== */
 .blk-passport .pp-reward{
-  padding: 0 var(--pp-pad) var(--pp-pad);
+  padding: 0 14px 14px;
 }
 .blk-passport .pp-reward-card{
   border-radius: var(--pp-r-card);
@@ -366,7 +310,6 @@
   padding: 14px;
 }
 .blk-passport .pp-reward-title{
-  font-family: var(--pp-font-head);
   font-weight: var(--pp-fw-head);
   font-size: 15px;
 }
@@ -390,10 +333,107 @@
 }
 .blk-passport .pp-reward .pp-btn{ margin-top: 12px; }
 
-/* ===========================================================
-   QR SHEET — fixes: no horizontal scroll, content fits panel
-   =========================================================== */
+/* ===== modal (CENTERED) ===== */
+.blk-passport .pp-modal{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+.blk-passport .pp-modal[hidden]{ display:none !important; }
+.blk-passport .pp-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,.52);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.blk-passport .pp-modal-card{
+  position:absolute;
+  left: 16px;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 420px;
+  margin: 0 auto;
 
+  width: auto;
+  max-width: min(420px, calc(100vw - 32px)); /* ✅ чтобы не вылезало */
+
+  border-radius: calc(var(--pp-r-card) + 2px);
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  box-shadow: var(--pp-shadow);
+  padding: 14px;
+  overflow: hidden; /* ✅ */
+}
+.blk-passport .pp-modal-title{
+  font-weight: var(--pp-fw-head);
+  font-size: 16px;
+}
+.blk-passport .pp-modal-sub{
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--pp-muted);
+}
+.blk-passport .pp-modal-inp{
+  width: 100%;
+  max-width: 100%;
+  margin-top: 10px;
+  border-radius: var(--pp-r-inp);
+  border: 1px solid var(--pp-border);
+  background: color-mix(in srgb, var(--pp-card), transparent 15%);
+  color: var(--pp-text);
+  padding: 12px;
+  font-size: 16px;
+  outline:none;
+}
+.blk-passport .pp-modal-inp:focus{
+  box-shadow: var(--pp-ring);
+  border-color: transparent;
+}
+.blk-passport .pp-modal-actions{
+  margin-top: 10px;
+  display:flex;
+  gap:10px;
+}
+
+/* Buttons */
+.blk-passport .pp-btn{
+  border-radius: var(--pp-r-btn);
+  border: 1px solid var(--pp-border);
+  background: color-mix(in srgb, var(--pp-card), transparent 20%);
+  color: var(--pp-text);
+  font-family: var(--pp-font-btn);
+  font-weight: var(--pp-fw-btn);
+  font-style: var(--pp-it-btn);
+  text-decoration: var(--pp-ul-btn);
+  font-size: var(--fs-btn, 13px);
+  padding: 10px 12px;
+  cursor:pointer;
+
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.blk-passport .pp-btn:hover{ filter: brightness(1.05); }
+.blk-passport .pp-btn:active{ transform: translateY(1px); }
+.blk-passport .pp-btn:focus-visible{ outline:none; box-shadow: var(--pp-ring); }
+
+.blk-passport .pp-btn.primary{
+  background: var(--btnPrimaryBg, var(--btn-primary-bg, var(--pp-brand)));
+  color: var(--btnPrimaryText, var(--btn-primary-text, #fff));
+  border-color: transparent;
+}
+.blk-passport .pp-btn.ghost{
+  background: color-mix(in srgb, var(--pp-card), transparent 35%);
+}
+.blk-passport .pp-modal-actions .pp-btn{ flex: 1; }
+.blk-passport .pp-btn[disabled]{ opacity:.55; cursor: default; }
+.blk-passport .pp-modal-err{
+  margin-top: 8px;
+  color: #ffb3b3;
+  font-size: 12px;
+}
+
+/* ===== bottom sheet (QR) — pro card style ===== */
 .blk-passport .pp-sheet{
   position: fixed;
   inset: 0;
@@ -435,8 +475,13 @@
 
   max-height: min(72vh, 560px);
   overflow-y: auto;
-  overflow-x: hidden;           /* 🔥 главное */
+  overflow-x: hidden; /* ✅ критично */
   -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ чтобы внутри ничего не делало горизонтальный скролл */
+.blk-passport .pp-sheet-panel > *{
+  max-width: 100%;
 }
 
 .blk-passport .pp-sheet.is-open .pp-sheet-panel{
@@ -452,7 +497,7 @@
   margin: 2px auto 10px;
 }
 
-/* QR card inside */
+/* QR card inside sheet */
 .blk-passport .pp-qr-card{
   width: 100%;
   max-width: 100%;
@@ -466,18 +511,7 @@
   gap: 10px;
   justify-items: center;
   text-align: center;
-
-  overflow: hidden; /* 🔥 чтобы ничего не “выпирало” */
 }
-
-.blk-passport .pp-qr-title{
-  font-family: var(--pp-font-head);
-  font-weight: var(--pp-fw-head);
-  font-style: var(--pp-it-head);
-  text-decoration: var(--pp-ul-head);
-  font-size: 16px;
-}
-
 .blk-passport .pp-qr-imgwrap{
   width: min(240px, 72vw);
   max-width: 100%;
@@ -486,165 +520,16 @@
   border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
   background: #fff;
   overflow: hidden;
-
   display:flex;
   align-items:center;
   justify-content:center;
 }
-
 .blk-passport .pp-qr-imgwrap canvas{
   width: 100%;
   height: 100%;
   display:block;
 }
 
-.blk-passport .pp-qr-text{
-  font-size: 13px;
-  color: var(--pp-muted);
-  line-height: 1.3;
-  white-space: pre-wrap;
-  max-width: 100%;
-}
-
-.blk-passport .pp-qr-code{
-  margin-top: 2px;
-  max-width: 100%;
-  overflow-wrap: anywhere;   /* 🔥 длинные ссылки ломаем */
-  word-break: break-word;
-
-  background: color-mix(in srgb, #000, transparent 82%);
-  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 40%);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 900;
-  letter-spacing: .02em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-/* ===========================================================
-   MODAL PIN — iPhone fixes + no horizontal overflow
-   =========================================================== */
-
-.blk-passport .pp-modal{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-}
-.blk-passport .pp-modal[hidden]{ display:none !important; }
-
-.blk-passport .pp-modal-backdrop{
-  position:absolute;
-  inset:0;
-  background: rgba(0,0,0,.52);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.blk-passport .pp-modal-card{
-  position:absolute;
-  left: 16px;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  max-width: 420px;
-  margin: 0 auto;
-
-  border-radius: calc(var(--pp-r-card) + 2px);
-  background: var(--pp-surface);
-  border: 1px solid var(--pp-border);
-  box-shadow: var(--pp-shadow);
-  padding: 14px;
-
-  overflow-x: hidden; /* 🔥 чтобы input не “выпирал” */
-}
-
-.blk-passport .pp-modal-title{
-  font-family: var(--pp-font-head);
-  font-weight: var(--pp-fw-head);
-  font-size: 16px;
-}
-.blk-passport .pp-modal-sub{
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--pp-muted);
-}
-
-.blk-passport .pp-modal-inp{
-  width: 100%;
-  max-width: 100%;
-  margin-top: 10px;
-
-  border-radius: var(--pp-r-inp);
-  border: 1px solid var(--pp-border);
-  background: color-mix(in srgb, var(--pp-card), transparent 15%);
-  color: var(--pp-text);
-
-  padding: 12px;
-  font-size: 16px;                /* 🔥 чтобы iOS не делал zoom */
-  line-height: 1.2;
-  outline:none;
-
-  -webkit-appearance: none;
-  appearance: none;
-
-  /* iOS иногда “съедает” цвет текста */
-  -webkit-text-fill-color: var(--pp-text);
-  caret-color: var(--pp-brand);
-}
-.blk-passport .pp-modal-inp::placeholder{
-  color: color-mix(in srgb, var(--pp-muted), transparent 10%);
-}
-.blk-passport .pp-modal-inp:focus{
-  box-shadow: var(--pp-ring);
-  border-color: transparent;
-}
-
-.blk-passport .pp-modal-actions{
-  margin-top: 10px;
-  display:flex;
-  gap:10px;
-}
-
-/* Buttons */
-.blk-passport .pp-btn{
-  border-radius: var(--pp-r-btn);
-  border: 1px solid var(--pp-border);
-  background: color-mix(in srgb, var(--pp-card), transparent 20%);
-  color: var(--pp-text);
-
-  font-family: var(--pp-font-btn);
-  font-weight: var(--pp-fw-btn);
-  font-style: var(--pp-it-btn);
-  text-decoration: var(--pp-ul-btn);
-  font-size: var(--pp-fs-btn);
-
-  padding: 10px 12px;
-  cursor:pointer;
-
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
-}
-.blk-passport .pp-btn:hover{ filter: brightness(1.05); }
-.blk-passport .pp-btn:active{ transform: translateY(1px); }
-.blk-passport .pp-btn:focus-visible{ outline:none; box-shadow: var(--pp-ring); }
-
-.blk-passport .pp-btn.primary{
-  background: var(--btnPrimaryBg, var(--btn-primary-bg, var(--pp-brand)));
-  color: var(--btnPrimaryText, var(--btn-primary-text, #fff));
-  border-color: transparent;
-}
-.blk-passport .pp-btn.ghost{
-  background: color-mix(in srgb, var(--pp-card), transparent 35%);
-}
-.blk-passport .pp-modal-actions .pp-btn{ flex: 1; }
-.blk-passport .pp-btn[disabled]{ opacity:.55; cursor: default; }
-
-.blk-passport .pp-modal-err{
-  margin-top: 8px;
-  color: #ffb3b3;
-  font-size: 12px;
-}
-
-/* small screens */
 @media (max-width: 360px){
   .blk-passport .pp-sheet-panel{ left: 6px; right: 6px; }
 }
