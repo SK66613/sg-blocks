@@ -385,7 +385,7 @@ export async function mount(root, props = {}, ctx = {}) {
     throw new Error("redeem/token missing deep_link or bot_username+token");
   }
 
-  async async function renderQr(){
+  async function renderQr(){
     if (!qrWrap) return;
     if (!completeShowQr || !isComplete()){
       setQrVisible(false);
@@ -447,7 +447,7 @@ export async function mount(root, props = {}, ctx = {}) {
         if (head) head.style.display = "none";
         if (prog) prog.style.display = "none";
       }
-      await renderQr().catch(()=>{});
+      await renderQr();
     } else {
       const head = root.querySelector(".pp-head");
       const prog = root.querySelector(".pp-progress");
