@@ -332,9 +332,12 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 .blk-passport .pp-reward .pp-btn{
-  min-height: 48px; /* iPhone-ish */
-  padding: 0px 14px;
+  margin-top: 0px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
+
 
 /* ===== modal (CENTERED) ===== */
 .blk-passport .pp-modal{
