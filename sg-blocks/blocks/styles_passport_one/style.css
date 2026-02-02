@@ -18,7 +18,7 @@
   --pp-it-head: var(--it-head, normal);
   --pp-ul-head: var(--ul-head, none);
 
-  --pp-fs-btn: var(--fs-btn, 14px);
+  --pp-fs-btn: var(--fs-btn, 13px);
   --pp-fw-btn: var(--fw-btn, 800);
 
   /* Color bridges */
@@ -30,7 +30,6 @@
   --pp-muted:     var(--color-muted, #97aac4);
 
   --pp-brand:     var(--color-brand, #7C5CFF);
-  --pp-brandSoft: var(--color-brand-soft, rgba(124,92,255,.18));
 
   /* Radius bridges */
   --pp-r-card:  var(--radius-card, 16px);
@@ -44,6 +43,8 @@
   color: var(--pp-text);
   font-family: var(--pp-font-body);
 }
+
+/* ===== header ===== */
 
 .blk-passport .pp-head{
   display:flex;
@@ -71,6 +72,7 @@
   font-style: var(--pp-it-body);
   text-decoration: var(--pp-ul-body);
   color: var(--pp-muted);
+  line-height: 1.25;
 }
 
 .blk-passport .pp-cover{
@@ -88,6 +90,8 @@
   object-fit:cover;
   display:block;
 }
+
+/* ===== progress ===== */
 
 .blk-passport .pp-progress{
   padding: 0 var(--container-pad, 16px);
@@ -120,27 +124,25 @@
   padding-top: 8px;
   display:grid;
   gap: var(--section-gap, 12px);
-  grid-template-columns: repeat(3, minmax(0, 1fr)); /* overridden inline by runtime */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* Card is clickable */
 .blk-passport .pp-card{
   -webkit-tap-highlight-color: transparent;
   appearance: none;
-  width: 100%;
+  border: none;
   text-align: left;
 
   position: relative;
   border-radius: var(--pp-r-card);
   background: rgba(255,255,255,.03);
   border: 1px solid var(--pp-border);
-  box-shadow: none;
   overflow:hidden;
-  min-height: 118px;
+  min-height: 108px;
   display:flex;
-  flex-direction:column;
   padding: 12px;
   cursor: pointer;
+  color: inherit;
 }
 .blk-passport .pp-card:active{
   transform: translateY(1px);
@@ -157,14 +159,25 @@
   border-color: rgba(124,92,255,.40);
 }
 
-/* layout inside card */
+.blk-passport .pp-badge{
+  position:absolute;
+  top:10px;
+  right:10px;
+  font-size: 11px;
+  color: var(--pp-muted);
+  background: rgba(0,0,0,.18);
+  border: 1px solid rgba(255,255,255,.10);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
 .blk-passport .pp-card-top{
   display:flex;
   gap:10px;
   align-items:flex-start;
+  width:100%;
 }
 
-/* image box */
 .blk-passport .pp-ico{
   width: 44px;
   height: 44px;
@@ -202,11 +215,7 @@
   font-size: 16px;
 }
 
-/* unlock hint when done */
-.blk-passport .pp-card[data-done="1"] .pp-ico::after{
-  content: "";
-}
-
+.blk-passport .pp-txt{ flex: 1; min-width: 0; }
 .blk-passport .pp-name{
   font-weight: var(--pp-fw-head);
   font-style: var(--pp-it-head);
@@ -222,18 +231,63 @@
   text-decoration: var(--pp-ul-body);
   color: var(--pp-muted);
   line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.blk-passport .pp-badge{
-  position:absolute;
-  top:10px;
-  right:10px;
-  font-size: 11px;
+.blk-passport .pp-action{
+  margin-top: 10px;
+  font-family: var(--pp-font-btn);
+  font-weight: var(--pp-fw-btn);
+  font-size: var(--pp-fs-btn);
+  color: var(--pp-text);
+  opacity: .9;
+}
+.blk-passport .pp-card[data-done="0"] .pp-action{
+  color: var(--btn-primary-text, #fff);
+  background: var(--btn-primary-bg, var(--pp-brand));
+  display:inline-block;
+  padding: 6px 10px;
+  border-radius: var(--pp-r-btn);
+}
+.blk-passport .pp-card[data-done="1"] .pp-action{
   color: var(--pp-muted);
+}
+
+/* ===== reward ===== */
+.blk-passport .pp-reward{
+  padding: 0 var(--container-pad, 16px) var(--container-pad, 16px);
+}
+.blk-passport .pp-reward-card{
+  border-radius: var(--pp-r-card);
+  border: 1px solid rgba(124,92,255,.35);
+  background: rgba(124,92,255,.10);
+  box-shadow: var(--pp-shadow2);
+  padding: 14px;
+}
+.blk-passport .pp-reward-title{
+  font-weight: 900;
+  font-size: 15px;
+}
+.blk-passport .pp-reward-text{
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--pp-text);
+  opacity: .92;
+  line-height: 1.3;
+}
+.blk-passport .pp-reward-code{
+  margin-top: 10px;
   background: rgba(0,0,0,.18);
   border: 1px solid rgba(255,255,255,.10);
-  padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 /* ===== QR view ===== */
@@ -287,10 +341,8 @@
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 900;
-  letter-spacing: .02em;
+  letter-spacing: .06em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 12px;
-  word-break: break-all;
 }
 
 /* ===== modal (CENTERED) ===== */
@@ -305,6 +357,7 @@
   background: rgba(0,0,0,.52);
   backdrop-filter: blur(2px);
 }
+
 .blk-passport .pp-modal-card{
   position:absolute;
   left: 16px;
