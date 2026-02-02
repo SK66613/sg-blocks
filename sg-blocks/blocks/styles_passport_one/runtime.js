@@ -253,7 +253,9 @@ export async function mount(root, props = {}, ctx = {}) {
       if (locked){
         b.dataset.ppSheetLock = "1";
         b.style.overflow = "hidden";
-        b.style.touchAction = "none";
+        b.style.overflow = "hidden";
+b.style.touchAction = ""; // НЕ трогаем
+
       }else{
         if (b.dataset.ppSheetLock === "1"){
           delete b.dataset.ppSheetLock;
@@ -300,6 +302,8 @@ export async function mount(root, props = {}, ctx = {}) {
     setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
   }
 
+  
+
 
   // close on backdrop / handle
   try{
@@ -313,9 +317,13 @@ export async function mount(root, props = {}, ctx = {}) {
     if (!sheetEl || !sheetPanel) return;
 
     let dragging = false;
-    let startY = 0;
+    let startY = 0, startX = 0;
     let lastY = 0;
     let startT = 0;
+
+    let gestureLocked = false;     // мы уже решили, что это drag
+    let isVerticalDrag = false;    // это вертикаль вниз
+
 
     function getY(ev){
       if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientY;
@@ -323,40 +331,90 @@ export async function mount(root, props = {}, ctx = {}) {
       return ev.clientY;
     }
 
+        function canStartDrag(ev){
+      // разрешаем drag если:
+      // 1) тянем за ручку, или
+      // 2) контент уже в самом верху (scrollTop=0)
+      const t = ev.target;
+      const onHandle = !!(t && t.closest && t.closest(".pp-sheet-handle"));
+      if (onHandle) return true;
+
+      // если внутри есть скролл — даём скроллить, пока не наверху
+      const st = sheetPanel.scrollTop || 0;
+      return st <= 0;
+    }
+
+
     function onStart(ev){
       if (!sheetOpen) return;
 
-      // стартуем только если тач на панели (не на бекдропе)
+      // стартуем только если можно тянуть (ручка или scrollTop=0)
+      if (!canStartDrag(ev)) return;
+
       const y = getY(ev);
-      if (!Number.isFinite(y)) return;
+      const x = getX(ev);
+      if (!Number.isFinite(y) || !Number.isFinite(x)) return;
 
       dragging = true;
-      startY = y;
-      lastY = y;
+      gestureLocked = false;
+      isVerticalDrag = false;
+
+      startY = y; lastY = y;
+      startX = x;
       startT = performance.now();
 
+      // на старте НЕ рубим браузер — иначе ломаются клики/фокус
       setSheetDragState(true);
-
-      // iOS: важно — не дать странице “перехватить” жест
-      try{ ev.preventDefault(); }catch(_){}
+      sheetPanel.style.willChange = "transform";
     }
+
 
     function onMove(ev){
       if (!dragging) return;
-      const y = getY(ev);
-      if (!Number.isFinite(y)) return;
 
-      const dy = Math.max(0, y - startY);
+      const y = getY(ev);
+      const x = getX(ev);
+      if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+
+      const dyRaw = y - startY;
+      const dxRaw = x - startX;
+
+      // сначала решаем, что это за жест (один раз)
+      if (!gestureLocked){
+        const ady = Math.abs(dyRaw);
+        const adx = Math.abs(dxRaw);
+
+        // игнорируем мелкий шум
+        if (ady < SWIPE_EDGE_PX && adx < SWIPE_EDGE_PX) return;
+
+        gestureLocked = true;
+
+        // вертикаль — если по Y заметно больше, чем по X
+        isVerticalDrag = (ady > adx * 1.2) && dyRaw > 0;
+        // если это не вертикальный drag вниз — не мешаем (пусть будет обычный скролл/жест)
+        if (!isVerticalDrag){
+          dragging = false;
+          setSheetDragState(false);
+          sheetPanel.style.willChange = "";
+          return;
+        }
+      }
+
+      // сюда попадаем только если это drag вниз
+      const dy = Math.max(0, dyRaw);
       lastY = y;
 
-      // маленький шум игнорируем
-      if (dy < SWIPE_EDGE_PX) return;
+      // ограничим и добавим “резинку”
+      const maxPull = Math.min(420, Math.max(220, sheetPanel.clientHeight * 0.85));
+      const damped = dy <= maxPull ? dy : (maxPull + (dy - maxPull) * 0.25);
 
-      setSheetTranslate(dy);
+      setSheetTranslate(damped);
 
+      // важно: только тут режем дефолт (когда мы уверены, что тянем шторку)
       try{ ev.preventDefault(); }catch(_){}
       try{ ev.stopPropagation(); }catch(_){}
     }
+
 
     function onEnd(ev){
       if (!dragging) return;
@@ -369,35 +427,20 @@ export async function mount(root, props = {}, ctx = {}) {
       const dy = Math.max(0, (Number.isFinite(y) ? y : lastY) - startY);
       const v = dy / dt; // px/ms
 
+      sheetPanel.style.willChange = "";
       setSheetDragState(false);
 
-      // закрываем если дотянули или “быстро свайпнули”
-      if (dy >= SWIPE_CLOSE_PX || v >= SWIPE_VELOCITY){
+      // закрываем если реально тянули вниз (isVerticalDrag) и дотянули/быстро
+      if (isVerticalDrag && (dy >= SWIPE_CLOSE_PX || v >= SWIPE_VELOCITY)){
         haptic("light");
         closeSheet();
         return;
       }
 
-      // иначе возвращаем назад
+      // иначе возвращаем
       setSheetTranslate(0);
     }
 
-    // PointerEvents если есть
-    const hasPointer = "PointerEvent" in win;
-
-    if (hasPointer){
-      sheetPanel.addEventListener("pointerdown", onStart, { passive:false });
-      win.addEventListener("pointermove", onMove, { passive:false });
-      win.addEventListener("pointerup", onEnd, { passive:false });
-      win.addEventListener("pointercancel", onEnd, { passive:false });
-    }else{
-      // Touch fallback
-      sheetPanel.addEventListener("touchstart", onStart, { passive:false });
-      win.addEventListener("touchmove", onMove, { passive:false });
-      win.addEventListener("touchend", onEnd, { passive:false });
-      win.addEventListener("touchcancel", onEnd, { passive:false });
-    }
-  })();
 
 
   function setQrVisible(v){
