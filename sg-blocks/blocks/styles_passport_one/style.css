@@ -1,525 +1,651 @@
-/* ===== Passport / Stamps / Collection — SG tokens / typography / radius ===== */
+// stylesPassport/runtime.js
+// Passport (stamps/collection) — SG blocks format.
+// Works with legacy window.api('style.collect', payload) AND with fetch fallback to /api/mini/*?public_id=...
 
-.blk-passport{
-  padding: 0;
+export async function mount(root, props = {}, ctx = {}) {
+  const doc = root.ownerDocument;
+  const win = doc.defaultView;
 
-  /* Typography bridges */
-  --pp-font-body: var(--font-body, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
-  --pp-font-head: var(--font-head, var(--pp-font-body));
-  --pp-font-btn:  var(--font-btn,  var(--pp-font-body));
+  const TG =
+    ctx.tg ||
+    (win.Telegram && win.Telegram.WebApp) ||
+    (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
+    null;
 
-  --pp-fs-body: var(--fs-body, 14px);
-  --pp-fw-body: var(--fw-body, 400);
-  --pp-it-body: var(--it-body, normal);
-  --pp-ul-body: var(--ul-body, none);
+  // ---------- helpers
+  const num = (v, d) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  const str = (v, d = "") => (v === undefined || v === null) ? d : String(v);
+  const clamp01 = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+  };
 
-  --pp-fs-h2: var(--fs-h2, 18px);
-  --pp-fw-head: var(--fw-head, 800);
-  --pp-it-head: var(--it-head, normal);
-  --pp-ul-head: var(--ul-head, none);
+  function haptic(kind="light"){
+    try{ TG && TG.HapticFeedback && TG.HapticFeedback.impactOccurred && TG.HapticFeedback.impactOccurred(kind); }catch(_){}
+  }
 
-  --pp-fs-btn: var(--fs-btn, 13px);
-  --pp-fw-btn: var(--fw-btn, 800);
+  async function uiAlert(msg){
+    try{
+      if (TG && TG.showAlert) return await TG.showAlert(String(msg||""));
+    }catch(_){}
+    alert(String(msg||""));
+  }
 
-  /* Color bridges */
-  --pp-bg:        var(--color-bg, #0f1219);
-  --pp-surface:   var(--color-surface, #121a2a);
-  --pp-card:      var(--color-card, #101827);
-  --pp-border:    var(--color-border, rgba(255,255,255,.10));
-  --pp-text:      var(--color-text, #e8f0ff);
-  --pp-muted:     var(--color-muted, #97aac4);
+  function escapeHtml(s){
+    return String(s||"")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
 
-  --pp-brand:     var(--color-brand, #7C5CFF);
+  // ---------- API adapter (legacy-first)
+  const apiFn =
+    (typeof ctx.api === "function") ? ctx.api :
+    (typeof win.api === "function") ? win.api :
+    null;
 
-  /* Radius bridges */
-  --pp-r-card:  var(--radius-card, 16px);
-  --pp-r-btn:   var(--radius-btn, 14px);
-  --pp-r-inp:   var(--radius-input, 12px);
+  // public_id is required for fetch fallback (for worker verify)
+  const publicId =
+    str(ctx.publicId || ctx.public_id || ctx.publicID, "").trim() ||
+    str(props.app_public_id || props.public_id || props.publicId, "").trim() ||
+    str(win.SG_APP_PUBLIC_ID || win.APP_PUBLIC_ID, "").trim();
 
-  /* Shadow */
-  --pp-shadow:  var(--shadow-card, 0 16px 40px rgba(0,0,0,.18));
-  --pp-shadow2: var(--shadow-soft, 0 8px 24px rgba(0,0,0,.12));
+  async function apiCall(pathSeg, body = {}) {
+    // If legacy api exists — use it directly (like old passport did)
+    if (apiFn) return await apiFn(pathSeg, body);
 
-  color: var(--pp-text);
-  font-family: var(--pp-font-body);
-}
+    if (!publicId){
+      // Studio/preview mode: no api + no publicId => can't call backend, just return stub
+      return { ok:false, error:'NO_PUBLIC_ID' };
+    }
 
-/* ===== header ===== */
+    const initData =
+      (ctx && (ctx.initData || ctx.init_data))
+        ? (ctx.initData || ctx.init_data)
+        : (TG && TG.initData ? TG.initData : "");
 
-.blk-passport .pp-head{
-  display:flex;
-  gap:12px;
-  align-items:flex-start;
-  justify-content:space-between;
-  padding: var(--container-pad, 16px);
-  padding-bottom: 8px;
-}
+    const u =
+      (ctx && (ctx.tg_user || ctx.tgUser)) ||
+      (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ||
+      null;
 
-.blk-passport .pp-title{
-  margin: 0;
-  font-family: var(--pp-font-head);
-  font-weight: var(--pp-fw-head);
-  font-style: var(--pp-it-head);
-  text-decoration: var(--pp-ul-head);
-  font-size: var(--pp-fs-h2);
-  line-height: 1.2;
-}
+    const tg_user = u ? {
+      id: u.id,
+      username: u.username,
+      first_name: u.first_name,
+      last_name: u.last_name
+    } : null;
 
-.blk-passport .pp-sub{
-  margin-top: 4px;
-  font-size: var(--pp-fs-body);
-  font-weight: var(--pp-fw-body);
-  font-style: var(--pp-it-body);
-  text-decoration: var(--pp-ul-body);
-  color: var(--pp-muted);
-  line-height: 1.25;
-}
+    const url = `/api/mini/${pathSeg}?public_id=${encodeURIComponent(publicId)}`;
 
-.blk-passport .pp-cover{
-  width: 56px;
-  height: 56px;
-  border-radius: calc(var(--pp-r-card) - 6px);
-  overflow:hidden;
-  flex: 0 0 auto;
-  border: 1px solid var(--pp-border);
-  background: rgba(255,255,255,.03);
-}
-.blk-passport .pp-cover img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
+    const payload = {
+      ...body,
+      init_data: initData,
+      tg_user,
+      app_public_id: publicId
+    };
 
-/* ===== progress ===== */
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
 
-.blk-passport .pp-progress{
-  padding: 0 var(--container-pad, 16px);
-  padding-bottom: 10px;
-}
-.blk-passport .pp-progress-bar{
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid var(--pp-border);
-  overflow:hidden;
-}
-.blk-passport .pp-progress-bar i{
-  display:block;
-  height:100%;
-  width:0%;
-  background: linear-gradient(90deg, var(--pp-brand), rgba(124,92,255,.55));
-  border-radius: 999px;
-}
-.blk-passport .pp-progress-text{
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--pp-muted);
-}
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || j.ok === false) {
+      const err = new Error((j && (j.error || j.message)) || `API ${pathSeg} failed (${r.status})`);
+      err.status = r.status;
+      err.payload = j;
+      throw err;
+    }
+    return j;
+  }
 
-/* ===== grid/cards ===== */
+  // Our internal wrappers
+  async function apiState(){
+    return await apiCall("state", {});
+  }
+  async function apiCollect(style_id, pin){
+    return await apiCall("style.collect", { style_id, pin });
+  }
 
-.blk-passport .pp-grid{
-  padding: var(--container-pad, 16px);
-  padding-top: 8px;
-  display:grid;
-  gap: var(--section-gap, 12px);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
+  // ---------- DOM
+  const titleEl = root.querySelector("[data-pp-title]");
+  const subEl   = root.querySelector("[data-pp-subtitle]");
+  const coverEl = root.querySelector("[data-pp-cover]");
+  const coverImg= coverEl ? coverEl.querySelector("img") : null;
 
-.blk-passport .pp-card{
-  -webkit-tap-highlight-color: transparent;
-  appearance: none;
-  border: none;
-  text-align: left;
+  const gridEl  = root.querySelector("[data-pp-grid]");
+  const progWrap= root.querySelector("[data-pp-progress]");
+  const progBar = root.querySelector("[data-pp-bar]");
+  const progTxt = root.querySelector("[data-pp-progress-text]");
 
-  position: relative;
-  border-radius: var(--pp-r-card);
-  background: rgba(255,255,255,.03);
-  border: 1px solid var(--pp-border);
-  overflow:hidden;
-  min-height: 108px;
-  display:flex;
-  padding: 12px;
-  cursor: pointer;
-  color: inherit;
-}
-.blk-passport .pp-card:active{
-  transform: translateY(1px);
-}
-.blk-passport .pp-card.is-disabled{
-  opacity:.55;
-  cursor: default;
-  transform: none;
-}
+  const rewardWrap = root.querySelector("[data-pp-reward]");
+  const rewardTitle= root.querySelector("[data-pp-reward-title]");
+  const rewardText = root.querySelector("[data-pp-reward-text]");
+  const rewardCode = root.querySelector("[data-pp-reward-code]");
 
-/* done state */
-.blk-passport .pp-card[data-done="1"]{
-  background: linear-gradient(180deg, rgba(124,92,255,.16), rgba(255,255,255,.02));
-  border-color: rgba(124,92,255,.40);
-}
+  // QR bottom sheet
+  const sheetEl   = root.querySelector("[data-pp-sheet]");
+  const sheetCloseEls = root.querySelectorAll("[data-pp-sheet-close]");
 
-.blk-passport .pp-badge{
-  position:absolute;
-  top:10px;
-  right:10px;
-  font-size: 11px;
-  color: var(--pp-muted);
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
-  padding: 4px 8px;
-  border-radius: 999px;
-}
+  const qrTitle  = root.querySelector("[data-pp-qr-title]");
+  const qrText   = root.querySelector("[data-pp-qr-text]");
+  const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
+  const qrCodeText = root.querySelector("[data-pp-qr-code]");
 
-.blk-passport .pp-card-top{
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
-  width:100%;
-}
+  const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
-.blk-passport .pp-ico{
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  overflow:hidden;
-  flex:0 0 auto;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  position: relative;
-}
-.blk-passport .pp-ico img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-.blk-passport .pp-ico .pp-ico-ph{
-  font-size: 16px;
-  color: var(--pp-muted);
-}
+  const modalEl  = root.querySelector("[data-pp-modal]");
+  const pinInp   = root.querySelector("[data-pp-pin-inp]");
+  const modalOk  = root.querySelector("[data-pp-modal-ok]");
+  const modalCancel = root.querySelector("[data-pp-modal-cancel]");
+  const modalClose  = root.querySelector("[data-pp-modal-close]");
+  const modalTitle  = root.querySelector("[data-pp-modal-title]");
+  const modalSub    = root.querySelector("[data-pp-modal-sub]");
+  const modalErr    = root.querySelector("[data-pp-modal-err]");
 
-/* lock overlay when NOT done */
-.blk-passport .pp-card[data-done="0"] .pp-ico::after{
-  content: "🔒";
-  position: absolute;
-  inset: 0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(0,0,0,.28);
-  backdrop-filter: blur(1px);
-  font-size: 16px;
-}
+  // ---------- props
+  const P = props || {};
+  const styles = Array.isArray(P.styles) ? P.styles : [];
+  const gridCols = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
+  const requirePin = !!P.require_pin;
 
-.blk-passport .pp-txt{ flex: 1; min-width: 0; }
-.blk-passport .pp-name{
-  font-weight: var(--pp-fw-head);
-  font-style: var(--pp-it-head);
-  text-decoration: var(--pp-ul-head);
-  line-height: 1.15;
-  font-size: 14px;
-}
-.blk-passport .pp-desc{
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: var(--pp-fw-body);
-  font-style: var(--pp-it-body);
-  text-decoration: var(--pp-ul-body);
-  color: var(--pp-muted);
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
+  // IMPORTANT: direct_pin is the working mode
+  const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin
+  const btnCollect = str(P.btn_collect, "Отметить");
+  const btnDone = str(P.btn_done, "Получено");
 
-.blk-passport .pp-action{
-  margin-top: 10px;
-  font-family: var(--pp-font-btn);
-  font-weight: var(--pp-fw-btn);
-  font-size: var(--pp-fs-btn);
-  color: var(--pp-text);
-  opacity: .9;
-}
-.blk-passport .pp-card[data-done="0"] .pp-action{
-  color: var(--btn-primary-text, #fff);
-  background: var(--btn-primary-bg, var(--pp-brand));
-  display:inline-block;
-  padding: 6px 10px;
-  border-radius: var(--pp-r-btn);
-}
-.blk-passport .pp-card[data-done="1"] .pp-action{
-  color: var(--pp-muted);
-}
+  function getStyleId(st){
+    return str(st && st.code, "").trim();
+  }
 
-/* ===== reward ===== */
-.blk-passport .pp-reward{
-  padding: 0 var(--container-pad, 16px) var(--container-pad, 16px);
-}
-.blk-passport .pp-reward-card{
-  border-radius: var(--pp-r-card);
-  border: 1px solid rgba(124,92,255,.35);
-  background: rgba(124,92,255,.10);
-  box-shadow: var(--pp-shadow2);
-  padding: 14px;
-}
-.blk-passport .pp-reward-title{
-  font-weight: 900;
-  font-size: 15px;
-}
-.blk-passport .pp-reward-text{
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--pp-text);
-  opacity: .92;
-  line-height: 1.3;
-  white-space: pre-wrap;
-}
-.blk-passport .pp-reward-code{
-  margin-top: 10px;
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 900;
-  letter-spacing: .06em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-.blk-passport .pp-reward .pp-btn{
-  margin-top: 12px;
-}
+  // ---------- state
+  let state = null; // keep the latest server state (needed for passport_reward)
+  let collected = new Set();
+  let busy = new Set();
+  let selectedStyleId = "";
+  let selectedStyleName = "";
 
-/* ===== shared QR card (used inside sheet) ===== */
-.blk-passport .pp-qr-card{
-  border-radius: var(--pp-r-card);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
-  box-shadow: var(--pp-shadow2);
-  padding: 14px;
-  display: grid;
-  gap: 10px;
-  justify-items: center;
-  text-align: center;
-}
-.blk-passport .pp-qr-title{
-  font-family: var(--pp-font-head);
-  font-weight: var(--pp-fw-head);
-  font-style: var(--pp-it-head);
-  text-decoration: var(--pp-ul-head);
-  font-size: 16px;
-}
-.blk-passport .pp-qr-imgwrap{
-  width: min(240px, 72vw);
-  aspect-ratio: 1 / 1;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: #fff;
-  overflow: hidden;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-.blk-passport .pp-qr-imgwrap canvas{
-  width: 100%;
-  height: 100%;
-  display:block;
-}
-.blk-passport .pp-qr-text{
-  font-size: 13px;
-  color: var(--pp-muted);
-  line-height: 1.3;
-  white-space: pre-wrap;
-}
-.blk-passport .pp-qr-code{
-  margin-top: 2px;
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 900;
-  letter-spacing: .06em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
+  function isDone(styleId){ return collected.has(String(styleId)); }
 
-/* ===== modal (CENTERED) ===== */
-.blk-passport .pp-modal{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-}
-.blk-passport .pp-modal[hidden]{
-  display: none !important;
-}
-.blk-passport .pp-modal-backdrop{
-  position:absolute;
-  inset:0;
-  background: rgba(0,0,0,.52);
-  backdrop-filter: blur(2px);
-}
+  function isComplete(){
+    const total = styles.length;
+    return total > 0 && collected.size >= total;
+  }
 
-.blk-passport .pp-modal-card{
-  position:absolute;
-  left: 16px;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  max-width: 420px;
-  margin: 0 auto;
+  function setModalVisible(v){
+    if (!modalEl) return;
+    modalEl.hidden = !v;
+    if (!v){
+      if (modalErr) { modalErr.hidden = true; modalErr.textContent = ""; }
+      if (pinInp) pinInp.value = "";
+    } else {
+      setTimeout(()=>{ try{ pinInp && pinInp.focus && pinInp.focus(); }catch(_){} }, 50);
+    }
+  }
 
-  border-radius: calc(var(--pp-r-card) + 2px);
-  background: var(--pp-surface);
-  border: 1px solid var(--pp-border);
-  box-shadow: var(--pp-shadow);
-  padding: 14px;
-}
-.blk-passport .pp-modal-title{
-  font-weight: 900;
-  font-size: 16px;
-}
-.blk-passport .pp-modal-sub{
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--pp-muted);
-}
-.blk-passport .pp-modal-inp{
-  width: 100%;
-  margin-top: 10px;
-  border-radius: var(--pp-r-inp);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: var(--pp-text);
-  padding: 12px;
-  font-size: 16px;
-  outline:none;
-}
-.blk-passport .pp-modal-actions{
-  margin-top: 10px;
-  display:flex;
-  gap:10px;
-}
+  function renderHeader(){
+    if (titleEl) titleEl.textContent = str(P.title, "Паспорт");
+    if (subEl) subEl.textContent = str(P.subtitle, "");
 
-/* Buttons */
-.blk-passport .pp-btn{
-  border-radius: var(--pp-r-btn);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: var(--pp-text);
-  font-family: var(--pp-font-btn);
-  font-weight: var(--pp-fw-btn);
-  font-size: var(--pp-fs-btn);
-  padding: 10px 12px;
-  cursor:pointer;
-}
-.blk-passport .pp-btn.primary{
-  background: var(--btn-primary-bg, var(--pp-brand));
-  color: var(--btn-primary-text, #fff);
-  border-color: rgba(0,0,0,.0);
-}
-.blk-passport .pp-btn.ghost{
-  background: rgba(255,255,255,.04);
-}
-.blk-passport .pp-modal-actions .pp-btn{
-  flex: 1;
-}
-.blk-passport .pp-btn[disabled]{
-  opacity:.55;
-  cursor: default;
-}
-.blk-passport .pp-modal-err{
-  margin-top: 8px;
-  color: #ffb3b3;
-  font-size: 12px;
-}
+    const coverUrl = str(P.cover_url, "").trim();
+    if (coverEl && coverImg){
+      if (coverUrl){
+        coverEl.hidden = false;
+        coverImg.src = coverUrl;
+      } else {
+        coverEl.hidden = true;
+        coverImg.removeAttribute("src");
+      }
+    }
+  }
 
-/* ===== bottom sheet (QR) — pro card style ===== */
+  function renderProgress(){
+    const total = styles.length;
+    const got = collected.size;
+    if (!progWrap || !progBar || !progTxt) return;
 
-/* настройка высоты нижнего меню (можешь подогнать под свой таббар) */
-.blk-passport{
-  --pp-tabbar-h: var(--tabbar-h, 74px); /* было/нет токена — ставим дефолт */
-  --pp-sheet-gap: 10px;                 /* воздушный зазор от меню */
-}
+    if (!total){
+      progWrap.hidden = true;
+      return;
+    }
+    progWrap.hidden = false;
+    const pct = total ? clamp01(got / total) : 0;
+    progBar.style.width = `${Math.round(pct * 100)}%`;
+    progTxt.textContent = `${got}/${total}`;
+  }
 
-.blk-passport .pp-sheet{
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
-.blk-passport .pp-sheet[hidden]{
-  display: none !important;
-}
+  // ===== QR helpers (variant 2: from state.passport_reward.redeem_code + state.bot_username)
+  const completeShowQr = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
+  const completeHideHeader = (P.complete_hide_header === undefined) ? true : !!P.complete_hide_header;
 
-.blk-passport .pp-sheet-backdrop{
-  position:absolute;
-  inset:0;
-  background: rgba(0,0,0,.52);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
+  const qrTitleText = str(P.qr_title, "🎁 Получите приз");
+  const qrHelpText  = str(P.qr_text, "Покажите этот QR кассиру, чтобы получить подарок.");
+  const qrShowCodeText = !!P.qr_show_code_text;
 
-/* панель как отдельная card */
-.blk-passport .pp-sheet-panel{
-  position:absolute;
-  left: 10px;
-  right: 10px;
+  const qrService = str(P.qr_service, "https://quickchart.io/qr");
+  const qrSize    = Math.max(120, num(P.qr_size, 260));
+  const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
-  /* 👇 НЕ липнем к меню: поднимаем на высоту таббара + safe-area + gap */
-  bottom: calc(var(--pp-tabbar-h) + env(safe-area-inset-bottom) + var(--pp-sheet-gap));
+  function openSheet(){
+    if (!sheetEl) return;
+    sheetEl.hidden = false;
+    sheetEl.classList.add("is-open");
+  }
 
-  /* card look */
-  border-radius: 22px;
-  background: var(--pp-surface);
-  border: 1px solid rgba(255,255,255,.10);
+  function closeSheet(){
+    if (!sheetEl) return;
+    sheetEl.classList.remove("is-open");
+    setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
+  }
 
-  /* мягче тень */
-  box-shadow:
-    0 18px 60px rgba(0,0,0,.45),
-    0 2px 10px rgba(0,0,0,.25);
+  // close on backdrop / handle
+  try{
+    sheetCloseEls && sheetCloseEls.forEach && sheetCloseEls.forEach(el=>{
+      el.addEventListener("click", closeSheet);
+    });
+  }catch(_){}
 
-  /* внутрянка */
-  padding: 12px 14px 14px;
+  function setQrVisible(v){
+    if (v) openSheet();
+    else closeSheet();
+  }
 
-  /* iOS-like motion */
-  transform: translateY(22px);
-  opacity: 0;
-  transition:
-    transform .22s cubic-bezier(.2,.8,.2,1),
-    opacity   .18s ease;
+  function setQrTextLink(text){
+    if (!qrCodeText) return;
+    if (qrShowCodeText){
+      qrCodeText.hidden = false;
+      qrCodeText.textContent = text || "";
+    }else{
+      qrCodeText.hidden = true;
+      qrCodeText.textContent = "";
+    }
+  }
 
-  /* если контента много — скролл внутри */
-  max-height: min(72vh, 560px);
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-}
+  function getRedeemDeepLink(){
+    const pr = state && (state.passport_reward || state.reward || state.pass_reward)
+      ? (state.passport_reward || state.reward || state.pass_reward)
+      : null;
 
-/* состояние открыто */
-.blk-passport .pp-sheet.is-open .pp-sheet-panel{
-  transform: translateY(0);
-  opacity: 1;
-}
+    const code = pr && (pr.redeem_code || pr.code || pr.redeemCode)
+      ? String(pr.redeem_code || pr.code || pr.redeemCode).trim()
+      : "";
+    if (!code) return "";
 
-/* ручка */
-.blk-passport .pp-sheet-handle{
-  width: 44px;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.22);
-  margin: 2px auto 10px;
-}
+    const botRaw =
+      (state && (state.bot_username || state.botUsername)) ||
+      (P && (P.bot_username || P.botUsername)) ||
+      "";
 
-/* чуть “воздуха” вокруг QR внутри card */
-.blk-passport .pp-sheet .pp-qr-card{
-  width: 100%;
-}
+    const bot = botRaw ? String(botRaw).replace(/^@/,'').trim() : "";
 
-/* на очень маленьких экранах убираем боковые отступы */
-@media (max-width: 360px){
-  .blk-passport .pp-sheet-panel{
-    left: 6px;
-    right: 6px;
+    // start payload must be redeem_<code>
+    const startPayload = "redeem_" + code;
+
+    if (bot) return `https://t.me/${bot}?start=${encodeURIComponent(startPayload)}`;
+
+    // fallback: just payload (if no bot_username)
+    return startPayload;
+  }
+
+  async function renderQr(){
+    if (!sheetEl) return;
+
+    // ✅ ВАЖНО: тут НИКАКИХ addEventListener — только рендер
+    if (!completeShowQr || !isComplete()){
+      setQrVisible(false);
+      return;
+    }
+
+    const link = getRedeemDeepLink();
+    if (!link){
+      // passport complete but no redeem_code yet
+      setQrVisible(true);
+      if (qrTitle) qrTitle.textContent = qrTitleText;
+      if (qrText)  qrText.textContent  = "Приз готовится… обновите экран";
+      setQrTextLink("Нет redeem_code в state");
+      return;
+    }
+
+    setQrVisible(true);
+    if (qrTitle) qrTitle.textContent = qrTitleText;
+    if (qrText)  qrText.textContent  = qrHelpText;
+    setQrTextLink(link);
+
+    if (!qrCanvas) return;
+
+    // set canvas size
+    try{
+      qrCanvas.width = qrSize;
+      qrCanvas.height = qrSize;
+    }catch(_){}
+
+    const ctx2 = qrCanvas.getContext("2d");
+    if (!ctx2) return;
+
+    // white bg
+    ctx2.fillStyle = "#fff";
+    ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
+
+    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(link)}`;
+
+    await new Promise((resolve)=>{
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = ()=>{
+        ctx2.drawImage(img, 0, 0, qrCanvas.width, qrCanvas.height);
+        resolve(true);
+      };
+      img.onerror = ()=>{
+        // fallback so you SEE something
+        ctx2.fillStyle = "#fff";
+        ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
+        ctx2.fillStyle = "#000";
+        ctx2.font = "12px ui-monospace, Menlo, Consolas, monospace";
+        ctx2.fillText("QR load error", 10, 20);
+        resolve(false);
+      };
+      img.src = qUrl;
+    });
+  }
+
+  async function renderMode(){
+    const done = isComplete();
+
+    // hide cards after completion (QR is shown via bottom sheet)
+    if (gridEl) gridEl.hidden = !!(completeShowQr && done);
+
+    if (completeShowQr && done && completeHideHeader){
+      const head = root.querySelector(".pp-head");
+      const prog = root.querySelector(".pp-progress");
+      if (head) head.style.display = "none";
+      if (prog) prog.style.display = "none";
+    } else {
+      const head = root.querySelector(".pp-head");
+      const prog = root.querySelector(".pp-progress");
+      if (head) head.style.display = "";
+      if (prog) prog.style.display = "";
+    }
+
+    // do NOT auto-open QR here — QR opens from the reward button
+  }
+
+  function renderReward(){
+    const enabled = !!P.reward_enabled;
+    if (!rewardWrap) return;
+
+    if (!enabled || !isComplete()){
+      rewardWrap.hidden = true;
+      return;
+    }
+
+    rewardWrap.hidden = false;
+    if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
+
+    const pr = state && (state.passport_reward || state.reward || state.pass_reward)
+      ? (state.passport_reward || state.reward || state.pass_reward)
+      : null;
+
+    let codeToShow = "";
+    let hint = "";
+
+    if (pr && (pr.redeem_code || pr.code)){
+      codeToShow = String(pr.redeem_code || pr.code);
+      hint = str(P.reward_text, "");
+    } else if (pr && Number(pr.coins) > 0){
+      hint = str(P.reward_text, "");
+      const coinsLine = `Начислено монет: ${Number(pr.coins)}`;
+      hint = hint ? (hint + "\n\n" + coinsLine) : coinsLine;
+    } else {
+      hint = str(P.reward_text, "");
+      const extra = "Приз готовится… обновите экран";
+      hint = hint ? (hint + "\n\n" + extra) : extra;
+    }
+
+    if (rewardText) rewardText.textContent = hint;
+
+    if (rewardCode){
+      if (codeToShow){
+        rewardCode.hidden = false;
+        rewardCode.textContent = codeToShow;
+      } else {
+        rewardCode.hidden = true;
+        rewardCode.textContent = "";
+      }
+    }
+  }
+
+  function cardHtml(st, idx){
+    const sid = getStyleId(st);
+    const done = sid && isDone(sid);
+    const img = str(st && st.image, "").trim();
+    const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
+    const desc = str(st && (st.desc || st.subtitle), "");
+
+    const disabled = !sid || done || busy.has(sid);
+    const badge = done ? "✓" : `${idx+1}`;
+
+    // ✅ делаем карточку настоящей кнопкой — в TG WebView клики стабильнее
+    return `
+      <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
+        data-sid="${escapeHtml(sid)}"
+        data-done="${done ? 1 : 0}"
+        ${disabled ? "disabled" : ""}>
+        <div class="pp-badge">${escapeHtml(badge)}</div>
+
+        <div class="pp-card-top">
+          <div class="pp-ico">
+            ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
+          </div>
+
+          <div class="pp-txt">
+            <div class="pp-name">${escapeHtml(name)}</div>
+            ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
+            <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  }
+
+  function renderGrid(){
+    if (!gridEl) return;
+    gridEl.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
+    gridEl.innerHTML = styles.map(cardHtml).join("");
+
+    gridEl.querySelectorAll(".pp-card").forEach(card=>{
+      const sid = card.getAttribute("data-sid") || "";
+
+      card.addEventListener("click", async ()=>{
+        if (!sid) return;
+        if (card.disabled) return;
+        if (isDone(sid)) return;
+        if (busy.has(sid)) return;
+        await onCollectClick(sid);
+      });
+    });
+  }
+
+  // ----- normalize collected (so old worker formats don't break)
+  function normalizeCollected(st){
+    const out = new Set();
+    if (!st) return out;
+
+    const candidates = [
+      st.styles,
+      st.styles_collected,
+      st.collected_styles,
+      st.stamps,
+      st.done_styles,
+      st.passport && st.passport.styles,
+      st.passport && st.passport.collected
+    ];
+
+    let arr = null;
+    for (const c of candidates){
+      if (Array.isArray(c)) { arr = c; break; }
+    }
+
+    if (arr){
+      for (const it of arr){
+        if (it === null || it === undefined) continue;
+        if (typeof it === "string" || typeof it === "number") out.add(String(it));
+        else if (typeof it === "object"){
+          const v = it.code || it.style_id || it.styleId || it.id || it.key;
+          if (v !== undefined && v !== null) out.add(String(v));
+        }
+      }
+      return out;
+    }
+
+    const map = st.styles_map || st.collected_map || st.stamps_map;
+    if (map && typeof map === "object"){
+      for (const k of Object.keys(map)){
+        if (map[k]) out.add(String(k));
+      }
+    }
+
+    return out;
+  }
+
+  async function refreshFromServer(){
+    const j = await apiState();
+    const st = (j && (j.state || j.fresh_state || j.fresh || j.data || j.result))
+      ? (j.state || j.fresh_state || j.fresh || j.data || j.result)
+      : j;
+    await applyState(st);
+  }
+
+  async function applyState(st){
+    state = st || {};
+    collected = normalizeCollected(state);
+    renderProgress();
+    renderReward();
+    renderGrid();
+    try{ await renderMode(); }catch(_){}
+  }
+
+  async function collectDirectPin(styleId, pin){
+    const res = await apiCollect(styleId, pin);
+    const st = (res && (res.fresh_state || res.state || res.result))
+      ? (res.fresh_state || res.state || res.result)
+      : res;
+    if (st) await applyState(st);
+    else await refreshFromServer();
+  }
+
+  async function collectNoPin(styleId){
+    const res = await apiCollect(styleId, "");
+    const st = (res && (res.fresh_state || res.state || res.result))
+      ? (res.fresh_state || res.state || res.result)
+      : res;
+    if (st) await applyState(st);
+    else await refreshFromServer();
+  }
+
+  async function collectBotPin(styleId){
+    await uiAlert("⚠️ Режим bot_pin пока не включён в воркере. Используй direct_pin (модалка).");
+  }
+
+  async function onCollectClick(styleId){
+    try{
+      haptic("light");
+
+      // ✅ direct_pin: просто открываем модалку, без busy/renderGrid
+      if (requirePin && collectMode === "direct_pin"){
+        selectedStyleId = styleId;
+        selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
+        if (modalTitle) modalTitle.textContent = "Введите PIN";
+        if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
+        setModalVisible(true);
+        return;
+      }
+
+      // ✅ для остальных случаев busy нужен только на момент запроса
+      busy.add(styleId);
+      renderGrid();
+
+      if (requirePin){
+        await collectBotPin(styleId);
+      } else {
+        await collectNoPin(styleId);
+      }
+    } catch (e){
+      await uiAlert((e && e.message) ? e.message : "Ошибка");
+    } finally {
+      if (busy.has(styleId)){
+        busy.delete(styleId);
+        renderGrid();
+      }
+    }
+  }
+
+  // modal events
+  if (modalOk){
+    modalOk.addEventListener("click", async ()=>{
+      const pin = str(pinInp && pinInp.value, "").trim();
+      if (requirePin && !pin){
+        if (modalErr){ modalErr.hidden=false; modalErr.textContent="Введите PIN"; }
+        return;
+      }
+      if (modalErr){ modalErr.hidden=true; modalErr.textContent=""; }
+
+      try{
+        haptic("light");
+
+        // ✅ busy только во время подтверждения PIN
+        if (selectedStyleId){
+          busy.add(selectedStyleId);
+          renderGrid();
+        }
+
+        await collectDirectPin(selectedStyleId, pin);
+        setModalVisible(false);
+      } catch (e){
+        const msg = (e && e.message) ? e.message : "PIN неверный";
+        if (modalErr){
+          modalErr.hidden=false;
+          modalErr.textContent = msg;
+        } else {
+          await uiAlert(msg);
+        }
+      } finally {
+        if (selectedStyleId && busy.has(selectedStyleId)){
+          busy.delete(selectedStyleId);
+          renderGrid();
+        }
+      }
+    });
+  }
+  if (modalCancel) modalCancel.addEventListener("click", ()=> setModalVisible(false));
+  if (modalClose)  modalClose.addEventListener("click", ()=> setModalVisible(false));
+
+  // ---------- init
+  renderHeader();
+  renderGrid();
+  renderProgress();
+  renderReward();
+  setQrVisible(false);
+
+  // ✅ Open QR bottom sheet from reward card button (ONLY HERE)
+  if (openQrBtn){
+    openQrBtn.addEventListener("click", async ()=>{
+      openSheet();
+      try{ await renderQr(); }catch(_){ }
+    });
+  }
+
+  try{
+    if (ctx && ctx.state) await applyState(ctx.state);
+    else await refreshFromServer();
+  }catch(e){
+    await uiAlert((e && e.message) ? e.message : "Не удалось загрузить состояние");
   }
 }
