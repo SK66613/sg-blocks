@@ -135,6 +135,9 @@ export async function mount(root, props = {}, ctx = {}) {
   const sheetEl   = root.querySelector("[data-pp-sheet]");
   const sheetCloseEls = root.querySelectorAll("[data-pp-sheet-close]");
 
+  const sheetPanel = sheetEl ? sheetEl.querySelector(".pp-sheet-panel") : null;
+
+
   const qrTitle  = root.querySelector("[data-pp-qr-title]");
   const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
@@ -234,17 +237,69 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrSize    = Math.max(120, num(P.qr_size, 260));
   const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
+    // ===== Sheet swipe (down-to-close)
+  const SWIPE_CLOSE_PX = Math.max(50, num(P.sheet_swipe_close_px, 90));   // сколько тянуть вниз чтобы закрыть
+  const SWIPE_VELOCITY = Math.max(0.3, num(P.sheet_swipe_velocity, 0.6)); // px/ms, быстрый свайп закрывает
+  const SWIPE_EDGE_PX  = Math.max(10, num(P.sheet_swipe_edge_px, 6));     // анти-дребезг
+
+
+    let sheetOpen = false;
+
+  function lockBodyScroll(locked){
+    // блокируем прокрутку фона, пока sheet открыт (очень важно для iOS/TG)
+    try{
+      const b = doc.body;
+      if (!b) return;
+      if (locked){
+        b.dataset.ppSheetLock = "1";
+        b.style.overflow = "hidden";
+        b.style.touchAction = "none";
+      }else{
+        if (b.dataset.ppSheetLock === "1"){
+          delete b.dataset.ppSheetLock;
+          b.style.overflow = "";
+          b.style.touchAction = "";
+        }
+      }
+    }catch(_){}
+  }
+
+  function setSheetTranslate(px){
+    if (!sheetPanel) return;
+    sheetPanel.style.transform = px ? `translateY(${px}px)` : "";
+  }
+
+  function setSheetDragState(on){
+    if (!sheetPanel) return;
+    if (on){
+      sheetPanel.style.transition = "none";
+    }else{
+      sheetPanel.style.transition = "";
+    }
+  }
+
   function openSheet(){
     if (!sheetEl) return;
     sheetEl.hidden = false;
+    // сброс drag
+    setSheetDragState(false);
+    setSheetTranslate(0);
     sheetEl.classList.add("is-open");
+    sheetOpen = true;
+    lockBodyScroll(true);
   }
 
   function closeSheet(){
     if (!sheetEl) return;
     sheetEl.classList.remove("is-open");
+    sheetOpen = false;
+    lockBodyScroll(false);
+    // сброс drag, чтобы в следующий раз не было смещения
+    setSheetDragState(false);
+    setSheetTranslate(0);
     setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
   }
+
 
   // close on backdrop / handle
   try{
@@ -252,6 +307,98 @@ export async function mount(root, props = {}, ctx = {}) {
       el.addEventListener("click", closeSheet);
     });
   }catch(_){}
+
+    // ===== Swipe-to-close (drag down on panel)
+  (function setupSheetSwipe(){
+    if (!sheetEl || !sheetPanel) return;
+
+    let dragging = false;
+    let startY = 0;
+    let lastY = 0;
+    let startT = 0;
+
+    function getY(ev){
+      if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientY;
+      if (ev && ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0].clientY;
+      return ev.clientY;
+    }
+
+    function onStart(ev){
+      if (!sheetOpen) return;
+
+      // стартуем только если тач на панели (не на бекдропе)
+      const y = getY(ev);
+      if (!Number.isFinite(y)) return;
+
+      dragging = true;
+      startY = y;
+      lastY = y;
+      startT = performance.now();
+
+      setSheetDragState(true);
+
+      // iOS: важно — не дать странице “перехватить” жест
+      try{ ev.preventDefault(); }catch(_){}
+    }
+
+    function onMove(ev){
+      if (!dragging) return;
+      const y = getY(ev);
+      if (!Number.isFinite(y)) return;
+
+      const dy = Math.max(0, y - startY);
+      lastY = y;
+
+      // маленький шум игнорируем
+      if (dy < SWIPE_EDGE_PX) return;
+
+      setSheetTranslate(dy);
+
+      try{ ev.preventDefault(); }catch(_){}
+      try{ ev.stopPropagation(); }catch(_){}
+    }
+
+    function onEnd(ev){
+      if (!dragging) return;
+      dragging = false;
+
+      const endT = performance.now();
+      const dt = Math.max(1, endT - startT);
+
+      const y = getY(ev);
+      const dy = Math.max(0, (Number.isFinite(y) ? y : lastY) - startY);
+      const v = dy / dt; // px/ms
+
+      setSheetDragState(false);
+
+      // закрываем если дотянули или “быстро свайпнули”
+      if (dy >= SWIPE_CLOSE_PX || v >= SWIPE_VELOCITY){
+        haptic("light");
+        closeSheet();
+        return;
+      }
+
+      // иначе возвращаем назад
+      setSheetTranslate(0);
+    }
+
+    // PointerEvents если есть
+    const hasPointer = "PointerEvent" in win;
+
+    if (hasPointer){
+      sheetPanel.addEventListener("pointerdown", onStart, { passive:false });
+      win.addEventListener("pointermove", onMove, { passive:false });
+      win.addEventListener("pointerup", onEnd, { passive:false });
+      win.addEventListener("pointercancel", onEnd, { passive:false });
+    }else{
+      // Touch fallback
+      sheetPanel.addEventListener("touchstart", onStart, { passive:false });
+      win.addEventListener("touchmove", onMove, { passive:false });
+      win.addEventListener("touchend", onEnd, { passive:false });
+      win.addEventListener("touchcancel", onEnd, { passive:false });
+    }
+  })();
+
 
   function setQrVisible(v){
     if (v) openSheet();
