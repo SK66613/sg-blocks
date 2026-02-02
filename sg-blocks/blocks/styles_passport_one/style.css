@@ -300,7 +300,7 @@
 
 /* ===== reward ===== */
 .blk-passport .pp-reward{
-  padding: 0 0px 14px;
+  padding: 0 0px 0px;
 }
 .blk-passport .pp-reward-card{
   border-radius: var(--pp-r-card);
