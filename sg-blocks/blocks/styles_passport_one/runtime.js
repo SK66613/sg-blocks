@@ -130,6 +130,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const rewardTitle= root.querySelector("[data-pp-reward-title]");
   const rewardText = root.querySelector("[data-pp-reward-text]");
   const rewardCode = root.querySelector("[data-pp-reward-code]");
+
   // QR bottom sheet
   const sheetEl   = root.querySelector("[data-pp-sheet]");
   const sheetCloseEls = root.querySelectorAll("[data-pp-sheet-close]");
@@ -233,7 +234,6 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrSize    = Math.max(120, num(P.qr_size, 260));
   const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
-  
   function openSheet(){
     if (!sheetEl) return;
     sheetEl.hidden = false;
@@ -257,6 +257,7 @@ export async function mount(root, props = {}, ctx = {}) {
     if (v) openSheet();
     else closeSheet();
   }
+
   function setQrTextLink(text){
     if (!qrCodeText) return;
     if (qrShowCodeText){
@@ -273,7 +274,9 @@ export async function mount(root, props = {}, ctx = {}) {
       ? (state.passport_reward || state.reward || state.pass_reward)
       : null;
 
-    const code = pr && (pr.redeem_code || pr.code || pr.redeemCode) ? String(pr.redeem_code || pr.code || pr.redeemCode).trim() : "";
+    const code = pr && (pr.redeem_code || pr.code || pr.redeemCode)
+      ? String(pr.redeem_code || pr.code || pr.redeemCode).trim()
+      : "";
     if (!code) return "";
 
     const botRaw =
@@ -295,16 +298,9 @@ export async function mount(root, props = {}, ctx = {}) {
   async function renderQr(){
     if (!sheetEl) return;
 
+    // ✅ ВАЖНО: тут НИКАКИХ addEventListener — только рендер
     if (!completeShowQr || !isComplete()){
       setQrVisible(false);
-
-  // Open QR bottom sheet from reward card button
-  if (openQrBtn){
-    openQrBtn.addEventListener("click", async ()=>{
-      openSheet();
-      try{ await renderQr(); }catch(_){ }
-    });
-  }
       return;
     }
 
@@ -360,7 +356,6 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  
   async function renderMode(){
     const done = isComplete();
 
@@ -381,6 +376,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
     // do NOT auto-open QR here — QR opens from the reward button
   }
+
   function renderReward(){
     const enabled = !!P.reward_enabled;
     if (!rewardWrap) return;
@@ -426,7 +422,6 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  
   function cardHtml(st, idx){
     const sid = getStyleId(st);
     const done = sid && isDone(sid);
@@ -437,22 +432,26 @@ export async function mount(root, props = {}, ctx = {}) {
     const disabled = !sid || done || busy.has(sid);
     const badge = done ? "✓" : `${idx+1}`;
 
+    // ✅ делаем карточку настоящей кнопкой — в TG WebView клики стабильнее
     return `
-      <div class="pp-card ${disabled ? "is-disabled" : ""}" role="button" tabindex="${disabled ? "-1" : "0"}"
-        aria-disabled="${disabled ? "true" : "false"}"
-        data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}">
+      <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
+        data-sid="${escapeHtml(sid)}"
+        data-done="${done ? 1 : 0}"
+        ${disabled ? "disabled" : ""}>
         <div class="pp-badge">${escapeHtml(badge)}</div>
+
         <div class="pp-card-top">
           <div class="pp-ico">
             ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
           </div>
+
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
             <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
           </div>
         </div>
-      </div>
+      </button>
     `;
   }
 
@@ -463,25 +462,17 @@ export async function mount(root, props = {}, ctx = {}) {
 
     gridEl.querySelectorAll(".pp-card").forEach(card=>{
       const sid = card.getAttribute("data-sid") || "";
-      const isDisabled = card.classList.contains("is-disabled") || card.getAttribute("aria-disabled")==="true";
 
-      async function go(){
+      card.addEventListener("click", async ()=>{
         if (!sid) return;
-        if (isDisabled) return;
+        if (card.disabled) return;
         if (isDone(sid)) return;
         if (busy.has(sid)) return;
         await onCollectClick(sid);
-      }
-
-      card.addEventListener("click", go);
-      card.addEventListener("keydown", (e)=>{
-        if (e.key === "Enter" || e.key === " "){
-          e.preventDefault();
-          go();
-        }
       });
     });
   }
+
   // ----- normalize collected (so old worker formats don't break)
   function normalizeCollected(st){
     const out = new Set();
@@ -526,7 +517,9 @@ export async function mount(root, props = {}, ctx = {}) {
 
   async function refreshFromServer(){
     const j = await apiState();
-    const st = (j && (j.state || j.fresh_state || j.fresh || j.data || j.result)) ? (j.state || j.fresh_state || j.fresh || j.data || j.result) : j;
+    const st = (j && (j.state || j.fresh_state || j.fresh || j.data || j.result))
+      ? (j.state || j.fresh_state || j.fresh || j.data || j.result)
+      : j;
     await applyState(st);
   }
 
@@ -536,20 +529,23 @@ export async function mount(root, props = {}, ctx = {}) {
     renderProgress();
     renderReward();
     renderGrid();
-    // completion -> QR
     try{ await renderMode(); }catch(_){}
   }
 
   async function collectDirectPin(styleId, pin){
     const res = await apiCollect(styleId, pin);
-    const st = (res && (res.fresh_state || res.state || res.result)) ? (res.fresh_state || res.state || res.result) : res;
+    const st = (res && (res.fresh_state || res.state || res.result))
+      ? (res.fresh_state || res.state || res.result)
+      : res;
     if (st) await applyState(st);
     else await refreshFromServer();
   }
 
   async function collectNoPin(styleId){
     const res = await apiCollect(styleId, "");
-    const st = (res && (res.fresh_state || res.state || res.result)) ? (res.fresh_state || res.state || res.result) : res;
+    const st = (res && (res.fresh_state || res.state || res.result))
+      ? (res.fresh_state || res.state || res.result)
+      : res;
     if (st) await applyState(st);
     else await refreshFromServer();
   }
@@ -590,7 +586,6 @@ export async function mount(root, props = {}, ctx = {}) {
       }
     }
   }
-
 
   // modal events
   if (modalOk){
@@ -639,7 +634,7 @@ export async function mount(root, props = {}, ctx = {}) {
   renderReward();
   setQrVisible(false);
 
-  // Open QR bottom sheet from reward card button
+  // ✅ Open QR bottom sheet from reward card button (ONLY HERE)
   if (openQrBtn){
     openQrBtn.addEventListener("click", async ()=>{
       openSheet();
