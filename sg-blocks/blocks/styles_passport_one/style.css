@@ -298,7 +298,7 @@
   display: none !important;
 }
 
-/* ===== reward ===== 
+/* ===== reward ===== */
 .blk-passport .pp-reward{
   padding: 0 0px 0px;
 }
@@ -308,25 +308,11 @@
   background: color-mix(in srgb, var(--pp-brand), transparent 88%);
   box-shadow: var(--pp-shadow2);
   padding: 14px;
-}*/
-
-/* ===== reward (as section, like pp-head) ===== */
-.blk-passport .pp-reward{
-  padding: var(--pp-pad);
-  padding-top: 0;          /* если нужно без верхнего отступа */
-  padding-bottom: var(--pp-pad);
 }
 
-/* контейнер остаётся, но не “карточка” */
-.blk-passport .pp-reward-card{
-  padding: 0;              /* ✅ ключевое */
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  border-radius: 0;
-}
 
-/*
+
+/**/
 .blk-passport .pp-reward-title{
   font-weight: var(--pp-fw-head);
   font-size: 15px;
@@ -354,7 +340,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-}*/
+}
 
 
 /* ===== modal (CENTERED) ===== */
