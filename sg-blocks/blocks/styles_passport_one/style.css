@@ -55,6 +55,7 @@
 }
 
 .blk-passport .pp-title{
+  margin: 0;
   font-family: var(--pp-font-head);
   font-weight: var(--pp-fw-head);
   font-style: var(--pp-it-head);
@@ -112,6 +113,8 @@
   color: var(--pp-muted);
 }
 
+/* ===== grid/cards ===== */
+
 .blk-passport .pp-grid{
   padding: var(--container-pad, 16px);
   padding-top: 8px;
@@ -120,7 +123,13 @@
   grid-template-columns: repeat(3, minmax(0, 1fr)); /* overridden inline by runtime */
 }
 
+/* Card is clickable */
 .blk-passport .pp-card{
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+  width: 100%;
+  text-align: left;
+
   position: relative;
   border-radius: var(--pp-r-card);
   background: rgba(255,255,255,.03);
@@ -130,22 +139,36 @@
   min-height: 118px;
   display:flex;
   flex-direction:column;
+  padding: 12px;
+  cursor: pointer;
 }
+.blk-passport .pp-card:active{
+  transform: translateY(1px);
+}
+.blk-passport .pp-card[disabled]{
+  opacity:.55;
+  cursor: default;
+  transform: none;
+}
+
+/* done state */
 .blk-passport .pp-card[data-done="1"]{
   background: linear-gradient(180deg, rgba(124,92,255,.16), rgba(255,255,255,.02));
   border-color: rgba(124,92,255,.40);
 }
 
+/* layout inside card */
 .blk-passport .pp-card-top{
-  padding: 12px 12px 8px 12px;
   display:flex;
   gap:10px;
   align-items:flex-start;
 }
+
+/* image box */
 .blk-passport .pp-ico{
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.08);
   overflow:hidden;
@@ -153,6 +176,7 @@
   display:flex;
   align-items:center;
   justify-content:center;
+  position: relative;
 }
 .blk-passport .pp-ico img{
   width:100%;
@@ -165,46 +189,39 @@
   color: var(--pp-muted);
 }
 
+/* lock overlay when NOT done */
+.blk-passport .pp-card[data-done="0"] .pp-ico::after{
+  content: "🔒";
+  position: absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,.28);
+  backdrop-filter: blur(1px);
+  font-size: 16px;
+}
+
+/* unlock hint when done */
+.blk-passport .pp-card[data-done="1"] .pp-ico::after{
+  content: "";
+}
+
 .blk-passport .pp-name{
-  font-weight: 800;
+  font-weight: var(--pp-fw-head);
+  font-style: var(--pp-it-head);
+  text-decoration: var(--pp-ul-head);
   line-height: 1.15;
   font-size: 14px;
 }
 .blk-passport .pp-desc{
   margin-top: 4px;
   font-size: 12px;
+  font-weight: var(--pp-fw-body);
+  font-style: var(--pp-it-body);
+  text-decoration: var(--pp-ul-body);
   color: var(--pp-muted);
   line-height: 1.25;
-}
-
-.blk-passport .pp-card-bot{
-  padding: 0 12px 12px 12px;
-  margin-top: auto;
-}
-
-.blk-passport .pp-btn{
-  width:100%;
-  border-radius: var(--pp-r-btn);
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: var(--pp-text);
-  font-family: var(--pp-font-btn);
-  font-weight: var(--pp-fw-btn);
-  font-size: var(--pp-fs-btn);
-  padding: 10px 12px;
-  cursor:pointer;
-}
-.blk-passport .pp-btn.primary{
-  background: var(--btn-primary-bg, var(--pp-brand));
-  color: var(--btn-primary-text, #fff);
-  border-color: rgba(0,0,0,.0);
-}
-.blk-passport .pp-btn.ghost{
-  background: rgba(255,255,255,.04);
-}
-.blk-passport .pp-btn[disabled]{
-  opacity:.55;
-  cursor: default;
 }
 
 .blk-passport .pp-badge{
@@ -219,39 +236,64 @@
   border-radius: 999px;
 }
 
-.blk-passport .pp-reward{
-  padding: 0 var(--container-pad, 16px) var(--container-pad, 16px);
+/* ===== QR view ===== */
+.blk-passport .pp-qr{
+  padding: 8px var(--container-pad, 16px) var(--container-pad, 16px);
 }
-.blk-passport .pp-reward-card{
+.blk-passport .pp-qr-card{
   border-radius: var(--pp-r-card);
-  border: 1px solid rgba(124,92,255,.35);
-  background: rgba(124,92,255,.10);
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
   box-shadow: var(--pp-shadow2);
   padding: 14px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
 }
-.blk-passport .pp-reward-title{
-  font-weight: 900;
-  font-size: 15px;
+.blk-passport .pp-qr-title{
+  font-family: var(--pp-font-head);
+  font-weight: var(--pp-fw-head);
+  font-style: var(--pp-it-head);
+  text-decoration: var(--pp-ul-head);
+  font-size: 16px;
 }
-.blk-passport .pp-reward-text{
-  margin-top: 6px;
+.blk-passport .pp-qr-imgwrap{
+  width: min(240px, 72vw);
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: #fff;
+  overflow: hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.blk-passport .pp-qr-imgwrap canvas{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+.blk-passport .pp-qr-text{
   font-size: 13px;
-  color: var(--pp-text);
-  opacity: .92;
+  color: var(--pp-muted);
   line-height: 1.3;
+  white-space: pre-wrap;
 }
-.blk-passport .pp-reward-code{
-  margin-top: 10px;
+.blk-passport .pp-qr-code{
+  margin-top: 2px;
   background: rgba(0,0,0,.18);
   border: 1px solid rgba(255,255,255,.10);
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 900;
-  letter-spacing: .06em;
+  letter-spacing: .02em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  word-break: break-all;
 }
 
-/* ===== modal ===== */
+/* ===== modal (CENTERED) ===== */
 .blk-passport .pp-modal{
   position: fixed;
   inset: 0;
@@ -267,7 +309,11 @@
   position:absolute;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 420px;
+  margin: 0 auto;
+
   border-radius: calc(var(--pp-r-card) + 2px);
   background: var(--pp-surface);
   border: 1px solid var(--pp-border);
@@ -299,8 +345,31 @@
   display:flex;
   gap:10px;
 }
+.blk-passport .pp-btn{
+  border-radius: var(--pp-r-btn);
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: var(--pp-text);
+  font-family: var(--pp-font-btn);
+  font-weight: var(--pp-fw-btn);
+  font-size: var(--pp-fs-btn);
+  padding: 10px 12px;
+  cursor:pointer;
+}
+.blk-passport .pp-btn.primary{
+  background: var(--btn-primary-bg, var(--pp-brand));
+  color: var(--btn-primary-text, #fff);
+  border-color: rgba(0,0,0,.0);
+}
+.blk-passport .pp-btn.ghost{
+  background: rgba(255,255,255,.04);
+}
 .blk-passport .pp-modal-actions .pp-btn{
-  flex:1;
+  flex: 1;
+}
+.blk-passport .pp-btn[disabled]{
+  opacity:.55;
+  cursor: default;
 }
 .blk-passport .pp-modal-err{
   margin-top: 8px;
