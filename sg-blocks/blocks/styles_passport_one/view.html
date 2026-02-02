@@ -16,13 +16,24 @@
 
   <div class="pp-grid" data-pp-grid></div>
 
-  <!-- QR view (shown on complete if enabled) -->
-  <div class="pp-qr" data-pp-qr hidden>
-    <div class="pp-qr-card">
-      <div class="pp-qr-title" data-pp-qr-title>🎁 Получите приз</div>
-      <div class="pp-qr-imgwrap">
-        <canvas data-pp-qr-canvas width="260" height="260"></canvas>
+
+  <!-- Bottom sheet with QR -->
+  <div class="pp-sheet" data-pp-sheet hidden>
+    <div class="pp-sheet-backdrop" data-pp-sheet-close></div>
+    <div class="pp-sheet-panel">
+      <div class="pp-sheet-handle" data-pp-sheet-close></div>
+
+      <div class="pp-qr-card">
+        <div class="pp-qr-title" data-pp-qr-title>🎁 Получите приз</div>
+        <div class="pp-qr-text" data-pp-qr-text></div>
+        <div class="pp-qr-imgwrap">
+          <canvas data-pp-qr-canvas width="260" height="260"></canvas>
+        </div>
+        <div class="pp-qr-code" data-pp-qr-code hidden></div>
       </div>
+    </div>
+  </div>
+
       <div class="pp-qr-text" data-pp-qr-text></div>
       <div class="pp-qr-code" data-pp-qr-code hidden></div>
     </div>
@@ -33,6 +44,7 @@
       <div class="pp-reward-title" data-pp-reward-title>🎁 Приз</div>
       <div class="pp-reward-text" data-pp-reward-text></div>
       <div class="pp-reward-code" data-pp-reward-code hidden></div>
+      <button class="pp-btn primary" type="button" data-pp-open-qr>Получить приз</button>
     </div>
   </div>
 
