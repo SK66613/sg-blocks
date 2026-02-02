@@ -278,6 +278,7 @@
   color: var(--pp-text);
   opacity: .92;
   line-height: 1.3;
+  white-space: pre-wrap;
 }
 .blk-passport .pp-reward-code{
   margin-top: 10px;
@@ -289,11 +290,11 @@
   letter-spacing: .06em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
-
-/* ===== QR view ===== */
-.blk-passport .pp-qr{
-  padding: 8px var(--container-pad, 16px) var(--container-pad, 16px);
+.blk-passport .pp-reward .pp-btn{
+  margin-top: 12px;
 }
+
+/* ===== shared QR card (used inside sheet) ===== */
 .blk-passport .pp-qr-card{
   border-radius: var(--pp-r-card);
   border: 1px solid rgba(255,255,255,.10);
@@ -351,6 +352,9 @@
   inset: 0;
   z-index: 9999;
 }
+.blk-passport .pp-modal[hidden]{
+  display: none !important;
+}
 .blk-passport .pp-modal-backdrop{
   position:absolute;
   inset:0;
@@ -398,6 +402,8 @@
   display:flex;
   gap:10px;
 }
+
+/* Buttons */
 .blk-passport .pp-btn{
   border-radius: var(--pp-r-btn);
   border: 1px solid rgba(255,255,255,.10);
@@ -429,11 +435,15 @@
   color: #ffb3b3;
   font-size: 12px;
 }
+
 /* ===== bottom sheet (QR) ===== */
 .blk-passport .pp-sheet{
   position: fixed;
   inset: 0;
   z-index: 9998;
+}
+.blk-passport .pp-sheet[hidden]{
+  display: none !important;
 }
 .blk-passport .pp-sheet-backdrop{
   position:absolute;
