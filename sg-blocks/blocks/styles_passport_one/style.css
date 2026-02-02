@@ -37,6 +37,7 @@
 
   --pp-brand:     var(--accent, var(--color-brand, #7C5CFF));
   --pp-onbrand:   var(--onAccent, var(--btn-primary-text, #fff));
+  --pp-brand-soft: var(--color-brand-soft, rgba(124,92,255,.18)); /* ✅ пустая часть прогресса */
 
   /* ===== Radius bridges ===== */
   --pp-r-card:  var(--radius-card, 16px);
@@ -55,17 +56,23 @@
   color: var(--pp-text);
   font-family: var(--pp-font-body);
   -webkit-tap-highlight-color: transparent;
+
+  /* ✅ как у календаря: весь паспорт = большая карточка */
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-r-card);
+  background: var(--pp-card);
+  box-shadow: var(--pp-shadow2);
+  padding: 14px; /* как .cal-card */
 }
 
-/* ===== header ===== */
-
+/* ===== header (внутри card, без внешних паддингов) ===== */
 .blk-passport .pp-head{
   display:flex;
   gap:12px;
   align-items:flex-start;
   justify-content:space-between;
-  padding: var(--pp-pad);
-  padding-bottom: 8px;
+  padding: 0;
+  margin-bottom: 8px;
 }
 
 .blk-passport .pp-title{
@@ -95,7 +102,7 @@
   overflow:hidden;
   flex: 0 0 auto;
   border: 1px solid var(--pp-border);
-  background: color-mix(in srgb, var(--pp-card), transparent 80%);
+  background: color-mix(in srgb, var(--pp-surface), transparent 70%);
 }
 .blk-passport .pp-cover img{
   width:100%;
@@ -104,24 +111,26 @@
   display:block;
 }
 
-/* ===== progress ===== */
-
+/* ===== progress (отдельно, но внутри общей карточки) ===== */
 .blk-passport .pp-progress{
-  padding: 0 var(--pp-pad);
-  padding-bottom: 10px;
+  padding: 0;
+  margin: 8px 0 12px;
 }
 .blk-passport .pp-progress-bar{
   height: 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pp-card), transparent 80%);
-  border: 1px solid var(--pp-border);
+
+  /* ✅ пустая часть = brand-soft */
+  background: var(--pp-brand-soft);
+
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 25%);
   overflow:hidden;
 }
 .blk-passport .pp-progress-bar i{
   display:block;
   height:100%;
   width:0%;
-  background: linear-gradient(90deg, var(--pp-brand), color-mix(in srgb, var(--pp-brand), transparent 45%));
+  background: var(--pp-brand); /* ✅ заполненная = accent */
   border-radius: 999px;
 }
 .blk-passport .pp-progress-text{
@@ -131,13 +140,19 @@
 }
 
 /* ===== grid/cards ===== */
-
 .blk-passport .pp-grid{
-  padding: var(--pp-pad);
-  padding-top: 8px;
+  padding: 0;
   display:grid;
   gap: var(--pp-gap);
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* responsive like calendar feel */
+@media (max-width: 520px){
+  .blk-passport .pp-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 340px){
+  .blk-passport .pp-grid{ grid-template-columns: 1fr; }
 }
 
 .blk-passport .pp-card{
@@ -148,8 +163,8 @@
 
   position: relative;
   border-radius: var(--pp-r-card);
-  background: var(--pp-card);
-  border: 1px solid var(--pp-border);
+  background: color-mix(in srgb, var(--pp-surface), transparent 35%);
+  border: 1px solid color-mix(in srgb, var(--pp-border), transparent 20%);
   overflow:hidden;
   min-height: 108px;
   display:flex;
@@ -160,12 +175,12 @@
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 
-/* лёгкое “glass” сверху (не ломает тему) */
 .blk-passport .pp-card::before{
   content:'';
   position:absolute;
   inset:0;
-  background: linear-gradient(180deg,
+  background: linear-gradient(
+    180deg,
     color-mix(in srgb, #fff, transparent 92%),
     transparent
   );
@@ -173,10 +188,8 @@
 }
 
 .blk-passport .pp-card:active{ transform: translateY(1px); }
-.blk-passport .pp-card:focus-visible{
-  outline:none;
-  box-shadow: var(--pp-ring);
-}
+.blk-passport .pp-card:focus-visible{ outline:none; box-shadow: var(--pp-ring); }
+
 .blk-passport .pp-card.is-disabled{
   opacity:.55;
   cursor: default;
@@ -215,7 +228,7 @@
   width: 44px;
   height: 44px;
   border-radius: calc(var(--pp-r-card) - 2px);
-  background: color-mix(in srgb, var(--pp-surface), transparent 20%);
+  background: color-mix(in srgb, var(--pp-card), transparent 10%);
   border: 1px solid color-mix(in srgb, var(--pp-border), transparent 30%);
   overflow:hidden;
   flex:0 0 auto;
@@ -272,28 +285,14 @@
   -webkit-box-orient: vertical;
 }
 
-.blk-passport .pp-action{
-  margin-top: 10px;
-  font-family: var(--pp-font-btn);
-  font-weight: var(--pp-fw-btn);
-  font-style: var(--pp-it-btn);
-  text-decoration: var(--pp-ul-btn);
-  font-size: var(--pp-fs-btn);
-  color: var(--pp-text);
-  opacity: .92;
-}
-.blk-passport .pp-card[data-done="0"] .pp-action{
-  color: var(--btnPrimaryText, var(--pp-onbrand));
-  background: var(--btnPrimaryBg, var(--btn-primary-bg, var(--pp-brand)));
-  display:inline-block;
-  padding: 6px 10px;
-  border-radius: var(--pp-r-btn);
-}
-.blk-passport .pp-card[data-done="1"] .pp-action{ color: var(--pp-muted); }
+/* ❌ убираем визуальную "кнопку Отметить" в карточке (карточка сама кликабельна)
+   (Если ты удалишь это из JS — этот блок можно вообще убрать) */
+.blk-passport .pp-action{ display:none !important; }
 
-/* ===== reward ===== */
+/* ===== reward (внутри общей карточки) ===== */
 .blk-passport .pp-reward{
-  padding: 0 var(--pp-pad) var(--pp-pad);
+  padding: 0;
+  margin-top: 12px;
 }
 .blk-passport .pp-reward-card{
   border-radius: var(--pp-r-card);
@@ -474,7 +473,6 @@
 }
 
 /* ===== bottom sheet (QR) — pro card style ===== */
-
 .blk-passport .pp-sheet{
   position: fixed;
   inset: 0;
