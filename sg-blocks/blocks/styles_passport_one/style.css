@@ -300,7 +300,7 @@
 
 /* ===== reward ===== */
 .blk-passport .pp-reward{
-  padding: 0 14px 14px;
+  padding: 0 0px 14px;
 }
 .blk-passport .pp-reward-card{
   border-radius: var(--pp-r-card);
@@ -331,7 +331,10 @@
   letter-spacing: .06em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
-.blk-passport .pp-reward .pp-btn{ margin-top: 12px; }
+.blk-passport .pp-reward .pp-btn{
+  min-height: 48px; /* iPhone-ish */
+  padding: 0px 14px;
+}
 
 /* ===== modal (CENTERED) ===== */
 .blk-passport .pp-modal{
