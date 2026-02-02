@@ -147,7 +147,7 @@
 .blk-passport .pp-card:active{
   transform: translateY(1px);
 }
-.blk-passport .pp-card[disabled]{
+.blk-passport .pp-card.is-disabled{
   opacity:.55;
   cursor: default;
   transform: none;
@@ -428,4 +428,37 @@
   margin-top: 8px;
   color: #ffb3b3;
   font-size: 12px;
+}
+/* ===== bottom sheet (QR) ===== */
+.blk-passport .pp-sheet{
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+.blk-passport .pp-sheet-backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,.52);
+  backdrop-filter: blur(2px);
+}
+.blk-passport .pp-sheet-panel{
+  position:absolute;
+  left:0; right:0; bottom:0;
+  padding: 12px var(--container-pad, 16px) calc(16px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  background: var(--pp-surface);
+  border-top: 1px solid var(--pp-border);
+  box-shadow: var(--pp-shadow);
+  transform: translateY(110%);
+  transition: transform .18s ease;
+}
+.blk-passport .pp-sheet.is-open .pp-sheet-panel{
+  transform: translateY(0);
+}
+.blk-passport .pp-sheet-handle{
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.22);
+  margin: 0 auto 10px;
 }
