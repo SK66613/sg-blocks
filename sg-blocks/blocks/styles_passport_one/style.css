@@ -326,6 +326,7 @@
   border-radius: 0;
 }
 
+/*
 .blk-passport .pp-reward-title{
   font-weight: var(--pp-fw-head);
   font-size: 15px;
@@ -353,7 +354,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-}
+}*/
 
 
 /* ===== modal (CENTERED) ===== */
