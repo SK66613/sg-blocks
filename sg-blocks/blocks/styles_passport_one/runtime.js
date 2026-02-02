@@ -134,15 +134,12 @@ export async function mount(root, props = {}, ctx = {}) {
   // QR bottom sheet
   const sheetEl   = root.querySelector("[data-pp-sheet]");
   const sheetCloseEls = root.querySelectorAll("[data-pp-sheet-close]");
-
   const sheetPanel = sheetEl ? sheetEl.querySelector(".pp-sheet-panel") : null;
-
 
   const qrTitle  = root.querySelector("[data-pp-qr-title]");
   const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
-
   const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
   const modalEl  = root.querySelector("[data-pp-modal]");
@@ -237,31 +234,41 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrSize    = Math.max(120, num(P.qr_size, 260));
   const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
-    // ===== Sheet swipe (down-to-close)
+  // ===== Sheet swipe (down-to-close)
   const SWIPE_CLOSE_PX = Math.max(50, num(P.sheet_swipe_close_px, 90));   // сколько тянуть вниз чтобы закрыть
   const SWIPE_VELOCITY = Math.max(0.3, num(P.sheet_swipe_velocity, 0.6)); // px/ms, быстрый свайп закрывает
-  const SWIPE_EDGE_PX  = Math.max(10, num(P.sheet_swipe_edge_px, 6));     // анти-дребезг
+  const SWIPE_EDGE_PX  = Math.max(6, num(P.sheet_swipe_edge_px, 6));      // анти-дребезг
 
-
-    let sheetOpen = false;
+  let sheetOpen = false;
 
   function lockBodyScroll(locked){
-    // блокируем прокрутку фона, пока sheet открыт (очень важно для iOS/TG)
+    // блокируем прокрутку фона, пока sheet открыт (важно для iOS/TG)
     try{
       const b = doc.body;
       if (!b) return;
       if (locked){
         b.dataset.ppSheetLock = "1";
         b.style.overflow = "hidden";
-        b.style.overflow = "hidden";
-b.style.touchAction = ""; // НЕ трогаем
-
+        // touchAction не трогаем — иначе ломаются инпуты/скролл внутри
       }else{
         if (b.dataset.ppSheetLock === "1"){
           delete b.dataset.ppSheetLock;
           b.style.overflow = "";
-          b.style.touchAction = "";
         }
+      }
+    }catch(_){}
+  }
+
+  function tgBackBind(on){
+    try{
+      if (!TG || !TG.BackButton) return;
+      if (on){
+        TG.BackButton.show();
+        TG.BackButton.onClick(closeSheet);
+      }else{
+        // у некоторых версий может не быть offClick — страхуемся
+        try{ TG.BackButton.offClick && TG.BackButton.offClick(closeSheet); }catch(_){}
+        try{ TG.BackButton.hide(); }catch(_){}
       }
     }catch(_){}
   }
@@ -283,27 +290,32 @@ b.style.touchAction = ""; // НЕ трогаем
   function openSheet(){
     if (!sheetEl) return;
     sheetEl.hidden = false;
+
     // сброс drag
     setSheetDragState(false);
     setSheetTranslate(0);
+
     sheetEl.classList.add("is-open");
     sheetOpen = true;
+
     lockBodyScroll(true);
+    tgBackBind(true);
   }
 
   function closeSheet(){
     if (!sheetEl) return;
     sheetEl.classList.remove("is-open");
     sheetOpen = false;
+
+    tgBackBind(false);
     lockBodyScroll(false);
-    // сброс drag, чтобы в следующий раз не было смещения
+
+    // сброс drag
     setSheetDragState(false);
     setSheetTranslate(0);
+
     setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
   }
-
-  
-
 
   // close on backdrop / handle
   try{
@@ -312,7 +324,7 @@ b.style.touchAction = ""; // НЕ трогаем
     });
   }catch(_){}
 
-    // ===== Swipe-to-close (drag down on panel)
+  // ===== Swipe-to-close (drag down on panel)
   (function setupSheetSwipe(){
     if (!sheetEl || !sheetPanel) return;
 
@@ -321,34 +333,34 @@ b.style.touchAction = ""; // НЕ трогаем
     let lastY = 0;
     let startT = 0;
 
-    let gestureLocked = false;     // мы уже решили, что это drag
-    let isVerticalDrag = false;    // это вертикаль вниз
-
+    let gestureLocked = false;   // мы уже решили, что это drag
+    let isVerticalDrag = false;  // это вертикаль вниз
 
     function getY(ev){
       if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientY;
       if (ev && ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0].clientY;
       return ev.clientY;
     }
+    function getX(ev){
+      if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientX;
+      if (ev && ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0].clientX;
+      return ev.clientX;
+    }
 
-        function canStartDrag(ev){
-      // разрешаем drag если:
-      // 1) тянем за ручку, или
-      // 2) контент уже в самом верху (scrollTop=0)
+    function canStartDrag(ev){
+      // drag разрешаем если:
+      // 1) тянем за ручку
+      // 2) или контент вверху (scrollTop=0)
       const t = ev.target;
       const onHandle = !!(t && t.closest && t.closest(".pp-sheet-handle"));
       if (onHandle) return true;
 
-      // если внутри есть скролл — даём скроллить, пока не наверху
       const st = sheetPanel.scrollTop || 0;
       return st <= 0;
     }
 
-
     function onStart(ev){
       if (!sheetOpen) return;
-
-      // стартуем только если можно тянуть (ручка или scrollTop=0)
       if (!canStartDrag(ev)) return;
 
       const y = getY(ev);
@@ -363,11 +375,10 @@ b.style.touchAction = ""; // НЕ трогаем
       startX = x;
       startT = performance.now();
 
-      // на старте НЕ рубим браузер — иначе ломаются клики/фокус
       setSheetDragState(true);
       sheetPanel.style.willChange = "transform";
+      // на старте НЕ preventDefault — иначе ломается фокус/инпуты
     }
-
 
     function onMove(ev){
       if (!dragging) return;
@@ -379,19 +390,19 @@ b.style.touchAction = ""; // НЕ трогаем
       const dyRaw = y - startY;
       const dxRaw = x - startX;
 
-      // сначала решаем, что это за жест (один раз)
+      // решаем направление жеста один раз
       if (!gestureLocked){
         const ady = Math.abs(dyRaw);
         const adx = Math.abs(dxRaw);
 
-        // игнорируем мелкий шум
         if (ady < SWIPE_EDGE_PX && adx < SWIPE_EDGE_PX) return;
 
         gestureLocked = true;
 
-        // вертикаль — если по Y заметно больше, чем по X
+        // вертикаль вниз если по Y заметно больше чем по X
         isVerticalDrag = (ady > adx * 1.2) && dyRaw > 0;
-        // если это не вертикальный drag вниз — не мешаем (пусть будет обычный скролл/жест)
+
+        // если не вертикаль — не мешаем (пусть работает обычный скролл/жест)
         if (!isVerticalDrag){
           dragging = false;
           setSheetDragState(false);
@@ -400,21 +411,20 @@ b.style.touchAction = ""; // НЕ трогаем
         }
       }
 
-      // сюда попадаем только если это drag вниз
+      // drag вниз
       const dy = Math.max(0, dyRaw);
       lastY = y;
 
-      // ограничим и добавим “резинку”
+      // ограничение + резинка
       const maxPull = Math.min(420, Math.max(220, sheetPanel.clientHeight * 0.85));
       const damped = dy <= maxPull ? dy : (maxPull + (dy - maxPull) * 0.25);
 
       setSheetTranslate(damped);
 
-      // важно: только тут режем дефолт (когда мы уверены, что тянем шторку)
+      // режем дефолт только когда точно тянем шторку
       try{ ev.preventDefault(); }catch(_){}
       try{ ev.stopPropagation(); }catch(_){}
     }
-
 
     function onEnd(ev){
       if (!dragging) return;
@@ -430,18 +440,37 @@ b.style.touchAction = ""; // НЕ трогаем
       sheetPanel.style.willChange = "";
       setSheetDragState(false);
 
-      // закрываем если реально тянули вниз (isVerticalDrag) и дотянули/быстро
       if (isVerticalDrag && (dy >= SWIPE_CLOSE_PX || v >= SWIPE_VELOCITY)){
         haptic("light");
         closeSheet();
         return;
       }
 
-      // иначе возвращаем
       setSheetTranslate(0);
     }
 
+    const hasPointer = "PointerEvent" in win;
 
+    if (hasPointer){
+      sheetPanel.addEventListener("pointerdown", onStart, { passive:false });
+      win.addEventListener("pointermove", onMove, { passive:false });
+      win.addEventListener("pointerup", onEnd, { passive:false });
+      win.addEventListener("pointercancel", onEnd, { passive:false });
+    }else{
+      sheetPanel.addEventListener("touchstart", onStart, { passive:false });
+      win.addEventListener("touchmove", onMove, { passive:false });
+      win.addEventListener("touchend", onEnd, { passive:false });
+      win.addEventListener("touchcancel", onEnd, { passive:false });
+    }
+
+    // Esc in preview/browser
+    win.addEventListener("keydown", (e)=>{
+      try{
+        if (!sheetOpen) return;
+        if (e.key === "Escape") closeSheet();
+      }catch(_){}
+    });
+  })();
 
   function setQrVisible(v){
     if (v) openSheet();
@@ -488,7 +517,6 @@ b.style.touchAction = ""; // НЕ трогаем
   async function renderQr(){
     if (!sheetEl) return;
 
-    // ✅ ВАЖНО: тут НИКАКИХ addEventListener — только рендер
     if (!completeShowQr || !isComplete()){
       setQrVisible(false);
       return;
@@ -496,7 +524,6 @@ b.style.touchAction = ""; // НЕ трогаем
 
     const link = getRedeemDeepLink();
     if (!link){
-      // passport complete but no redeem_code yet
       setQrVisible(true);
       if (qrTitle) qrTitle.textContent = qrTitleText;
       if (qrText)  qrText.textContent  = "Приз готовится… обновите экран";
@@ -511,7 +538,6 @@ b.style.touchAction = ""; // НЕ трогаем
 
     if (!qrCanvas) return;
 
-    // set canvas size
     try{
       qrCanvas.width = qrSize;
       qrCanvas.height = qrSize;
@@ -520,7 +546,6 @@ b.style.touchAction = ""; // НЕ трогаем
     const ctx2 = qrCanvas.getContext("2d");
     if (!ctx2) return;
 
-    // white bg
     ctx2.fillStyle = "#fff";
     ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
 
@@ -534,7 +559,6 @@ b.style.touchAction = ""; // НЕ трогаем
         resolve(true);
       };
       img.onerror = ()=>{
-        // fallback so you SEE something
         ctx2.fillStyle = "#fff";
         ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
         ctx2.fillStyle = "#000";
@@ -563,8 +587,6 @@ b.style.touchAction = ""; // НЕ трогаем
       if (head) head.style.display = "";
       if (prog) prog.style.display = "";
     }
-
-    // do NOT auto-open QR here — QR opens from the reward button
   }
 
   function renderReward(){
@@ -622,7 +644,6 @@ b.style.touchAction = ""; // НЕ трогаем
     const disabled = !sid || done || busy.has(sid);
     const badge = done ? "✓" : `${idx+1}`;
 
-    // ✅ делаем карточку настоящей кнопкой — в TG WebView клики стабильнее
     return `
       <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
         data-sid="${escapeHtml(sid)}"
@@ -638,7 +659,6 @@ b.style.touchAction = ""; // НЕ трогаем
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
-            
           </div>
         </div>
       </button>
@@ -790,7 +810,6 @@ b.style.touchAction = ""; // НЕ трогаем
       try{
         haptic("light");
 
-        // ✅ busy только во время подтверждения PIN
         if (selectedStyleId){
           busy.add(selectedStyleId);
           renderGrid();
