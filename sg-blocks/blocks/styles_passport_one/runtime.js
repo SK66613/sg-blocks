@@ -559,32 +559,38 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function onCollectClick(styleId){
-    busy.add(styleId);
-    renderGrid();
-
     try{
       haptic("light");
 
+      // ✅ direct_pin: просто открываем модалку, без busy/renderGrid
+      if (requirePin && collectMode === "direct_pin"){
+        selectedStyleId = styleId;
+        selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
+        if (modalTitle) modalTitle.textContent = "Введите PIN";
+        if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
+        setModalVisible(true);
+        return;
+      }
+
+      // ✅ для остальных случаев busy нужен только на момент запроса
+      busy.add(styleId);
+      renderGrid();
+
       if (requirePin){
-        if (collectMode === "direct_pin"){
-          selectedStyleId = styleId;
-          selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
-          if (modalTitle) modalTitle.textContent = "Введите PIN";
-          if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
-          setModalVisible(true);
-        } else {
-          await collectBotPin(styleId);
-        }
+        await collectBotPin(styleId);
       } else {
         await collectNoPin(styleId);
       }
     } catch (e){
       await uiAlert((e && e.message) ? e.message : "Ошибка");
     } finally {
-      busy.delete(styleId);
-      renderGrid();
+      if (busy.has(styleId)){
+        busy.delete(styleId);
+        renderGrid();
+      }
     }
   }
+
 
   // modal events
   if (modalOk){
@@ -598,6 +604,13 @@ export async function mount(root, props = {}, ctx = {}) {
 
       try{
         haptic("light");
+
+        // ✅ busy только во время подтверждения PIN
+        if (selectedStyleId){
+          busy.add(selectedStyleId);
+          renderGrid();
+        }
+
         await collectDirectPin(selectedStyleId, pin);
         setModalVisible(false);
       } catch (e){
@@ -607,6 +620,11 @@ export async function mount(root, props = {}, ctx = {}) {
           modalErr.textContent = msg;
         } else {
           await uiAlert(msg);
+        }
+      } finally {
+        if (selectedStyleId && busy.has(selectedStyleId)){
+          busy.delete(selectedStyleId);
+          renderGrid();
         }
       }
     });
