@@ -56,9 +56,11 @@ export async function mount(root, props = {}, ctx = {}) {
     str(win.SG_APP_PUBLIC_ID || win.APP_PUBLIC_ID, "").trim();
 
   async function apiCall(pathSeg, body = {}) {
+    // If legacy api exists — use it directly (like old passport did)
     if (apiFn) return await apiFn(pathSeg, body);
 
     if (!publicId){
+      // Studio/preview mode: no api + no publicId => can't call backend, just return stub
       return { ok:false, error:'NO_PUBLIC_ID' };
     }
 
@@ -106,8 +108,12 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   // Our internal wrappers
-  async function apiState(){ return await apiCall("state", {}); }
-  async function apiCollect(style_id, pin){ return await apiCall("style.collect", { style_id, pin }); }
+  async function apiState(){
+    return await apiCall("state", {});
+  }
+  async function apiCollect(style_id, pin){
+    return await apiCall("style.collect", { style_id, pin });
+  }
 
   // ---------- DOM
   const titleEl = root.querySelector("[data-pp-title]");
@@ -134,7 +140,6 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
-
   const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
   const modalEl  = root.querySelector("[data-pp-modal]");
@@ -152,14 +157,17 @@ export async function mount(root, props = {}, ctx = {}) {
   const gridCols = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
   const requirePin = !!P.require_pin;
 
+  // IMPORTANT: direct_pin is the working mode
   const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin
+  const btnCollect = str(P.btn_collect, "Отметить");
+  const btnDone = str(P.btn_done, "Получено");
 
   function getStyleId(st){
     return str(st && st.code, "").trim();
   }
 
   // ---------- state
-  let state = null;
+  let state = null; // keep the latest server state (needed for passport_reward)
   let collected = new Set();
   let busy = new Set();
   let selectedStyleId = "";
@@ -214,7 +222,7 @@ export async function mount(root, props = {}, ctx = {}) {
     progTxt.textContent = `${got}/${total}`;
   }
 
-  // ===== QR helpers
+  // ===== QR helpers (variant 2: from state.passport_reward.redeem_code + state.bot_username)
   const completeShowQr = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
   const completeHideHeader = (P.complete_hide_header === undefined) ? true : !!P.complete_hide_header;
 
@@ -227,25 +235,40 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
   // ===== Sheet swipe (down-to-close)
-  const SWIPE_CLOSE_PX = Math.max(50, num(P.sheet_swipe_close_px, 90));
-  const SWIPE_VELOCITY = Math.max(0.3, num(P.sheet_swipe_velocity, 0.6));
-  const SWIPE_EDGE_PX  = Math.max(6, num(P.sheet_swipe_edge_px, 6));
+  const SWIPE_CLOSE_PX = Math.max(50, num(P.sheet_swipe_close_px, 90));   // сколько тянуть вниз чтобы закрыть
+  const SWIPE_VELOCITY = Math.max(0.3, num(P.sheet_swipe_velocity, 0.6)); // px/ms, быстрый свайп закрывает
+  const SWIPE_EDGE_PX  = Math.max(6, num(P.sheet_swipe_edge_px, 6));      // анти-дребезг
 
   let sheetOpen = false;
 
   function lockBodyScroll(locked){
-    // На iOS/TG лучше не трогать touchAction у body, иначе ломаются фокусы/инпуты.
+    // блокируем прокрутку фона, пока sheet открыт (важно для iOS/TG)
     try{
       const b = doc.body;
       if (!b) return;
       if (locked){
         b.dataset.ppSheetLock = "1";
         b.style.overflow = "hidden";
+        // touchAction не трогаем — иначе ломаются инпуты/скролл внутри
       }else{
         if (b.dataset.ppSheetLock === "1"){
           delete b.dataset.ppSheetLock;
           b.style.overflow = "";
         }
+      }
+    }catch(_){}
+  }
+
+  function tgBackBind(on){
+    try{
+      if (!TG || !TG.BackButton) return;
+      if (on){
+        TG.BackButton.show();
+        TG.BackButton.onClick(closeSheet);
+      }else{
+        // у некоторых версий может не быть offClick — страхуемся
+        try{ TG.BackButton.offClick && TG.BackButton.offClick(closeSheet); }catch(_){}
+        try{ TG.BackButton.hide(); }catch(_){}
       }
     }catch(_){}
   }
@@ -257,26 +280,40 @@ export async function mount(root, props = {}, ctx = {}) {
 
   function setSheetDragState(on){
     if (!sheetPanel) return;
-    sheetPanel.style.transition = on ? "none" : "";
+    if (on){
+      sheetPanel.style.transition = "none";
+    }else{
+      sheetPanel.style.transition = "";
+    }
   }
 
   function openSheet(){
     if (!sheetEl) return;
     sheetEl.hidden = false;
+
+    // сброс drag
     setSheetDragState(false);
     setSheetTranslate(0);
+
     sheetEl.classList.add("is-open");
     sheetOpen = true;
+
     lockBodyScroll(true);
+    tgBackBind(true);
   }
 
   function closeSheet(){
     if (!sheetEl) return;
     sheetEl.classList.remove("is-open");
     sheetOpen = false;
+
+    tgBackBind(false);
     lockBodyScroll(false);
+
+    // сброс drag
     setSheetDragState(false);
     setSheetTranslate(0);
+
     setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
   }
 
@@ -296,8 +333,8 @@ export async function mount(root, props = {}, ctx = {}) {
     let lastY = 0;
     let startT = 0;
 
-    let gestureLocked = false;
-    let isVerticalDrag = false;
+    let gestureLocked = false;   // мы уже решили, что это drag
+    let isVerticalDrag = false;  // это вертикаль вниз
 
     function getY(ev){
       if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientY;
@@ -311,11 +348,13 @@ export async function mount(root, props = {}, ctx = {}) {
     }
 
     function canStartDrag(ev){
+      // drag разрешаем если:
+      // 1) тянем за ручку
+      // 2) или контент вверху (scrollTop=0)
       const t = ev.target;
       const onHandle = !!(t && t.closest && t.closest(".pp-sheet-handle"));
       if (onHandle) return true;
 
-      // если панель скроллится — drag разрешаем только когда контент наверху
       const st = sheetPanel.scrollTop || 0;
       return st <= 0;
     }
@@ -338,6 +377,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
       setSheetDragState(true);
       sheetPanel.style.willChange = "transform";
+      // на старте НЕ preventDefault — иначе ломается фокус/инпуты
     }
 
     function onMove(ev){
@@ -350,6 +390,7 @@ export async function mount(root, props = {}, ctx = {}) {
       const dyRaw = y - startY;
       const dxRaw = x - startX;
 
+      // решаем направление жеста один раз
       if (!gestureLocked){
         const ady = Math.abs(dyRaw);
         const adx = Math.abs(dxRaw);
@@ -358,10 +399,10 @@ export async function mount(root, props = {}, ctx = {}) {
 
         gestureLocked = true;
 
-        // вертикаль вниз, если Y больше X
+        // вертикаль вниз если по Y заметно больше чем по X
         isVerticalDrag = (ady > adx * 1.2) && dyRaw > 0;
 
-        // если это не drag вниз — отдаём жест браузеру
+        // если не вертикаль — не мешаем (пусть работает обычный скролл/жест)
         if (!isVerticalDrag){
           dragging = false;
           setSheetDragState(false);
@@ -370,16 +411,17 @@ export async function mount(root, props = {}, ctx = {}) {
         }
       }
 
+      // drag вниз
       const dy = Math.max(0, dyRaw);
       lastY = y;
 
-      // “резинка”
+      // ограничение + резинка
       const maxPull = Math.min(420, Math.max(220, sheetPanel.clientHeight * 0.85));
       const damped = dy <= maxPull ? dy : (maxPull + (dy - maxPull) * 0.25);
 
       setSheetTranslate(damped);
 
-      // только когда уверены что тянем — режем дефолт
+      // режем дефолт только когда точно тянем шторку
       try{ ev.preventDefault(); }catch(_){}
       try{ ev.stopPropagation(); }catch(_){}
     }
@@ -393,7 +435,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
       const y = getY(ev);
       const dy = Math.max(0, (Number.isFinite(y) ? y : lastY) - startY);
-      const v = dy / dt;
+      const v = dy / dt; // px/ms
 
       sheetPanel.style.willChange = "";
       setSheetDragState(false);
@@ -403,21 +445,31 @@ export async function mount(root, props = {}, ctx = {}) {
         closeSheet();
         return;
       }
+
       setSheetTranslate(0);
     }
 
     const hasPointer = "PointerEvent" in win;
+
     if (hasPointer){
       sheetPanel.addEventListener("pointerdown", onStart, { passive:false });
       win.addEventListener("pointermove", onMove, { passive:false });
       win.addEventListener("pointerup", onEnd, { passive:false });
       win.addEventListener("pointercancel", onEnd, { passive:false });
-    } else {
+    }else{
       sheetPanel.addEventListener("touchstart", onStart, { passive:false });
       win.addEventListener("touchmove", onMove, { passive:false });
       win.addEventListener("touchend", onEnd, { passive:false });
       win.addEventListener("touchcancel", onEnd, { passive:false });
     }
+
+    // Esc in preview/browser
+    win.addEventListener("keydown", (e)=>{
+      try{
+        if (!sheetOpen) return;
+        if (e.key === "Escape") closeSheet();
+      }catch(_){}
+    });
   })();
 
   function setQrVisible(v){
@@ -452,9 +504,13 @@ export async function mount(root, props = {}, ctx = {}) {
       "";
 
     const bot = botRaw ? String(botRaw).replace(/^@/,'').trim() : "";
+
+    // start payload must be redeem_<code>
     const startPayload = "redeem_" + code;
 
     if (bot) return `https://t.me/${bot}?start=${encodeURIComponent(startPayload)}`;
+
+    // fallback: just payload (if no bot_username)
     return startPayload;
   }
 
@@ -517,6 +573,7 @@ export async function mount(root, props = {}, ctx = {}) {
   async function renderMode(){
     const done = isComplete();
 
+    // hide cards after completion (QR is shown via bottom sheet)
     if (gridEl) gridEl.hidden = !!(completeShowQr && done);
 
     if (completeShowQr && done && completeHideHeader){
@@ -577,7 +634,56 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  // ----- normalize collected
+  function cardHtml(st, idx){
+    const sid = getStyleId(st);
+    const done = sid && isDone(sid);
+    const img = str(st && st.image, "").trim();
+    const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
+    const desc = str(st && (st.desc || st.subtitle), "");
+
+    const disabled = !sid || done || busy.has(sid);
+    const badge = done ? "✓" : `${idx+1}`;
+
+    return `
+      <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
+        data-sid="${escapeHtml(sid)}"
+        data-done="${done ? 1 : 0}"
+        ${disabled ? "disabled" : ""}>
+        <div class="pp-badge">${escapeHtml(badge)}</div>
+
+        <div class="pp-card-top">
+          <div class="pp-ico">
+            ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
+          </div>
+
+          <div class="pp-txt">
+            <div class="pp-name">${escapeHtml(name)}</div>
+            ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
+          </div>
+        </div>
+      </button>
+    `;
+  }
+
+  function renderGrid(){
+    if (!gridEl) return;
+    gridEl.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
+    gridEl.innerHTML = styles.map(cardHtml).join("");
+
+    gridEl.querySelectorAll(".pp-card").forEach(card=>{
+      const sid = card.getAttribute("data-sid") || "";
+
+      card.addEventListener("click", async ()=>{
+        if (!sid) return;
+        if (card.disabled) return;
+        if (isDone(sid)) return;
+        if (busy.has(sid)) return;
+        await onCollectClick(sid);
+      });
+    });
+  }
+
+  // ----- normalize collected (so old worker formats don't break)
   function normalizeCollected(st){
     const out = new Set();
     if (!st) return out;
@@ -615,6 +721,7 @@ export async function mount(root, props = {}, ctx = {}) {
         if (map[k]) out.add(String(k));
       }
     }
+
     return out;
   }
 
@@ -661,6 +768,7 @@ export async function mount(root, props = {}, ctx = {}) {
     try{
       haptic("light");
 
+      // ✅ direct_pin: просто открываем модалку, без busy/renderGrid
       if (requirePin && collectMode === "direct_pin"){
         selectedStyleId = styleId;
         selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
@@ -670,12 +778,15 @@ export async function mount(root, props = {}, ctx = {}) {
         return;
       }
 
+      // ✅ для остальных случаев busy нужен только на момент запроса
       busy.add(styleId);
       renderGrid();
 
-      if (requirePin) await collectBotPin(styleId);
-      else await collectNoPin(styleId);
-
+      if (requirePin){
+        await collectBotPin(styleId);
+      } else {
+        await collectNoPin(styleId);
+      }
     } catch (e){
       await uiAlert((e && e.message) ? e.message : "Ошибка");
     } finally {
@@ -684,63 +795,6 @@ export async function mount(root, props = {}, ctx = {}) {
         renderGrid();
       }
     }
-  }
-
-  // ===== NEW CARD HTML (2 rows layout)
-  function cardHtml(st, idx){
-    const sid = getStyleId(st);
-    const done = sid && isDone(sid);
-
-    // одна картинка — используем в двух местах (круг/квадрат)
-    const img = str(st && st.image, "").trim();
-
-    const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
-    const desc = str(st && (st.desc || st.subtitle), "");
-
-    const disabled = !sid || done || busy.has(sid);
-    const badge = done ? "✓" : `${idx+1}`;
-
-    return `
-      <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
-        data-sid="${escapeHtml(sid)}"
-        data-done="${done ? 1 : 0}"
-        ${disabled ? "disabled" : ""}>
-        <div class="pp-badge">${escapeHtml(badge)}</div>
-
-        <div class="pp-card-top">
-          <div class="pp-row1">
-            <div class="pp-name">${escapeHtml(name)}</div>
-            <div class="pp-ico-round">
-              ${img ? `<img alt="" src="${escapeHtml(img)}">` : ``}
-            </div>
-          </div>
-
-          <div class="pp-row2">
-            <div class="pp-ico-square">
-              ${img ? `<img alt="" src="${escapeHtml(img)}">` : ``}
-            </div>
-            ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : `<div class="pp-desc"></div>`}
-          </div>
-        </div>
-      </button>
-    `;
-  }
-
-  function renderGrid(){
-    if (!gridEl) return;
-    gridEl.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
-    gridEl.innerHTML = styles.map(cardHtml).join("");
-
-    gridEl.querySelectorAll(".pp-card").forEach(card=>{
-      const sid = card.getAttribute("data-sid") || "";
-      card.addEventListener("click", async ()=>{
-        if (!sid) return;
-        if (card.disabled) return;
-        if (isDone(sid)) return;
-        if (busy.has(sid)) return;
-        await onCollectClick(sid);
-      });
-    });
   }
 
   // modal events
@@ -755,10 +809,12 @@ export async function mount(root, props = {}, ctx = {}) {
 
       try{
         haptic("light");
+
         if (selectedStyleId){
           busy.add(selectedStyleId);
           renderGrid();
         }
+
         await collectDirectPin(selectedStyleId, pin);
         setModalVisible(false);
       } catch (e){
@@ -787,10 +843,11 @@ export async function mount(root, props = {}, ctx = {}) {
   renderReward();
   setQrVisible(false);
 
+  // ✅ Open QR bottom sheet from reward card button (ONLY HERE)
   if (openQrBtn){
     openQrBtn.addEventListener("click", async ()=>{
       openSheet();
-      try{ await renderQr(); }catch(_){}
+      try{ await renderQr(); }catch(_){ }
     });
   }
 
