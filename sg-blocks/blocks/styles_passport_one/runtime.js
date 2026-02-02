@@ -1,10 +1,8 @@
-// styles_passport_one/runtime.js
-// Passport (stamps/collection) with redeem QR link (same pattern as sales_qr_one):
-// - On complete: request redeem token from worker
-// - Build deep link: https://t.me/<bot>?start=redeem_<token> (or use deep_link from worker)
-// - Render QR using quickchart.io and draw into canvas
-//
-// Works with legacy window.api('style.collect'/'state') or fetch fallback to /api/mini/*?public_id=...
+// stylesPassport/runtime.js
+// Passport (stamps/collection) — SG blocks format.
+// Works with legacy window.api('style.collect', payload) AND with fetch fallback to /api/mini/*?public_id=...
+// Completion QR: like sales_qr_one — build https://t.me/<bot>?start=redeem_<token> (or use deep_link from server),
+// then render QR via quickchart into canvas.
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -17,22 +15,34 @@ export async function mount(root, props = {}, ctx = {}) {
     null;
 
   // ---------- helpers
-  const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const num = (v, d) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
   const str = (v, d = "") => (v === undefined || v === null) ? d : String(v);
-
-  function escapeHtml(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-  }
+  const clamp01 = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+  };
 
   function haptic(kind="light"){
     try{ TG && TG.HapticFeedback && TG.HapticFeedback.impactOccurred && TG.HapticFeedback.impactOccurred(kind); }catch(_){}
   }
 
   async function uiAlert(msg){
-    try{ if (TG && TG.showAlert) return await TG.showAlert(String(msg||"")); }catch(_){}
+    try{
+      if (TG && TG.showAlert) return await TG.showAlert(String(msg||""));
+    }catch(_){}
     alert(String(msg||""));
+  }
+
+  function escapeHtml(s){
+    return String(s||"")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
   }
 
   function getTgUser(){
@@ -50,7 +60,6 @@ export async function mount(root, props = {}, ctx = {}) {
     (typeof win.api === "function") ? win.api :
     null;
 
-  // public_id is required for fetch fallback
   const publicId =
     str(ctx.publicId || ctx.public_id || ctx.publicID, "").trim() ||
     str(props.app_public_id || props.public_id || props.publicId, "").trim() ||
@@ -59,9 +68,7 @@ export async function mount(root, props = {}, ctx = {}) {
   async function apiCall(pathSeg, body = {}) {
     if (apiFn) return await apiFn(pathSeg, body);
 
-    if (!publicId){
-      return { ok:false, error:'NO_PUBLIC_ID' };
-    }
+    if (!publicId) return { ok:false, error:"NO_PUBLIC_ID" };
 
     const initData =
       (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
@@ -75,7 +82,7 @@ export async function mount(root, props = {}, ctx = {}) {
       init_data: initData,
       tg_user,
       tg_user_id: tg_user && tg_user.id ? String(tg_user.id) : undefined,
-      app_public_id: publicId,
+      app_public_id: publicId
     };
 
     const r = await fetch(url, {
@@ -86,109 +93,75 @@ export async function mount(root, props = {}, ctx = {}) {
     });
 
     const j = await r.json().catch(() => null);
-    if (!r.ok || !j || j.ok === false) {
-      const err = new Error((j && (j.error || j.message)) || `API ${pathSeg} failed (${r.status})`);
-      err.status = r.status;
-      err.payload = j;
-      throw err;
-    }
+    if (!r.ok || !j) throw new Error(`API ${pathSeg} failed (${r.status})`);
+    if (j.ok === false) throw new Error(String(j.error || j.message || "API_ERROR"));
     return j;
   }
 
-  // mini endpoints
+  // worker supports /api/mini/state and /api/mini/style.collect
   async function apiState(){ return await apiCall("state", {}); }
   async function apiCollect(style_id, pin){ return await apiCall("style.collect", { style_id, pin }); }
 
-  // redeem token endpoint (PUBLIC, like sales_qr_one)
-  // Default path follows sales_qr_one pattern: /api/public/app/<publicId>/redeem/token
-  const redeemTokenPathTpl = str(props.redeem_token_path, "/api/public/app/{publicId}/redeem/token");
-  const redeemTtlSec = Math.max(30, Math.round(num(props.redeem_ttl_sec, 600)));
-  const redeemRefreshSec = Math.max(5, Math.round(num(props.redeem_refresh_sec, 25)));
-  const redeemStartPrefix = str(props.redeem_start_prefix, "redeem_"); // start=redeem_<token>
-
-  function buildRedeemTokenUrl(){
-    return redeemTokenPathTpl.replace("{publicId}", encodeURIComponent(publicId));
-  }
-
-  async function fetchRedeemToken(){
-    if (!publicId) return { ok:false, error:"NO_PUBLIC_ID" };
-
-    const initData =
-      (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
-      (TG && TG.initData ? TG.initData : "");
-
-    const body = {
-      init_data: initData,
-      ttl_sec: redeemTtlSec,
-    };
-
-    const url = buildRedeemTokenUrl();
-
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || !j || j.ok === false){
-      return { ok:false, error: (j && (j.error || j.message)) ? (j.error || j.message) : `HTTP ${r.status}` };
-    }
-    return j;
-  }
-
-  function buildDeepLinkFromToken(botUsername, token){
-    const bn = String(botUsername||"").replace(/^@/,"").trim();
-    const t = String(token||"").trim();
-    if (!bn || !t) return "";
-    return `https://t.me/${bn}?start=${encodeURIComponent(redeemStartPrefix + t)}`;
-  }
-
   // ---------- DOM
   const titleEl = root.querySelector("[data-pp-title]");
-  const subEl = root.querySelector("[data-pp-subtitle]");
+  const subEl   = root.querySelector("[data-pp-subtitle]");
   const coverEl = root.querySelector("[data-pp-cover]");
-  const coverImg = coverEl ? coverEl.querySelector("img") : null;
+  const coverImg= coverEl ? coverEl.querySelector("img") : null;
 
-  const gridEl = root.querySelector("[data-pp-grid]");
-  const progWrap = root.querySelector("[data-pp-progress]");
+  const gridEl  = root.querySelector("[data-pp-grid]");
+  const progWrap= root.querySelector("[data-pp-progress]");
   const progBar = root.querySelector("[data-pp-bar]");
   const progTxt = root.querySelector("[data-pp-progress-text]");
 
-  const qrWrap = root.querySelector("[data-pp-qr]");
-  const qrTitle = root.querySelector("[data-pp-qr-title]");
-  const qrText = root.querySelector("[data-pp-qr-text]");
+  const rewardWrap = root.querySelector("[data-pp-reward]");
+  const rewardTitle= root.querySelector("[data-pp-reward-title]");
+  const rewardText = root.querySelector("[data-pp-reward-text]");
+  const rewardCode = root.querySelector("[data-pp-reward-code]");
+
+  const qrWrap   = root.querySelector("[data-pp-qr]");
+  const qrTitle  = root.querySelector("[data-pp-qr-title]");
+  const qrText   = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
 
-  const modalEl = root.querySelector("[data-pp-modal]");
-  const pinInp = root.querySelector("[data-pp-pin-inp]");
-  const modalOk = root.querySelector("[data-pp-modal-ok]");
-  const modalCancel = root.querySelector("[data-pp-modal-cancel]");
+  const modalEl    = root.querySelector("[data-pp-modal]");
+  const pinInp     = root.querySelector("[data-pp-pin-inp]");
+  const modalOk    = root.querySelector("[data-pp-modal-ok]");
+  const modalCancel= root.querySelector("[data-pp-modal-cancel]");
   const modalClose = root.querySelector("[data-pp-modal-close]");
   const modalTitle = root.querySelector("[data-pp-modal-title]");
-  const modalSub = root.querySelector("[data-pp-modal-sub]");
-  const modalErr = root.querySelector("[data-pp-modal-err]");
+  const modalSub   = root.querySelector("[data-pp-modal-sub]");
+  const modalErr   = root.querySelector("[data-pp-modal-err]");
 
   // ---------- props
   const P = props || {};
   const styles = Array.isArray(P.styles) ? P.styles : [];
-  const gridCols = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
-  const requirePin = !!P.require_pin;
-  const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin (not implemented here)
 
-  const completeShowQr = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
-  const completeHideHeader = !!P.complete_hide_header;
+  const gridCols   = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
+  const requirePin = !!P.require_pin;
+  const collectMode= str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin
+
+  const btnCollect = str(P.btn_collect, "Отметить");
+  const btnDone    = str(P.btn_done, "Получено");
+
+  // Completion -> QR view (simple like sales_qr_one)
+  const completeShowQr    = (P.complete_show_qr === undefined) ? true : !!P.complete_show_qr;
+  const completeHideHeader= !!P.complete_hide_header;
 
   const qrTitleText = str(P.qr_title, "🎁 Получите приз");
   const qrHelpText  = str(P.qr_text, "Покажите этот QR кассиру, чтобы получить подарок.");
   const qrShowCodeText = !!P.qr_show_code_text;
 
-  // QuickChart QR (same as sales_qr_one)
+  // redeem token endpoint (worker side)
+  const redeemStartPrefix = str(P.redeem_start_prefix, "redeem_"); // inside /start
+  const redeemTtlSec      = Math.max(30, num(P.redeem_ttl_sec, 600));
+  const redeemRefreshSec  = Math.max(0,  num(P.redeem_refresh_sec, 0)); // 0 disables auto refresh
+  const redeemTokenPathTpl= str(P.redeem_token_path, "/api/public/app/{publicId}/redeem/token");
+
+  // QR image service (same approach as sales_qr_one)
   const qrService = str(P.qr_service, "https://quickchart.io/qr");
-  const qrSize = Math.max(180, Math.min(600, Math.round(num(P.qr_size, 260))));
-  const qrMargin = Math.max(0, Math.min(10, Math.round(num(P.qr_margin, 2))));
+  const qrSize    = Math.max(120, num(P.qr_size, 260));
+  const qrMargin  = Math.max(0,   num(P.qr_margin, 2));
 
   function getStyleId(st){ return str(st && st.code, "").trim(); }
 
@@ -196,16 +169,63 @@ export async function mount(root, props = {}, ctx = {}) {
   let state = null;
   let collected = new Set();
   let busy = new Set();
-
   let selectedStyleId = "";
   let selectedStyleName = "";
 
+  // redeem link cached
   let redeemLink = "";
   let redeemTimer = null;
-  let redeemRefreshing = false;
 
-  function isDone(styleId){ return collected.has(styleId); }
-  function isComplete(){ return styles.length > 0 && collected.size >= styles.length; }
+  function normalizeCollected(st){
+    const out = new Set();
+    if (!st) return out;
+
+    // common variants
+    const candidates = [
+      st.styles,
+      st.collected,
+      st.stamps,
+      st.done_styles,
+      st.styles_done,
+      st.collected_styles,
+      st.styles_collected,
+      st.passport && st.passport.styles,
+      st.passport && st.passport.collected
+    ];
+
+    let arr = null;
+    for (const c of candidates){
+      if (Array.isArray(c)) { arr = c; break; }
+    }
+
+    if (arr){
+      for (const it of arr){
+        if (it === null || it === undefined) continue;
+        if (typeof it === "string" || typeof it === "number") out.add(String(it));
+        else if (typeof it === "object"){
+          const v = it.code || it.style_id || it.styleId || it.id || it.key;
+          if (v !== undefined && v !== null) out.add(String(v));
+        }
+      }
+      return out;
+    }
+
+    // map/object form: { day1:true, day2:true }
+    const map = st.styles_map || st.collected_map || st.stamps_map;
+    if (map && typeof map === "object"){
+      for (const k of Object.keys(map)){
+        if (map[k]) out.add(String(k));
+      }
+    }
+
+    return out;
+  }
+
+  function isDone(styleId){ return collected.has(String(styleId)); }
+  function isComplete(){
+    const total = styles.length;
+    return total > 0 && collected.size >= total;
+  }
 
   function setModalVisible(v){
     if (!modalEl) return;
@@ -238,12 +258,38 @@ export async function mount(root, props = {}, ctx = {}) {
     const total = styles.length;
     const done = collected.size;
     const show = total > 0;
+
     if (progWrap) progWrap.hidden = !show;
     if (!show) return;
 
-    const p = total ? (done / total) : 0;
-    if (progBar) progBar.style.width = `${Math.round(p * 100)}%`;
+    const p = total ? clamp01(done/total) : 0;
+    if (progBar) progBar.style.width = `${Math.round(p*100)}%`;
     if (progTxt) progTxt.textContent = `${done}/${total}`;
+  }
+
+  function renderReward(){
+    if (!rewardWrap) return;
+    const en = (P.reward_enabled === undefined) ? true : !!P.reward_enabled;
+    const show = en && isComplete();
+
+    rewardWrap.hidden = !show;
+    if (!show) return;
+
+    if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
+    if (rewardText) rewardText.textContent = str(P.reward_text, "");
+
+    // if server returned redeem_code (legacy), show it
+    const pr = state && state.passport_reward ? state.passport_reward : null;
+    const redeem = pr && pr.redeem_code ? String(pr.redeem_code) : "";
+    if (rewardCode){
+      if (redeem){
+        rewardCode.hidden = false;
+        rewardCode.textContent = redeem;
+      } else {
+        rewardCode.hidden = true;
+        rewardCode.textContent = "";
+      }
+    }
   }
 
   function cardHtml(st, idx){
@@ -252,16 +298,14 @@ export async function mount(root, props = {}, ctx = {}) {
     const img = str(st && st.image, "").trim();
     const name = str(st && (st.name || st.title), sid || `#${idx+1}`);
     const desc = str(st && (st.desc || st.subtitle), "");
-
     const disabled = !sid || done || busy.has(sid);
-    const badge = done ? "✓" : `${idx+1}`;
 
     return `
       <button class="pp-card" type="button"
         data-sid="${escapeHtml(sid)}"
         data-done="${done ? 1 : 0}"
         ${disabled ? "disabled" : ""}>
-        <div class="pp-badge">${escapeHtml(badge)}</div>
+        <div class="pp-badge">${escapeHtml(done ? "✓" : String(idx+1))}</div>
         <div class="pp-card-top">
           <div class="pp-ico">
             ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
@@ -269,6 +313,7 @@ export async function mount(root, props = {}, ctx = {}) {
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
+            <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
           </div>
         </div>
       </button>
@@ -296,8 +341,103 @@ export async function mount(root, props = {}, ctx = {}) {
     qrWrap.hidden = !v;
   }
 
-  function renderMode(){
+  function setQrTextLink(link){
+    if (qrCodeText){
+      if (qrShowCodeText){
+        qrCodeText.hidden = false;
+        qrCodeText.textContent = link || "";
+      } else {
+        qrCodeText.hidden = true;
+        qrCodeText.textContent = "";
+      }
+    }
+  }
+
+  async function fetchRedeemLink(){
+    if (!publicId) throw new Error("NO_PUBLIC_ID");
+
+    const initData =
+      (ctx && (ctx.initData || ctx.init_data)) ? (ctx.initData || ctx.init_data) :
+      (TG && TG.initData ? TG.initData : "");
+
+    const url = redeemTokenPathTpl.replace("{publicId}", encodeURIComponent(publicId));
+    const payload = { init_data: initData, ttl_sec: redeemTtlSec };
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type":"application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || !j) throw new Error(`redeem/token HTTP ${r.status}`);
+    if (j.ok === false) throw new Error(String(j.error || j.message || "redeem/token error"));
+
+    // support {result:{...}} and direct
+    const d = j.result || j;
+
+    if (d.deep_link) return String(d.deep_link);
+    const bot = d.bot_username ? String(d.bot_username).replace(/^@/,'') : "";
+    const token = d.token ? String(d.token) : "";
+    if (bot && token) return `https://t.me/${bot}?start=${encodeURIComponent(redeemStartPrefix + token)}`;
+
+    throw new Error("redeem/token missing deep_link or bot_username+token");
+  }
+
+  async function renderQr(){
+    if (!qrWrap) return;
+    if (!completeShowQr || !isComplete()){
+      setQrVisible(false);
+      return;
+    }
+
+    setQrVisible(true);
+    if (qrTitle) qrTitle.textContent = qrTitleText;
+    if (qrText) qrText.textContent = qrHelpText;
+
+    // ensure link
+    try{
+      redeemLink = await fetchRedeemLink();
+    }catch(e){
+      // show fallback text
+      const msg = e && e.message ? e.message : String(e);
+      setQrTextLink("QR: ошибка токена ("+msg+")");
+      return;
+    }
+
+    setQrTextLink(redeemLink);
+
+    // draw via quickchart like sales_qr_one
+    if (!qrCanvas) return;
+    const canvas = qrCanvas;
+    const ctx2 = canvas.getContext("2d");
+    if (!ctx2) return;
+
+    // clear
+    ctx2.clearRect(0,0,canvas.width,canvas.height);
+
+    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(redeemLink)}`;
+
+    await new Promise((resolve)=>{
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = ()=>{
+        // fit to canvas
+        const w = canvas.width, h = canvas.height;
+        ctx2.fillStyle = "#fff";
+        ctx2.fillRect(0,0,w,h);
+        ctx2.drawImage(img, 0, 0, w, h);
+        resolve();
+      };
+      img.onerror = ()=>resolve();
+      img.src = qUrl;
+    });
+  }
+
+  async function renderMode(){
     const done = isComplete();
+
     if (gridEl) gridEl.hidden = !!(completeShowQr && done);
 
     if (completeShowQr && done){
@@ -307,184 +447,87 @@ export async function mount(root, props = {}, ctx = {}) {
         if (head) head.style.display = "none";
         if (prog) prog.style.display = "none";
       }
+      await renderQr();
     } else {
       const head = root.querySelector(".pp-head");
       const prog = root.querySelector(".pp-progress");
       if (head) head.style.display = "";
       if (prog) prog.style.display = "";
-    }
-
-    renderRedeemQr();
-  }
-
-  async function onCollectClick(styleId){
-    const st = styles.find(x => getStyleId(x) === styleId) || null;
-    selectedStyleId = styleId;
-    selectedStyleName = str(st && (st.name || st.title), styleId);
-
-    if (requirePin && collectMode === "direct_pin"){
-      if (modalTitle) modalTitle.textContent = "Введите PIN";
-      if (modalSub) modalSub.textContent = selectedStyleName ? `Карточка: ${selectedStyleName}` : "";
-      setModalVisible(true);
-      return;
-    }
-
-    await doCollect(styleId, "");
-  }
-
-  async function doCollect(styleId, pin){
-    busy.add(styleId);
-    try{
-      haptic("light");
-      await apiCollect(styleId, pin || "");
-      await refreshState(true);
-      haptic("success");
-    }catch(e){
-      haptic("error");
-      const msg = (e && e.payload && (e.payload.error || e.payload.message)) ? (e.payload.error || e.payload.message) : (e && e.message ? e.message : String(e));
-      if (modalErr){
-        modalErr.hidden = false;
-        modalErr.textContent = msg;
-      } else {
-        await uiAlert(msg);
-      }
-      throw e;
-    }finally{
-      busy.delete(styleId);
-      renderGrid();
+      setQrVisible(false);
     }
   }
 
-  async function refreshState(silent=false){
-    try{
-      const st = await apiState();
-      applyState(st);
-      return st;
-    }catch(e){
-      if (!silent){
-        await uiAlert(e && e.message ? e.message : String(e));
-      }
-      throw e;
-    }
+  function parseStateFromResponse(j){
+    if (!j) return null;
+    // many workers wrap {ok:true, state:{...}}
+    const st = (j.state || j.fresh_state || j.fresh || j.data || j.result) ? (j.state || j.fresh_state || j.fresh || j.data || j.result) : j;
+    return st;
+  }
+
+  async function refreshFromServer(){
+    const j = await apiState();
+    const st = parseStateFromResponse(j);
+    applyState(st);
   }
 
   function applyState(st){
     state = st || {};
-    collected = new Set(Array.isArray(state.styles) ? state.styles.map(x=>String(x||"")) : []);
+    collected = normalizeCollected(state);
     renderProgress();
+    renderReward();
     renderGrid();
-    renderMode();
   }
 
-  // ---------- Redeem QR (sales_qr_one pattern)
-  function buildQrUrlForText(text){
-    // quickchart expects "text" param. encode FULL URL for better camera detection.
-    const u = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(String(text||""))}`;
-    return u;
+  async function collectDirectPin(styleId, pin){
+    const res = await apiCollect(styleId, pin);
+    const st = parseStateFromResponse(res && (res.fresh_state || res.state || res.result || res));
+    if (st) applyState(st);
+    else await refreshFromServer();
   }
 
-  async function paintQrToCanvas(text){
-    if (!qrCanvas) return;
-    const ctx2 = qrCanvas.getContext("2d");
-    if (!ctx2) return;
-
-    const imgUrl = buildQrUrlForText(text);
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-
-    await new Promise((res, rej)=>{
-      img.onload = ()=>res();
-      img.onerror = (e)=>rej(e);
-      img.src = imgUrl;
-    });
-
-    // white bg + draw
-    ctx2.clearRect(0,0,qrCanvas.width, qrCanvas.height);
-    ctx2.fillStyle = "#ffffff";
-    ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
-
-    // fit
-    const w = qrCanvas.width;
-    const h = qrCanvas.height;
-    ctx2.drawImage(img, 0, 0, w, h);
+  async function collectNoPin(styleId){
+    const res = await apiCollect(styleId, "");
+    const st = parseStateFromResponse(res && (res.fresh_state || res.state || res.result || res));
+    if (st) applyState(st);
+    else await refreshFromServer();
   }
 
-  async function refreshRedeemLink(){
-    if (redeemRefreshing) return;
-    redeemRefreshing = true;
-    try{
-      const r = await fetchRedeemToken();
-      if (!r || r.ok === false){
-        const err = r && r.error ? r.error : "TOKEN_ERROR";
-        throw new Error(err);
-      }
-
-      // accept multiple shapes like sales_qr_one
-      const deep = str(r.deep_link || r.link || "", "").trim();
-      const bot = str(r.bot_username || (r.out && r.out.bot_username) || "", "").trim();
-      const tok = str(r.token || (r.out && r.out.token) || "", "").trim();
-
-      redeemLink = deep || buildDeepLinkFromToken(bot, tok);
-
-      if (!redeemLink){
-        throw new Error("NO_DEEP_LINK");
-      }
-    } finally {
-      redeemRefreshing = false;
-    }
+  async function collectBotPin(styleId){
+    await uiAlert("⚠️ Режим bot_pin пока не включён в воркере. Используй direct_pin (модалка).");
   }
 
-  async function renderRedeemQr(){
-    const show = completeShowQr && isComplete();
-    setQrVisible(show);
-    if (!show) {
-      stopRedeemTimer();
-      return;
-    }
-
-    if (qrTitle) qrTitle.textContent = qrTitleText;
-    if (qrText) qrText.textContent = qrHelpText;
+  async function onCollectClick(styleId){
+    busy.add(styleId);
+    renderGrid();
 
     try{
-      if (!redeemLink){
-        await refreshRedeemLink();
-      }
-      if (qrCodeText){
-        if (qrShowCodeText){
-          qrCodeText.hidden = false;
-          qrCodeText.textContent = redeemLink;
+      haptic("light");
+
+      if (requirePin){
+        if (collectMode === "direct_pin"){
+          selectedStyleId = styleId;
+          selectedStyleName = (styles.find(s=>getStyleId(s)===styleId)?.name) || "";
+          if (modalTitle) modalTitle.textContent = "Введите PIN";
+          if (modalSub) modalSub.textContent = selectedStyleName ? `Штамп: ${selectedStyleName}` : "";
+          setModalVisible(true);
+          return;
         } else {
-          qrCodeText.hidden = true;
-          qrCodeText.textContent = "";
+          await collectBotPin(styleId);
         }
+      } else {
+        await collectNoPin(styleId);
       }
-      await paintQrToCanvas(redeemLink);
-      startRedeemTimer();
-    }catch(e){
-      stopRedeemTimer();
+
+      // completion mode
+      await renderMode();
+      haptic("success");
+    } catch (e) {
+      haptic("error");
       const msg = e && e.message ? e.message : String(e);
-      if (qrCodeText){
-        qrCodeText.hidden = false;
-        qrCodeText.textContent = "Ошибка QR: " + msg;
-      }
-    }
-  }
-
-  function startRedeemTimer(){
-    if (redeemTimer) return;
-    redeemTimer = win.setInterval(async ()=>{
-      try{
-        redeemLink = "";
-        await refreshRedeemLink();
-        await paintQrToCanvas(redeemLink);
-      }catch(_){}
-    }, redeemRefreshSec * 1000);
-  }
-
-  function stopRedeemTimer(){
-    if (redeemTimer){
-      win.clearInterval(redeemTimer);
-      redeemTimer = null;
+      await uiAlert(msg);
+    } finally {
+      busy.delete(styleId);
+      renderGrid();
     }
   }
 
@@ -495,22 +538,24 @@ export async function mount(root, props = {}, ctx = {}) {
   if (modalOk){
     modalOk.addEventListener("click", async ()=>{
       if (!selectedStyleId) return;
-      const pin = pinInp ? String(pinInp.value || "").trim() : "";
+      const pin = pinInp ? String(pinInp.value||"").trim() : "";
       if (requirePin && !pin){
         if (modalErr){ modalErr.hidden = false; modalErr.textContent = "Введите PIN"; }
         return;
       }
       if (modalErr){ modalErr.hidden = true; modalErr.textContent = ""; }
-      try{
-        modalOk.disabled = true;
-        await doCollect(selectedStyleId, pin);
-        setModalVisible(false);
 
-        // on complete -> ensure redeem link & qr
-        if (isComplete() && completeShowQr){
-          redeemLink = "";
-          await renderRedeemQr();
-        }
+      modalOk.disabled = true;
+      try{
+        await collectDirectPin(selectedStyleId, pin);
+        setModalVisible(false);
+        await renderMode();
+        haptic("success");
+      } catch (e){
+        const msg = e && e.message ? e.message : String(e);
+        if (modalErr){ modalErr.hidden = false; modalErr.textContent = msg; }
+        else await uiAlert(msg);
+        haptic("error");
       } finally {
         modalOk.disabled = false;
       }
@@ -530,18 +575,27 @@ export async function mount(root, props = {}, ctx = {}) {
   renderHeader();
   renderGrid();
   renderProgress();
-  renderMode();
+  renderReward();
+  setQrVisible(false);
 
+  // initial server state
   try{
-    const st = await refreshState(true);
-    if (st && isComplete() && completeShowQr){
-      await renderRedeemQr();
-    }
-  }catch(_){}
+    await refreshFromServer();
+    await renderMode();
 
-  return {
-    unmount(){
-      stopRedeemTimer();
+    // auto refresh redeem QR if enabled
+    if (redeemRefreshSec > 0){
+      redeemTimer = setInterval(async ()=>{
+        if (!isComplete()) return;
+        try{ await renderQr(); }catch(_){}
+      }, redeemRefreshSec * 1000);
     }
+  }catch(_){
+    // ignore in studio preview
+  }
+
+  // cleanup
+  return () => {
+    try{ redeemTimer && clearInterval(redeemTimer); }catch(_){}
   };
 }
