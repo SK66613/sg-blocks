@@ -595,7 +595,7 @@ export async function mount(root, props = {}, ctx = {}) {
           <div class="pp-txt">
             <div class="pp-name">${escapeHtml(name)}</div>
             ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
-            <div class="pp-action">${escapeHtml(done ? btnDone : btnCollect)}</div>
+            
           </div>
         </div>
       </button>
