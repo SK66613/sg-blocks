@@ -133,7 +133,7 @@
 
 /* ===== progress ===== */
 .blk-passport .pp-progress{
-  padding: 0 14px 12px;
+  padding: 0 0px 12px;
 }
 .blk-passport .pp-progress-bar{
   height: 10px;
@@ -161,7 +161,7 @@
 
 /* ===== grid/cards ===== */
 .blk-passport .pp-grid{
-  padding: 0 14px 14px;
+  padding: 0 0px 14px;
   display:grid;
   gap: var(--pp-gap);
   grid-template-columns: repeat(3, minmax(0, 1fr));
