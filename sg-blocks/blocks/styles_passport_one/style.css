@@ -4,7 +4,7 @@
   padding: 0;
 
   /* ===== Layout bridges (from app.css / constructor) ===== */
-  --pp-pad: var(--container-pad, 14px);
+  --pp-pad: var(--container-pad, 16px);
   --pp-gap: var(--section-gap, 12px);
 
   /* ===== Typography bridges ===== */
@@ -91,7 +91,7 @@
   gap:12px;
   align-items:flex-start;
   justify-content:space-between;
-  padding: 14px;
+  padding: 10px;
   padding-bottom: 10px;
 }
 
