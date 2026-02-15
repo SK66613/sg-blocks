@@ -38,81 +38,111 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s).replace(/"/g, "&quot;");
   }
 
+  // Parse tg user from initData (mini-apps initData has user=JSON)
+  function parseTgUserFromInitData(initData){
+    try{
+      const p = new URLSearchParams(String(initData || ""));
+      const userRaw = p.get("user");
+      if (!userRaw) return null;
+      const u = JSON.parse(userRaw);
+      return (u && u.id) ? u : null;
+    }catch(_){
+      return null;
+    }
+  }
+
   // ---------- API
   const apiFn = (typeof ctx.api === "function") ? ctx.api : (typeof win.api === "function") ? win.api : null;
 
   async function apiCall(method, payload = {}) {
-  // если есть ctx.api / window.api — отлично, используем
-  if (apiFn) return await apiFn(method, payload);
+    // если есть ctx.api / window.api — отлично, используем
+    if (apiFn) return await apiFn(method, payload);
 
-  // 1) public_id (как у /spin)
-  let publicId = "";
-  try{
-    publicId =
-      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "") ||
-      str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "") ||
-      str(props?.public_id || props?.app_public_id || "");
+    // IMPORTANT: fallback endpoints are /api/mini/wheel_spin, /api/mini/wheel_rewards...
+    // but callers may pass "wheel.spin" / "wheel.rewards" => normalize
+    const methodSlug = String(method || "").replace(/\./g, "_");
 
-    if (!publicId){
-      const u = new URL(win.location.href);
-      publicId = u.searchParams.get("public_id") || "";
-    }
-  }catch(_){}
+    // 1) public_id (как у /spin)
+    let publicId = "";
+    try{
+      publicId =
+        str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "") ||
+        str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "") ||
+        str(props?.public_id || props?.app_public_id || "");
 
-  // 2) init_data (в preview TG.initData часто пустой)
-  let initData = "";
-  try{
-    initData =
-      str(ctx?.initData || ctx?.init_data || "") ||
-      str(win?.SG_INIT_DATA || win?.__SG_INIT_DATA || "") ||
-      str(TG?.initData || "");
+      if (!publicId){
+        const u = new URL(win.location.href);
+        publicId = u.searchParams.get("public_id") || "";
+      }
+    }catch(_){}
 
-    if (!initData){
-      const u = new URL(win.location.href);
-      initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
-    }
-  }catch(_){}
+    // 2) init_data (в preview TG.initData часто пустой)
+    let initData = "";
+    try{
+      initData =
+        str(ctx?.initData || ctx?.init_data || "") ||
+        str(win?.SG_INIT_DATA || win?.__SG_INIT_DATA || "") ||
+        str(TG?.initData || "");
 
-  // 3) URL + public_id query
-  const url = new URL(`/api/mini/${method}`, win.location.origin);
-  if (publicId) url.searchParams.set("public_id", publicId);
+      if (!initData){
+        const u = new URL(win.location.href);
+        initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
+      }
+    }catch(_){}
 
-  // 4) body
-  const body = {
-    ...payload,
-    // на всякий: иногда воркер читает app_public_id из body
-    app_public_id: publicId || (payload.app_public_id || ""),
-    init_data: initData,
-    initData: initData,
-  };
+    // 2b) tg_user (worker requires tg_user.id, otherwise 400)
+    let tgUser = null;
+    try{
+      const st = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
+      tgUser =
+        ctx?.tg_user || ctx?.tgUser ||
+        st?.tg_user || st?.tgUser || st?.tg || st?.user ||
+        parseTgUserFromInitData(initData) ||
+        null;
+    }catch(_){ tgUser = null; }
 
-  const r = await fetch(url.toString(), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+    // 3) URL + public_id query
+    const url = new URL(`/api/mini/${methodSlug}`, win.location.origin);
+    if (publicId) url.searchParams.set("public_id", publicId);
 
-  const j = await r.json().catch(() => null);
+    // 4) body
+    const body = {
+      ...payload,
+      // на всякий: иногда воркер читает app_public_id из body
+      app_public_id: publicId || (payload.app_public_id || ""),
+      init_data: initData,
+      initData: initData,
+      // ✅ critical
+      tg_user: (tgUser && tgUser.id) ? tgUser : undefined,
+    };
 
-  if (!r.ok || !j || j.ok === false) {
-    // 👇 полезно для дебага: покажем код/тело ошибки
-    slog("sg.wheel.wallet.fail.api", {
-      method,
-      status: r.status,
-      publicId,
-      hasInitData: !!initData,
-      error: String((j && (j.error || j.message)) || `API ${method} failed (${r.status})`),
+    const r = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
     });
-    const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
-    err.status = r.status;
-    err.payload = j;
-    throw err;
+
+    const j = await r.json().catch(() => null);
+
+    if (!r.ok || !j || j.ok === false) {
+      slog("sg.wheel.wallet.fail.api", {
+        method,
+        methodSlug,
+        status: r.status,
+        publicId,
+        hasInitData: !!initData,
+        hasTgUser: !!(body.tg_user && body.tg_user.id),
+        error: String((j && (j.error || j.message)) || `API ${method} failed (${r.status})`),
+      });
+      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+      err.status = r.status;
+      err.payload = j;
+      throw err;
+    }
+
+    return j;
   }
-
-  return j;
-}
-
 
   // ---------- DOM (matches view.html)
   const titleEl = root.querySelector('[data-bw-title]');
@@ -149,7 +179,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const prizes = (Array.isArray(props.prizes) && props.prizes.length)
     ? props.prizes.map(p => ({
         code: str(p.code, ""),
-        name: str(p.name ?? p.title, ""),
+        name: str(p.name ?? p.title, ""), // ✅ editor now uses title
         img: str(p.img, ""),
         coins: Math.max(0, Math.floor(num(p.coins, 0))),
       }))
@@ -265,7 +295,6 @@ export async function mount(root, props = {}, ctx = {}) {
 
     syncCoins();
 
-    // IMPORTANT: no has_unclaimed blocking anymore
     const cost = getSpinCost();
     const canSpin = (getCoins() >= cost) && !spinning;
     spinBtn.classList.toggle("is-locked", !canSpin);
@@ -371,13 +400,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
   async function loadRewards(){
     try{
-      let r = null;
-      try{
-        r = await apiCall("wheel.rewards", {});
-      }catch(_){
-        r = await apiCall("wheel_rewards", {});
-      }
-
+      // call using dot-name (apiFn) or underscore (fallback). apiCall normalizes.
+      const r = await apiCall("wheel.rewards", {});
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
@@ -406,10 +430,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
   function renderQr(code){
     clearQr();
-    // Try common libs if present
     try{
       if (win.QRCode) {
-        // QRCode(el, text) variants differ; try best-effort
         const box = doc.createElement("div");
         modalQrEl.appendChild(box);
         try{
@@ -424,8 +446,6 @@ export async function mount(root, props = {}, ctx = {}) {
         }catch(_){}
       }
     }catch(_){}
-
-    // fallback: show nothing, code is still visible
   }
 
   function openModal(title, code){
@@ -440,7 +460,6 @@ export async function mount(root, props = {}, ctx = {}) {
     modalEl.hidden = true;
     openedReward = null;
     clearQr();
-    // refresh after close (in case cashier redeemed quickly)
     loadRewards();
   }
 
@@ -501,7 +520,8 @@ export async function mount(root, props = {}, ctx = {}) {
       try {
         r = await apiCall("wheel.spin", {});
       } catch (e) {
-        if (e && (e.status === 409 || e.status === 400) && e.payload && e.payload.error === "NOT_ENOUGH_COINS") {
+        const err = e && e.payload && e.payload.error;
+        if (e && (e.status === 409 || e.status === 400) && (err === "NOT_ENOUGH_COINS" || err === "NOT_ENOUGH")) {
           const have = num(e.payload.have, coins);
           const need = num(e.payload.need, costNow);
           pillEl.classList.remove("muted");
@@ -529,8 +549,11 @@ export async function mount(root, props = {}, ctx = {}) {
       if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
       await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
+      // "Выпало": prefer wheelState, else response prize title
       const ws = getWheelState();
-      if (pickedEl) pickedEl.textContent = ws.last_prize_title ? `Выпало: ${ws.last_prize_title}` : "";
+      const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? "");
+      const titleShown = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
+      if (pickedEl) pickedEl.textContent = titleShown ? `Выпало: ${titleShown}` : "";
 
       // refresh wallet after spin
       await loadRewards();
