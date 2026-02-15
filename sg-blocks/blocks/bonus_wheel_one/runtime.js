@@ -38,7 +38,7 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s).replace(/"/g, "&quot;");
   }
 
-  // Parse tg user from initData (mini-apps initData has user=JSON)
+  // Parse tg user from initData (initData has user=JSON)
   function parseTgUserFromInitData(initData){
     try{
       const p = new URLSearchParams(String(initData || ""));
@@ -55,14 +55,13 @@ export async function mount(root, props = {}, ctx = {}) {
   const apiFn = (typeof ctx.api === "function") ? ctx.api : (typeof win.api === "function") ? win.api : null;
 
   async function apiCall(method, payload = {}) {
-    // если есть ctx.api / window.api — отлично, используем
+    // if ctx.api / window.api exists — use it
     if (apiFn) return await apiFn(method, payload);
 
-    // IMPORTANT: fallback endpoints are /api/mini/wheel_spin, /api/mini/wheel_rewards...
-    // but callers may pass "wheel.spin" / "wheel.rewards" => normalize
+    // fallback endpoints are underscore style: /api/mini/wheel_spin, /api/mini/wheel_rewards
     const methodSlug = String(method || "").replace(/\./g, "_");
 
-    // 1) public_id (как у /spin)
+    // 1) public_id
     let publicId = "";
     try{
       publicId =
@@ -76,7 +75,7 @@ export async function mount(root, props = {}, ctx = {}) {
       }
     }catch(_){}
 
-    // 2) init_data (в preview TG.initData часто пустой)
+    // 2) init_data (in preview often empty)
     let initData = "";
     try{
       initData =
@@ -90,7 +89,14 @@ export async function mount(root, props = {}, ctx = {}) {
       }
     }catch(_){}
 
-    // 2b) tg_user (worker requires tg_user.id, otherwise 400)
+    // 2b) preview tg_id fallback (only if explicitly present)
+    let previewTgId = "";
+    try{
+      const u = new URL(win.location.href);
+      previewTgId = u.searchParams.get("tg_id") || u.searchParams.get("tgId") || "";
+    }catch(_){}
+
+    // 2c) tg_user (worker requires tg_user.id OR initData.user)
     let tgUser = null;
     try{
       const st = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
@@ -99,6 +105,11 @@ export async function mount(root, props = {}, ctx = {}) {
         st?.tg_user || st?.tgUser || st?.tg || st?.user ||
         parseTgUserFromInitData(initData) ||
         null;
+
+      if ((!tgUser || !tgUser.id) && previewTgId) {
+        const idNum = Number(previewTgId);
+        if (Number.isFinite(idNum) && idNum > 0) tgUser = { id: idNum, username: "preview" };
+      }
     }catch(_){ tgUser = null; }
 
     // 3) URL + public_id query
@@ -108,11 +119,9 @@ export async function mount(root, props = {}, ctx = {}) {
     // 4) body
     const body = {
       ...payload,
-      // на всякий: иногда воркер читает app_public_id из body
       app_public_id: publicId || (payload.app_public_id || ""),
       init_data: initData,
       initData: initData,
-      // ✅ critical
       tg_user: (tgUser && tgUser.id) ? tgUser : undefined,
     };
 
@@ -126,7 +135,7 @@ export async function mount(root, props = {}, ctx = {}) {
     const j = await r.json().catch(() => null);
 
     if (!r.ok || !j || j.ok === false) {
-      slog("sg.wheel.wallet.fail.api", {
+      slog("sg.wheel.api.fail", {
         method,
         methodSlug,
         status: r.status,
@@ -164,7 +173,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalCloseEls = root.querySelectorAll('[data-bw-modal-close], [data-bw-modal-close-btn]');
 
   if (!trackEl || !wheelEl || !spinBtn || !coinsEl || !pillEl || !walletCountEl || !walletListEl || !modalEl) {
-    slog("sg.wheel.wallet.fail.render", { error: "view.html mismatch / missing elements" });
+    slog("sg.wheel.fail.render", { error: "view.html mismatch / missing elements" });
     return () => {};
   }
 
@@ -179,7 +188,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const prizes = (Array.isArray(props.prizes) && props.prizes.length)
     ? props.prizes.map(p => ({
         code: str(p.code, ""),
-        name: str(p.name ?? p.title, ""), // ✅ editor now uses title
+        name: str(p.name ?? p.title, ""),
         img: str(p.img, ""),
         coins: Math.max(0, Math.floor(num(p.coins, 0))),
       }))
@@ -400,14 +409,13 @@ export async function mount(root, props = {}, ctx = {}) {
 
   async function loadRewards(){
     try{
-      // call using dot-name (apiFn) or underscore (fallback). apiCall normalizes.
       const r = await apiCall("wheel.rewards", {});
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
     }catch(e){
       rewards = [];
-      slog("sg.wheel.wallet.fail.api", { error: String(e && e.message || e) });
+      slog("sg.wheel.wallet.fail", { error: String(e && e.message || e) });
       renderWallet();
     }
   }
@@ -520,8 +528,8 @@ export async function mount(root, props = {}, ctx = {}) {
       try {
         r = await apiCall("wheel.spin", {});
       } catch (e) {
-        const err = e && e.payload && e.payload.error;
-        if (e && (e.status === 409 || e.status === 400) && (err === "NOT_ENOUGH_COINS" || err === "NOT_ENOUGH")) {
+        const errCode = e && e.payload && e.payload.error;
+        if (e && (e.status === 409 || e.status === 400) && (errCode === "NOT_ENOUGH_COINS" || errCode === "NOT_ENOUGH")) {
           const have = num(e.payload.have, coins);
           const need = num(e.payload.need, costNow);
           pillEl.classList.remove("muted");
@@ -552,8 +560,8 @@ export async function mount(root, props = {}, ctx = {}) {
       // "Выпало": prefer wheelState, else response prize title
       const ws = getWheelState();
       const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? "");
-      const titleShown = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
-      if (pickedEl) pickedEl.textContent = titleShown ? `Выпало: ${titleShown}` : "";
+      const shownTitle = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
+      if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
 
       // refresh wallet after spin
       await loadRewards();
