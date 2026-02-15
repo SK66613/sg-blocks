@@ -66,6 +66,8 @@ export async function mount(root, props = {}, ctx = {}) {
   const trackEl  = root.querySelector('[data-wheel-track]');
   const spinBtn  = root.querySelector('[data-spin]');
   const claimBtn = root.querySelector('[data-claim]');
+  const rewardsCountEl = root.querySelector('[data-rewards-count]');
+  const rewardsListEl = root.querySelector('[data-rewards-list]');
 
   if (!trackEl || !wheelEl || !spinBtn || !claimBtn) {
     // view.html mismatch
@@ -205,6 +207,48 @@ export async function mount(root, props = {}, ctx = {}) {
   let interacted = false;
   let spinning = false;
 
+  let rewards = [];
+
+  function showRedeemCode(code) {
+    const text = `Redeem code: ${code || '—'}`;
+    try {
+      if (TG && typeof TG.showPopup === "function") {
+        TG.showPopup({ title: "Reward code", message: text, buttons: [{ type: "ok" }] });
+        return;
+      }
+    } catch (_) {}
+    win.alert(text);
+  }
+
+  function renderRewards() {
+    if (rewardsCountEl) rewardsCountEl.textContent = String(rewards.length);
+    if (!rewardsListEl) return;
+
+    rewardsListEl.innerHTML = rewards.map((reward, idx) => {
+      const title = reward && reward.title ? String(reward.title) : `Reward #${idx + 1}`;
+      return `
+        <div class="bw-reward-item">
+          <div class="bw-reward-title">${escapeHtml(title)}</div>
+          <button type="button" class="btn bw-reward-btn" data-reward-index="${idx}">Show code</button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function loadRewards() {
+    const r = await apiCall("wheel.rewards", {});
+    if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "rewards_failed");
+
+    const list = Array.isArray(r.rewards) ? r.rewards : (Array.isArray(r.items) ? r.items : []);
+    rewards = list.map((it) => ({
+      title: str(it && (it.title || it.name), ""),
+      redeem_code: str(it && (it.redeem_code || it.code), ""),
+    }));
+
+    renderRewards();
+    return rewards;
+  }
+
   const mod = (a, n) => ((a % n) + n) % n;
 
   function measureStep() {
@@ -239,12 +283,8 @@ export async function mount(root, props = {}, ctx = {}) {
     refreshClaimBtn();
 
     // lock spin if not enough coins or currently spinning
-    // lock spin if not enough coins OR currently spinning OR has unclaimed prize
-    const ws = getWheelState();
-    const hasUnclaimed = !!ws.has_unclaimed;
-
     const cost = getSpinCost();
-    const canSpin = (getCoins() >= cost) && !spinning && !hasUnclaimed;
+    const canSpin = (getCoins() >= cost) && !spinning;
 
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
@@ -399,6 +439,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
       if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
+      await loadRewards();
+
     } finally {
       spinning = false;
       updateUI();
@@ -432,17 +474,27 @@ export async function mount(root, props = {}, ctx = {}) {
 
   const onSpin = (e) => { e.preventDefault(); doSpin(); };
   const onClaim = (e) => { e.preventDefault(); doClaim(); };
+  const onRewardsClick = (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-reward-index]') : null;
+    if (!btn) return;
+    const idx = Number(btn.getAttribute('data-reward-index'));
+    if (!Number.isFinite(idx) || idx < 0 || idx >= rewards.length) return;
+    showRedeemCode(rewards[idx].redeem_code);
+  };
 
   spinBtn.addEventListener("click", onSpin);
   claimBtn.addEventListener("click", onClaim);
+  rewardsListEl && rewardsListEl.addEventListener("click", onRewardsClick);
 
   // initial UI
   updateUI();
+  loadRewards().catch(() => {});
 
   // cleanup
   return () => {
     try { cdTimer && win.clearInterval(cdTimer); } catch (_) {}
     spinBtn.removeEventListener("click", onSpin);
     claimBtn.removeEventListener("click", onClaim);
+    rewardsListEl && rewardsListEl.removeEventListener("click", onRewardsClick);
   };
 }

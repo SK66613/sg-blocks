@@ -275,3 +275,31 @@
     transition: none !important;
   }
 }
+
+.blk-bonus-wheel .bw-rewards{
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--bw-border);
+}
+
+.blk-bonus-wheel .bw-rewards-title{
+  margin-bottom: 8px;
+  font-weight: calc(var(--bw-fw-body) + 200);
+}
+
+.blk-bonus-wheel .bw-reward-item{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.blk-bonus-wheel .bw-reward-title{
+  color: var(--bw-text);
+}
+
+.blk-bonus-wheel .bw-reward-btn{
+  min-height: 34px;
+  padding: 0 10px;
+}
