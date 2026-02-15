@@ -1,6 +1,6 @@
 // bonus_wheel_one/runtime.js
 // Wheel-track (cards) runtime — API priority: ctx.api -> window.api -> POST /api/mini/*
-// Updated for reward wallet (wheel.rewards). No wheel.claim. No spin blocking by has_unclaimed.
+// Wallet: wheel_rewards (issued prizes in wheel_redeems). No wheel.claim. No spin blocking by has_unclaimed.
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -26,7 +26,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const mod = (a, n) => ((a % n) + n) % n;
 
   function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (m) => ({
+    return String(s ?? "").replace(/[&<>"']/g, (m) => ({
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
@@ -35,24 +35,115 @@ export async function mount(root, props = {}, ctx = {}) {
     }[m]));
   }
   function escapeAttr(s) {
-    return String(s).replace(/"/g, "&quot;");
+    return String(s ?? "").replace(/"/g, "&quot;");
   }
 
   // Parse tg user from initData (initData has user=JSON)
-  function parseTgUserFromInitData(initData){
-    try{
+  function parseTgUserFromInitData(initData) {
+    try {
       const p = new URLSearchParams(String(initData || ""));
       const userRaw = p.get("user");
       if (!userRaw) return null;
       const u = JSON.parse(userRaw);
       return (u && u.id) ? u : null;
-    }catch(_){
+    } catch (_) {
       return null;
     }
   }
 
   // ---------- API
-  const apiFn = (typeof ctx.api === "function") ? ctx.api : (typeof win.api === "function") ? win.api : null;
+  const apiFn =
+    (typeof ctx.api === "function") ? ctx.api :
+    (typeof win.api === "function") ? win.api :
+    null;
+
+  function resolvePublicId() {
+    // 1) ctx
+    let pid =
+      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
+    if (pid) return pid;
+
+    // 2) MiniState
+    pid =
+      str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
+    if (pid) return pid;
+
+    // 3) globals (как в паспорте)
+    pid =
+      str(win?.SG_APP_PUBLIC_ID || win?.APP_PUBLIC_ID || "").trim();
+    if (pid) return pid;
+
+    // 4) props
+    pid =
+      str(props?.public_id || props?.app_public_id || "").trim();
+    if (pid) return pid;
+
+    // 5) url param
+    try {
+      const u = new URL(win.location.href);
+      pid = str(u.searchParams.get("public_id") || "").trim();
+      if (pid) return pid;
+    } catch (_) {}
+
+    return "";
+  }
+
+  function resolveInitData() {
+    let initData =
+      str(ctx?.initData || ctx?.init_data || "") ||
+      str(win?.SG_INIT_DATA || win?.__SG_INIT_DATA || "") ||
+      str(TG?.initData || "");
+    if (initData) return initData;
+
+    try {
+      const u = new URL(win.location.href);
+      initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
+      return str(initData);
+    } catch (_) {}
+
+    return "";
+  }
+
+  function resolveTgUser(initData) {
+    // 0) ctx explicit
+    if (ctx?.tg_user && ctx.tg_user.id) return ctx.tg_user;
+    if (ctx?.tgUser && ctx.tgUser.id) return ctx.tgUser;
+
+    // 1) Telegram initDataUnsafe (ВАЖНО — как в паспорте)
+    try {
+      const u = TG?.initDataUnsafe?.user;
+      if (u && u.id) return u;
+    } catch (_) {}
+
+    // 2) MiniState fallbacks
+    try {
+      const st = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
+      const cand =
+        st?.tg_user ||
+        st?.tgUser ||
+        st?.user ||
+        st?.tg ||
+        (st?.profile && (st.profile.tg_user || st.profile.user)) ||
+        null;
+      if (cand && cand.id) return cand;
+    } catch (_) {}
+
+    // 3) parse initData.user
+    const u2 = parseTgUserFromInitData(initData);
+    if (u2 && u2.id) return u2;
+
+    // 4) preview tg_id fallback (ONLY if explicitly present)
+    try {
+      const u = new URL(win.location.href);
+      const previewTgId = u.searchParams.get("tg_id") || u.searchParams.get("tgId") || "";
+      if (previewTgId) {
+        const idNum = Number(previewTgId);
+        if (Number.isFinite(idNum) && idNum > 0) return { id: idNum, username: "preview" };
+      }
+    } catch (_) {}
+
+    return null;
+  }
 
   async function apiCall(method, payload = {}) {
     // if ctx.api / window.api exists — use it
@@ -61,68 +152,20 @@ export async function mount(root, props = {}, ctx = {}) {
     // fallback endpoints are underscore style: /api/mini/wheel_spin, /api/mini/wheel_rewards
     const methodSlug = String(method || "").replace(/\./g, "_");
 
-    // 1) public_id
-    let publicId = "";
-    try{
-      publicId =
-        str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "") ||
-        str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "") ||
-        str(props?.public_id || props?.app_public_id || "");
+    const publicId = resolvePublicId();
+    const initData = resolveInitData();
+    const tgUser = resolveTgUser(initData);
 
-      if (!publicId){
-        const u = new URL(win.location.href);
-        publicId = u.searchParams.get("public_id") || "";
-      }
-    }catch(_){}
-
-    // 2) init_data (in preview often empty)
-    let initData = "";
-    try{
-      initData =
-        str(ctx?.initData || ctx?.init_data || "") ||
-        str(win?.SG_INIT_DATA || win?.__SG_INIT_DATA || "") ||
-        str(TG?.initData || "");
-
-      if (!initData){
-        const u = new URL(win.location.href);
-        initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
-      }
-    }catch(_){}
-
-    // 2b) preview tg_id fallback (only if explicitly present)
-    let previewTgId = "";
-    try{
-      const u = new URL(win.location.href);
-      previewTgId = u.searchParams.get("tg_id") || u.searchParams.get("tgId") || "";
-    }catch(_){}
-
-    // 2c) tg_user (worker requires tg_user.id OR initData.user)
-    let tgUser = null;
-    try{
-      const st = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
-      tgUser =
-        ctx?.tg_user || ctx?.tgUser ||
-        st?.tg_user || st?.tgUser || st?.tg || st?.user ||
-        parseTgUserFromInitData(initData) ||
-        null;
-
-      if ((!tgUser || !tgUser.id) && previewTgId) {
-        const idNum = Number(previewTgId);
-        if (Number.isFinite(idNum) && idNum > 0) tgUser = { id: idNum, username: "preview" };
-      }
-    }catch(_){ tgUser = null; }
-
-    // 3) URL + public_id query
     const url = new URL(`/api/mini/${methodSlug}`, win.location.origin);
     if (publicId) url.searchParams.set("public_id", publicId);
 
-    // 4) body
     const body = {
       ...payload,
       app_public_id: publicId || (payload.app_public_id || ""),
       init_data: initData,
       initData: initData,
-      tg_user: (tgUser && tgUser.id) ? tgUser : undefined,
+      // ✅ ключевое: tg_user обязателен для mini.ts (если initData пустой)
+      tg_user: (tgUser && tgUser.id) ? { id: tgUser.id, username: tgUser.username, first_name: tgUser.first_name, last_name: tgUser.last_name } : undefined,
     };
 
     const r = await fetch(url.toString(), {
@@ -201,7 +244,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const getWheelState = () => (getMiniState().wheel || {});
   const getCoins = () => num(getMiniState().coins, 0);
 
-  function getSpinCost(){
+  function getSpinCost() {
     const st = getMiniState();
     const fromCfg = num(st?.config?.wheel?.spin_cost, NaN);
     if (Number.isFinite(fromCfg)) return Math.max(0, Math.round(fromCfg));
@@ -356,20 +399,20 @@ export async function mount(root, props = {}, ctx = {}) {
   let pollTimer = 0;
   let openedReward = null;
 
-  function fmtIssuedAt(v){
+  function fmtIssuedAt(v) {
     if (!v) return "";
     const s = String(v);
-    return s.replace("T"," ").replace("Z","").slice(0, 16);
+    return s.replace("T", " ").replace("Z", "").slice(0, 16);
   }
 
-  function setWalletCount(n){
-    walletCountEl.textContent = String(Math.max(0, n|0));
+  function setWalletCount(n) {
+    walletCountEl.textContent = String(Math.max(0, n | 0));
   }
 
-  function renderWallet(){
+  function renderWallet() {
     setWalletCount(rewards.length);
 
-    if (!rewards.length){
+    if (!rewards.length) {
       walletListEl.innerHTML = `<div class="bw-wallet-empty">Пока нет призов 😌</div>`;
       return;
     }
@@ -407,56 +450,49 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  async function loadRewards(){
-    try{
+  async function loadRewards() {
+    try {
+      // основной путь — wheel_rewards
       const r = await apiCall("wheel.rewards", {});
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
-    }catch(e){
+    } catch (e) {
       rewards = [];
-      slog("sg.wheel.wallet.fail", { error: String(e && e.message || e) });
+      slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
       renderWallet();
     }
   }
 
-  function startPolling(){
+  function startPolling() {
     if (pollTimer) return;
     pollTimer = win.setInterval(() => loadRewards(), 20000);
     slog("sg.wheel.wallet.poll.start");
   }
-  function stopPolling(){
-    try{ pollTimer && win.clearInterval(pollTimer); }catch(_){}
+  function stopPolling() {
+    try { pollTimer && win.clearInterval(pollTimer); } catch (_) {}
     pollTimer = 0;
     slog("sg.wheel.wallet.poll.stop");
   }
 
-  // ===== Modal + QR (reuse if QR library exists globally)
-  function clearQr(){
-    try{ modalQrEl.innerHTML = ""; }catch(_){}
+  // ===== Modal + QR
+  function clearQr() {
+    try { modalQrEl.innerHTML = ""; } catch (_) {}
   }
 
-  function renderQr(code){
+  function renderQr(code) {
     clearQr();
-    try{
+    try {
       if (win.QRCode) {
         const box = doc.createElement("div");
         modalQrEl.appendChild(box);
-        try{
-          // eslint-disable-next-line no-new
-          new win.QRCode(box, { text: code, width: 160, height: 160 });
-          return;
-        }catch(_){}
-        try{
-          // eslint-disable-next-line no-new
-          new win.QRCode(box, code);
-          return;
-        }catch(_){}
+        try { new win.QRCode(box, { text: code, width: 160, height: 160 }); return; } catch (_) {}
+        try { new win.QRCode(box, code); return; } catch (_) {}
       }
-    }catch(_){}
+    } catch (_) {}
   }
 
-  function openModal(title, code){
+  function openModal(title, code) {
     openedReward = { title, code };
     modalTitleEl.textContent = title;
     modalCodeEl.textContent = code;
@@ -464,7 +500,7 @@ export async function mount(root, props = {}, ctx = {}) {
     modalEl.hidden = false;
   }
 
-  function closeModal(){
+  function closeModal() {
     modalEl.hidden = true;
     openedReward = null;
     clearQr();
@@ -476,13 +512,13 @@ export async function mount(root, props = {}, ctx = {}) {
   modalCopyBtn.addEventListener("click", async () => {
     const code = openedReward?.code || "";
     if (!code) return;
-    try{
+    try {
       await win.navigator.clipboard.writeText(code);
       slog("sg.wheel.wallet.get.copy.ok");
-      try{ TG?.HapticFeedback?.notificationOccurred?.("success"); }catch(_){}
-    }catch(e){
-      slog("sg.wheel.wallet.get.copy.fail", { error: String(e && e.message || e) });
-      try{ win.prompt("Скопируй код:", code); }catch(_){}
+      try { TG?.HapticFeedback?.notificationOccurred?.("success"); } catch (_) {}
+    } catch (e) {
+      slog("sg.wheel.wallet.get.copy.fail", { error: String((e && e.message) || e) });
+      try { win.prompt("Скопируй код:", code); } catch (_) {}
     }
   });
 
@@ -546,26 +582,21 @@ export async function mount(root, props = {}, ctx = {}) {
 
       if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "spin_failed");
 
-      // apply state
       if (r.fresh_state) applyFreshState(r.fresh_state);
       else applyFreshState(r);
 
-      // prize index by code
       const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
       const its = items();
       let idx = its.findIndex(n => String(n.dataset.code || "") === code);
       if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
       await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
-      // "Выпало": prefer wheelState, else response prize title
       const ws = getWheelState();
       const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? "");
       const shownTitle = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
       if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
 
-      // refresh wallet after spin
       await loadRewards();
-
     } finally {
       spinning = false;
       updateUI();
