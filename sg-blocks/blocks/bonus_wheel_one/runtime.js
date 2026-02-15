@@ -66,8 +66,11 @@ export async function mount(root, props = {}, ctx = {}) {
   const trackEl  = root.querySelector('[data-wheel-track]');
   const spinBtn  = root.querySelector('[data-spin]');
   const claimBtn = root.querySelector('[data-claim]');
+  const walletEl = root.querySelector('[data-bw-wallet]');
+  const walletCountEl = root.querySelector('[data-bw-wallet-count]');
+  const walletListEl = root.querySelector('[data-bw-wallet-list]');
 
-  if (!trackEl || !wheelEl || !spinBtn || !claimBtn) {
+  if (!trackEl || !wheelEl || !spinBtn) {
     // view.html mismatch
     return () => {};
   }
@@ -128,6 +131,208 @@ export async function mount(root, props = {}, ctx = {}) {
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
 
+  function log(code, extra) {
+    if (extra && typeof extra === 'object') console.log(code, extra);
+    else console.log(code);
+  }
+
+  // ---------- wallet state
+  let rewards = [];
+  let rewardsPollTimer = 0;
+
+  const qrService = str(props.qr_service, "https://quickchart.io/qr");
+  const qrSize = Math.max(120, num(props.qr_size, 240));
+  const qrMargin = Math.max(0, num(props.qr_margin, 2));
+
+  function formatIssuedAt(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return String(v);
+    try {
+      return d.toLocaleString('ru-RU', { hour12: false });
+    } catch (_) {
+      return d.toISOString();
+    }
+  }
+
+  function getRewardId(rw, idx) {
+    return str(rw.id || rw.reward_id || rw.redeem_code || rw.code || idx, String(idx));
+  }
+
+  let sheetEl = null;
+  let sheetPanel = null;
+  let sheetQrTitle = null;
+  let sheetQrText = null;
+  let sheetQrCanvas = null;
+  let sheetQrCode = null;
+  let sheetCopyBtn = null;
+  let sheetCloseEls = [];
+  let sheetOpen = false;
+
+  function ensureSheet() {
+    if (sheetEl) return;
+    const wrap = doc.createElement('div');
+    wrap.className = 'bw-sheet';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+      <div class="bw-sheet-backdrop" data-bw-sheet-close></div>
+      <div class="bw-sheet-panel">
+        <div class="bw-sheet-handle" data-bw-sheet-close></div>
+        <div class="bw-qr-card">
+          <div class="bw-qr-title" data-bw-qr-title></div>
+          <div class="bw-qr-text" data-bw-qr-text></div>
+          <div class="bw-qr-imgwrap">
+            <canvas data-bw-qr-canvas width="240" height="240"></canvas>
+          </div>
+          <div class="bw-qr-code" data-bw-qr-code></div>
+          <button class="btn primary bw-qr-copy" type="button" data-bw-qr-copy>Скопировать код</button>
+        </div>
+      </div>
+    `;
+    root.appendChild(wrap);
+
+    sheetEl = wrap;
+    sheetPanel = sheetEl.querySelector('.bw-sheet-panel');
+    sheetQrTitle = sheetEl.querySelector('[data-bw-qr-title]');
+    sheetQrText = sheetEl.querySelector('[data-bw-qr-text]');
+    sheetQrCanvas = sheetEl.querySelector('[data-bw-qr-canvas]');
+    sheetQrCode = sheetEl.querySelector('[data-bw-qr-code]');
+    sheetCopyBtn = sheetEl.querySelector('[data-bw-qr-copy]');
+    sheetCloseEls = Array.from(sheetEl.querySelectorAll('[data-bw-sheet-close]'));
+
+    sheetCloseEls.forEach((el) => el.addEventListener('click', closeSheet));
+    win.addEventListener('keydown', onEscClose);
+    if (sheetCopyBtn) sheetCopyBtn.addEventListener('click', onCopyCode);
+  }
+
+  let currentRedeemCode = '';
+
+  function openSheet() {
+    ensureSheet();
+    if (!sheetEl) return;
+    sheetEl.hidden = false;
+    sheetEl.classList.add('is-open');
+    sheetOpen = true;
+    if (doc.body) doc.body.style.overflow = 'hidden';
+  }
+
+  function closeSheet() {
+    if (!sheetEl) return;
+    sheetEl.classList.remove('is-open');
+    sheetOpen = false;
+    if (doc.body) doc.body.style.overflow = '';
+    win.setTimeout(() => {
+      if (sheetEl && !sheetOpen) sheetEl.hidden = true;
+    }, 180);
+  }
+
+  function onEscClose(e) {
+    if (!sheetOpen) return;
+    if (e.key === 'Escape') closeSheet();
+  }
+
+  async function onCopyCode() {
+    if (!currentRedeemCode) return;
+    try {
+      if (win.navigator && win.navigator.clipboard && win.navigator.clipboard.writeText) {
+        await win.navigator.clipboard.writeText(currentRedeemCode);
+      } else {
+        throw new Error('clipboard_unavailable');
+      }
+      log('sg.wheel.wallet.get.copy.ok');
+    } catch (error) {
+      log('sg.wheel.wallet.get.copy.fail', { error: str(error && error.message, 'copy_failed') });
+    }
+  }
+
+  async function renderSheetQr(codeText) {
+    if (!sheetQrCanvas) return;
+    try {
+      sheetQrCanvas.width = qrSize;
+      sheetQrCanvas.height = qrSize;
+    } catch (_) {}
+
+    const ctx2 = sheetQrCanvas.getContext('2d');
+    if (!ctx2) return;
+
+    ctx2.fillStyle = '#fff';
+    ctx2.fillRect(0, 0, sheetQrCanvas.width, sheetQrCanvas.height);
+
+    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(codeText)}`;
+
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        ctx2.drawImage(img, 0, 0, sheetQrCanvas.width, sheetQrCanvas.height);
+        resolve(true);
+      };
+      img.onerror = () => resolve(false);
+      img.src = qUrl;
+    });
+  }
+
+  async function openRewardSheet(reward, idx) {
+    const id = getRewardId(reward, idx);
+    const titleText = str(reward.prize_title || reward.title || reward.name, 'Приз');
+    const redeemCode = str(reward.redeem_code || reward.code, '');
+    currentRedeemCode = redeemCode;
+
+    log('sg.wheel.wallet.get.open', { id });
+
+    ensureSheet();
+    if (sheetQrTitle) sheetQrTitle.textContent = titleText;
+    if (sheetQrText) sheetQrText.textContent = 'Покажите QR или код для получения приза';
+    if (sheetQrCode) sheetQrCode.textContent = redeemCode || 'Код отсутствует';
+
+    openSheet();
+    await renderSheetQr(redeemCode || titleText);
+  }
+
+  function renderRewards() {
+    if (!walletListEl || !walletCountEl) return;
+    walletCountEl.textContent = String(rewards.length);
+
+    walletListEl.innerHTML = rewards.map((rw, idx) => {
+      const titleText = str(rw.prize_title || rw.title || rw.name, 'Приз');
+      const issuedText = formatIssuedAt(rw.issued_at);
+      const img = str(rw.img || rw.image || rw.prize_img, '');
+      return `
+        <div class="bw-wallet-card" data-bw-reward-id="${escapeAttr(getRewardId(rw, idx))}">
+          ${img ? `<img class="bw-wallet-thumb" src="${escapeAttr(img)}" alt="">` : ''}
+          <div class="bw-wallet-meta">
+            <div class="bw-wallet-name">${escapeHtml(titleText)}</div>
+            ${issuedText ? `<div class="bw-wallet-issued">${escapeHtml(issuedText)}</div>` : ''}
+          </div>
+          <button class="btn bw-wallet-get" type="button" data-bw-get="${idx}">Получить</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function loadRewards() {
+    try {
+      let data;
+      try {
+        data = await apiCall('wheel.rewards', {});
+      } catch (_) {
+        data = await apiCall('wheel_rewards', {});
+      }
+      const list = Array.isArray(data && data.rewards) ? data.rewards : [];
+      rewards = list;
+      renderRewards();
+      log('sg.wheel.wallet.ok', { count: rewards.length });
+    } catch (error) {
+      log('sg.wheel.wallet.fail.api', { error: str(error && error.message, 'rewards_failed') });
+      try {
+        rewards = [];
+        renderRewards();
+      } catch (renderError) {
+        log('sg.wheel.wallet.fail.render', { error: str(renderError && renderError.message, 'render_failed') });
+      }
+    }
+  }
+
   // ---------- render prizes into track
   function renderTrack() {
     trackEl.innerHTML = prizes.map(pr => {
@@ -176,27 +381,10 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   function refreshClaimBtn() {
-    const ws = getWheelState();
-    const has = !!ws.has_unclaimed;
-
-    if (!has) {
-      claimBtn.disabled = true;
-      claimBtn.textContent = "Нет приза к выдаче";
-      return;
-    }
-
-    const rem = num(ws.claim_cooldown_left_ms, 0);
-    if (rem <= 0) {
-      claimBtn.disabled = false;
-      claimBtn.textContent = "Забрать бонус";
-      return;
-    }
-
+    if (!claimBtn) return;
     claimBtn.disabled = true;
-    const totalSec = Math.floor(rem / 1000);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    claimBtn.textContent = "Доступно через " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    claimBtn.hidden = true;
+    claimBtn.style.display = 'none';
   }
 
   // ---------- wheel-track animation
@@ -239,12 +427,8 @@ export async function mount(root, props = {}, ctx = {}) {
     refreshClaimBtn();
 
     // lock spin if not enough coins or currently spinning
-    // lock spin if not enough coins OR currently spinning OR has unclaimed prize
-    const ws = getWheelState();
-    const hasUnclaimed = !!ws.has_unclaimed;
-
     const cost = getSpinCost();
-    const canSpin = (getCoins() >= cost) && !spinning && !hasUnclaimed;
+    const canSpin = (getCoins() >= cost) && !spinning;
 
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
@@ -399,6 +583,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
       if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
 
+      await loadRewards();
+
     } finally {
       spinning = false;
       updateUI();
@@ -431,18 +617,40 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   const onSpin = (e) => { e.preventDefault(); doSpin(); };
-  const onClaim = (e) => { e.preventDefault(); doClaim(); };
+  const onWalletClick = (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-bw-get]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    const idx = Number(btn.getAttribute('data-bw-get'));
+    if (!Number.isFinite(idx) || !rewards[idx]) return;
+    openRewardSheet(rewards[idx], idx).catch((error) => {
+      log('sg.wheel.wallet.fail.render', { error: str(error && error.message, 'sheet_failed') });
+    });
+  };
 
-  spinBtn.addEventListener("click", onSpin);
-  claimBtn.addEventListener("click", onClaim);
+  spinBtn.addEventListener('click', onSpin);
+  if (walletListEl) walletListEl.addEventListener('click', onWalletClick);
 
   // initial UI
+  refreshClaimBtn();
   updateUI();
+  await loadRewards();
+
+  rewardsPollTimer = win.setInterval(() => {
+    loadRewards();
+  }, 20000);
+  log('sg.wheel.wallet.poll.start');
 
   // cleanup
   return () => {
     try { cdTimer && win.clearInterval(cdTimer); } catch (_) {}
-    spinBtn.removeEventListener("click", onSpin);
-    claimBtn.removeEventListener("click", onClaim);
+    try { rewardsPollTimer && win.clearInterval(rewardsPollTimer); } catch (_) {}
+    log('sg.wheel.wallet.poll.stop');
+    closeSheet();
+    spinBtn.removeEventListener('click', onSpin);
+    if (walletListEl) walletListEl.removeEventListener('click', onWalletClick);
+    if (sheetCopyBtn) sheetCopyBtn.removeEventListener('click', onCopyCode);
+    if (sheetCloseEls && sheetCloseEls.length) sheetCloseEls.forEach((el) => el.removeEventListener('click', closeSheet));
+    win.removeEventListener('keydown', onEscClose);
   };
 }
