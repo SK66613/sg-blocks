@@ -1,320 +1,448 @@
-/* Bonus Wheel One — Reward Wallet runtime
-   - spin does NOT block on unclaimed
-   - rewards list under buttons
-   - “Get” shows TG popup with code + QR (if QR lib exists)
-   - logs with stable codes: sg.wheel.wallet.*
-*/
+// beer_bonus_wheel/runtime.js
+// Wheel-track (cards) runtime — matches view.html
+// API priority: ctx.api -> window.api -> POST /api/mini/<method>
 
-(function(){
-  const win = window;
+export async function mount(root, props = {}, ctx = {}) {
+  const doc = root.ownerDocument;
+  const win = doc.defaultView;
 
-  function log(code, extra){
-    try{
-      // single-line, low volume
-      console.log(code, extra ? extra : {});
-    }catch(_){}
-  }
+  const TG =
+    ctx.tg ||
+    (win.Telegram && win.Telegram.WebApp) ||
+    (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
+    null;
 
-  function safeJson(v){
-    try{ return JSON.stringify(v); }catch(_){ return ""; }
-  }
+  // ---------- helpers
+  const num = (v, d) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  const str = (v, d = "") => (v === undefined || v === null) ? d : String(v);
+  const clamp01 = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+  };
 
-  function getTG(){
-    return (win.Telegram && win.Telegram.WebApp) ? win.Telegram.WebApp : null;
-  }
+  // ---------- API
+  const apiFn =
+    (typeof ctx.api === "function") ? ctx.api :
+    (typeof win.api === "function") ? win.api :
+    null;
 
-  function getPublicId(){
-    try{
-      const u = new URL(location.href);
-      return u.searchParams.get("public_id") || u.searchParams.get("app") || (win.MiniState && win.MiniState.public_id) || "";
-    }catch(_){
-      return (win.MiniState && win.MiniState.public_id) || "";
-    }
-  }
+  async function apiCall(method, payload = {}) {
+    if (apiFn) return await apiFn(method, payload);
 
-  function getInitData(){
-    const TG = getTG();
-    return (TG && TG.initData) ? TG.initData : "";
-  }
+    const url = `/api/mini/${method}`;
+    const initData = (ctx && ctx.initData) ? ctx.initData : (TG && TG.initData ? TG.initData : "");
+    const body = {
+      ...payload,
+      app_public_id: ctx && ctx.public_id ? String(ctx.public_id) : (payload.app_public_id || ""),
+      init_data: initData
+    };
 
-  function getCoins(){
-    const ms = win.MiniState || {};
-    const c = (ms.user && (ms.user.coins ?? ms.user.balance)) ?? ms.coins ?? 0;
-    const n = Number(c);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  function setCoins(next){
-    const n = Number(next);
-    if (!Number.isFinite(n)) return;
-    win.MiniState = win.MiniState || {};
-    win.MiniState.user = win.MiniState.user || {};
-    win.MiniState.user.coins = n;
-  }
-
-  function getSpinCost(){
-    const ms = win.MiniState || {};
-    const cfgCost = ms?.config?.wheel?.spin_cost;
-    if (cfgCost !== undefined && cfgCost !== null){
-      const n = Number(cfgCost);
-      if (Number.isFinite(n)) return n;
-    }
-    const propsCost = ms?.props?.spin_cost;
-    const n2 = Number(propsCost);
-    return Number.isFinite(n2) ? n2 : 10;
-  }
-
-  async function apiCall(method, data){
-    const publicId = getPublicId();
-    const initData = getInitData();
-    const url = new URL(`${location.origin}/api/mini/${method}`);
-    if (publicId) url.searchParams.set("public_id", publicId);
-
-    const body = Object.assign({}, data || {});
-    // send both keys to be safe with different parsers
-    body.init_data = body.init_data || initData;
-    body.initData = body.initData || initData;
-
-    const res = await fetch(url.toString(), {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(body),
-      credentials: "omit"
     });
 
-    const txt = await res.text();
-    let json = null;
-    try{ json = txt ? JSON.parse(txt) : null; }catch(_){}
-
-    if (!res.ok){
-      const err = new Error(`api ${method} ${res.status}: ${txt?.slice(0,300)}`);
-      err.status = res.status;
-      err.payload = json;
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || j.ok === false) {
+      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+      err.status = r.status;
+      err.payload = j;
       throw err;
     }
-    return json || {};
+    return j;
   }
 
-  // ===== QR helper: use existing global if present, else show code only
-  function hasQrLib(){
-    // many libs expose QRCode or qrcodegen
-    return !!(win.QRCode || win.qrcodegen || win.QRious);
+  // ---------- DOM (MATCHES YOUR view.html)
+  const titleEl  = root.querySelector('[data-bw-title]');
+  const pillEl   = root.querySelector('[data-picked-pill]');
+  const coinsEl  = root.querySelector('[data-coins]');
+  const pickedEl = root.querySelector('[data-picked]');
+  const wheelEl  = root.querySelector('[data-bonus-wheel]');
+  const trackEl  = root.querySelector('[data-wheel-track]');
+  const spinBtn  = root.querySelector('[data-spin]');
+  const claimBtn = root.querySelector('[data-claim]');
+
+  if (!trackEl || !wheelEl || !spinBtn || !claimBtn) {
+    // view.html mismatch
+    return () => {};
   }
 
-  function showGetPopup(title, code){
-    const TG = getTG();
-    const msg = `Код выдачи:\n${code}\n\nПокажите кассиру.`;
+  // ---------- props
+  const title = str(props.title ?? props.h1, "Колесо бонусов");
 
-    // If we have TG popup only (no HTML), we show code text.
-    // QR rendering can be added later in an in-block modal; for now keep stable.
-    try{
-      if (TG && TG.showPopup){
-        TG.showPopup({
-          title: title || "Приз",
-          message: msg + (hasQrLib() ? "\n\nQR: доступен (добавим отрисовку в следующем патче)" : ""),
-          buttons: [
-            { id:"copy", type:"default", text:"Скопировать" },
-            { type:"ok" }
-          ]
-        }, async (btnId) => {
-          if (btnId === "copy"){
-            try{
-              await navigator.clipboard.writeText(code);
-              log("sg.wheel.wallet.get.copy.ok");
-              TG.showPopup({ title:"Готово", message:"Код скопирован ✅", buttons:[{type:"ok"}] });
-            }catch(e){
-              log("sg.wheel.wallet.get.copy.fail", { error: String(e && e.message || e) });
-              try{ prompt("Скопируйте код:", code); }catch(_){}
-            }
-          }
-        });
+  // prizes: теперь поддерживаем coins
+  const prizes = (Array.isArray(props.prizes) && props.prizes.length)
+    ? props.prizes.map(p => ({
+        code:  str(p.code, ""),
+        name:  str(p.name, ""),
+        img:   str(p.img, ""),
+        coins: Math.max(0, Math.floor(num(p.coins, 0))),
+      }))
+    : [];
+
+  if (titleEl) titleEl.textContent = title;
+
+  // ---------- state
+  const getMiniState = () => (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
+  const getWheelState = () => (getMiniState().wheel || {});
+  const getCoins = () => num(getMiniState().coins, 0);
+
+  // актуальная стоимость спина: сначала из MiniState.config.wheel.spin_cost (потому что воркер читает cfg),
+  // иначе из props.spin_cost
+  function getSpinCost(){
+    const st = getMiniState();
+    const fromCfg = num(st?.config?.wheel?.spin_cost, NaN);
+    if (Number.isFinite(fromCfg)) return Math.max(0, Math.round(fromCfg));
+    const fromProps = num(props.spin_cost ?? props.spin_cost_coins, 10);
+    return Math.max(0, Math.round(fromProps));
+  }
+
+  function applyFreshState(fresh) {
+    if (!fresh) return;
+    if (typeof win.applyServerState === "function") {
+      win.applyServerState(fresh);
+      return;
+    }
+    win.MiniState = win.MiniState || {};
+    for (const k in fresh) win.MiniState[k] = fresh[k];
+  }
+
+  // ---------- haptics
+  function haptic(level = "light") {
+    try {
+      if (TG?.HapticFeedback) {
+        if (level === "selection") TG.HapticFeedback.selectionChanged();
+        else TG.HapticFeedback.impactOccurred(level);
         return;
       }
-    }catch(_){}
-
-    // fallback
-    try{ prompt("Код выдачи (скопируйте):", code); }catch(_){}
+    } catch (_) {}
+    try { win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12); } catch (_) {}
   }
 
-  // ===== Mount
-  function mount(root){
-    const $ = (sel) => root.querySelector(sel);
+  // minimal escaping helpers
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
 
-    const elTitle = $("[data-bw-title]");
-    const elSub = $("[data-bw-subtitle]");
-    const elWheel = $("[data-bw-wheel]");
-    const elCoins = $("[data-bw-coins]");
-    const btnSpin = $("[data-bw-spin]");
-    const elWalletCount = $("[data-bw-wallet-count]");
-    const elWalletList = $("[data-bw-wallet-list]");
+  // ---------- render prizes into track
+  function renderTrack() {
+    trackEl.innerHTML = prizes.map(pr => {
+      const code = String(pr.code || "");
+      const name = String(pr.name || "");
+      const img  = String(pr.img || "");
+      const coins = Math.max(0, Math.floor(Number(pr.coins || 0)));
 
-    if (!elWheel || !btnSpin || !elCoins || !elWalletCount || !elWalletList){
-      log("sg.wheel.wallet.fail.render", { error: "missing_dom" });
+      // маленький бейдж монет (если coins>0)
+      const badge = coins > 0 ? `<span class="bonus__badge">${coins} 🪙</span>` : '';
+
+      return `
+        <button class="bonus" type="button" data-code="${escapeHtml(code)}" data-name="${escapeHtml(name)}">
+          ${img ? `<img src="${escapeAttr(img)}" alt="">` : `<div class="bonus__ph" aria-hidden="true"></div>`}
+          ${badge}
+          <span>${escapeHtml(name)}</span>
+        </button>
+      `;
+    }).join("");
+  }
+
+  renderTrack();
+
+  const items = () => Array.from(trackEl.children);
+  let N = items().length || 1;
+
+  // ---------- UI helpers
+  function setPillIdle() {
+    if (!pillEl) return;
+    pillEl.classList.add("muted");
+    pillEl.textContent = 'Нажми «Крутануть»';
+  }
+
+  function setPillByIndex(idx) {
+    const its = items();
+    if (!its.length || !pillEl) return;
+    const it = its[idx];
+    const name = it?.dataset?.name || "—";
+    const img = it?.querySelector("img")?.src || "";
+    pillEl.classList.remove("muted");
+    pillEl.innerHTML = img ? `<img src="${escapeAttr(img)}" alt=""><span>${escapeHtml(name)}</span>` : escapeHtml(name);
+  }
+
+  function syncCoins() {
+    if (coinsEl) coinsEl.textContent = String(getCoins());
+  }
+
+  function refreshClaimBtn() {
+    const ws = getWheelState();
+    const has = !!ws.has_unclaimed;
+
+    if (!has) {
+      claimBtn.disabled = true;
+      claimBtn.textContent = "Нет приза к выдаче";
       return;
     }
 
-    const TG = getTG();
-    try{
-      if (TG){
-        TG.ready();
-        TG.expand();
-      }
-    }catch(_){}
-
-    let spinning = false;
-    let rewards = [];
-    let poll = 0;
-
-    function fmtIssuedAt(v){
-      if (!v) return "";
-      // keep simple: show HH:MM or date if present
-      const s = String(v);
-      return s.replace("T"," ").replace("Z","").slice(0,16);
+    const rem = num(ws.claim_cooldown_left_ms, 0);
+    if (rem <= 0) {
+      claimBtn.disabled = false;
+      claimBtn.textContent = "Забрать бонус";
+      return;
     }
 
-    function renderWallet(){
-      elWalletCount.textContent = String(rewards.length);
+    claimBtn.disabled = true;
+    const totalSec = Math.floor(rem / 1000);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    claimBtn.textContent = "Доступно через " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
 
-      if (!rewards.length){
-        elWalletList.innerHTML = `<div class="bw-empty">Пока нет призов 😌</div>`;
-        return;
-      }
+  // ---------- wheel-track animation
+  let STEP = 114; // px between cards, auto-detect below
+  let curr = 0;   // float index
+  let interacted = false;
+  let spinning = false;
 
-      const html = rewards.map((r) => {
-        const title = String(r.prize_title || r.title || "Приз");
-        const code = String(r.redeem_code || r.code || "");
-        const img = r.img ? String(r.img) : "";
-        const issuedAt = fmtIssuedAt(r.issued_at || r.issuedAt);
+  const mod = (a, n) => ((a % n) + n) % n;
 
-        const thumb = img
-          ? `<div class="bw-thumb"><img src="${img}" alt=""></div>`
-          : `<div class="bw-thumb"></div>`;
+  function measureStep() {
+    const its = items();
+    if (its.length < 2) return;
+    const a = its[0].getBoundingClientRect();
+    const b = its[1].getBoundingClientRect();
+    const dx = Math.round(b.left - a.left);
+    if (dx > 40 && dx < 320) STEP = dx;
+  }
 
-        return `
-          <div class="bw-card" data-reward-id="${String(r.id || "")}" data-reward-code="${code.replace(/"/g,'&quot;')}">
-            ${thumb}
-            <div>
-              <div class="bw-cardTitle">${title}</div>
-              <div class="bw-cardMeta">${issuedAt ? ("Выдано: " + issuedAt) : ""}</div>
-            </div>
-            <button class="bw-get" type="button" data-bw-get>Получить</button>
-          </div>
-        `;
-      }).join("");
+  function updateUI() {
+    const its = items();
+    N = its.length || 1;
 
-      elWalletList.innerHTML = html;
+    its.forEach((node, i) => {
+      let dx = i - curr;
+      dx = mod(dx + N / 2, N) - N / 2;
 
-      // bind clicks
-      elWalletList.querySelectorAll("[data-bw-get]").forEach((b) => {
-        b.addEventListener("click", (ev) => {
-          const card = ev.currentTarget && ev.currentTarget.closest(".bw-card");
-          const code = card ? (card.getAttribute("data-reward-code") || "") : "";
-          const title = card ? (card.querySelector(".bw-cardTitle")?.textContent || "Приз") : "Приз";
-          log("sg.wheel.wallet.get.open", { id: card?.getAttribute("data-reward-id") || "" });
-          if (code) showGetPopup(title, code);
-        });
-      });
-    }
+      const x = dx * STEP;
+      const s = 1 - Math.min(Math.abs(dx) * 0.16, 0.48);
 
-    async function loadRewards(){
-      try{
-        let r = null;
-        try{
-          r = await apiCall("wheel.rewards", {});
-        }catch(_){
-          r = await apiCall("wheel_rewards", {});
-        }
-        rewards = Array.isArray(r.rewards) ? r.rewards : [];
-        log("sg.wheel.wallet.ok", { count: rewards.length });
-        renderWallet();
-      }catch(e){
-        log("sg.wheel.wallet.fail.api", { error: String(e && e.message || e) });
-        rewards = [];
-        renderWallet();
-      }
-    }
+      node.style.transform = `translate(-50%,-50%) translateX(${x}px) scale(${s})`;
+      node.style.zIndex = String(1000 - Math.abs(dx) * 10);
+      node.classList.toggle("active", Math.round(Math.abs(dx)) === 0);
+    });
 
-    function updateUI(){
-      elCoins.textContent = String(getCoins());
-      const cost = getSpinCost();
-      const canSpin = (getCoins() >= cost) && !spinning; // IMPORTANT: no has_unclaimed
-      btnSpin.disabled = !canSpin;
-      btnSpin.textContent = spinning ? "Крутим..." : `Крутануть (-${cost})`;
-      if (elWheel) elWheel.classList.toggle("is-spinning", !!spinning);
-    }
+    if (interacted) setPillByIndex(mod(Math.round(curr), N));
+    else setPillIdle();
 
-    async function doSpin(){
-      if (spinning) return;
-      spinning = true;
-      updateUI();
+    syncCoins();
+    refreshClaimBtn();
 
-      try{
-        const cost = getSpinCost();
-        if (getCoins() < cost){
-          spinning = false;
+    // lock spin if not enough coins or currently spinning
+    // lock spin if not enough coins OR currently spinning OR has unclaimed prize
+    const ws = getWheelState();
+    const hasUnclaimed = !!ws.has_unclaimed;
+
+    const cost = getSpinCost();
+    const canSpin = (getCoins() >= cost) && !spinning && !hasUnclaimed;
+
+    spinBtn.classList.toggle("is-locked", !canSpin);
+    spinBtn.disabled = !canSpin;
+
+    // (опционально) показать стоимость на кнопке
+    // если хочешь — раскомментируй
+    // spinBtn.textContent = cost > 0 ? `Крутануть за ${cost} 🪙` : 'Крутануть';
+  }
+
+  function nearest(currIdx, targetIdx) {
+    let t = targetIdx;
+    while (t - currIdx > N / 2) t -= N;
+    while (currIdx - t > N / 2) t += N;
+    return t;
+  }
+
+  function spinTo(targetIdx, laps = 1, dur = 1200) {
+    return new Promise((resolve) => {
+      const base = nearest(curr, targetIdx);
+      const dir = (base >= curr ? 1 : -1) || 1;
+      const to = base + dir * (laps * N);
+      const from = curr;
+
+      const t0 = performance.now();
+      let lastPulse = 0;
+
+      function tick(t) {
+        const k = Math.min((t - t0) / dur, 1);
+        curr = from + (to - from) * (1 - Math.pow(1 - k, 3));
+        updateUI();
+
+        const period = 80 + 180 * k;
+        if (t - lastPulse >= period) { haptic("light"); lastPulse = t; }
+
+        if (k < 1) requestAnimationFrame(tick);
+        else {
+          curr = to;
+          interacted = true;
           updateUI();
-          return;
+          resolve();
         }
+      }
 
-        const res = await apiCall("spin", {}); // your worker has /api/mini/spin route
-        // try to update coins from response state if present
-        const fresh = res && (res.fresh_state || res.state || res);
-        if (fresh && typeof fresh === "object"){
-          // common patterns: fresh.coins, fresh.user.coins
-          const c = (fresh.user && fresh.user.coins) ?? fresh.coins;
-          if (c !== undefined) setCoins(c);
-        }else{
-          // fallback: deduct locally
-          setCoins(getCoins() - cost);
-        }
+      requestAnimationFrame(tick);
+    });
+  }
 
-        // after spin refresh wallet
-        await loadRewards();
-      }catch(e){
-        // leave wheel stable
-        log("sg.wheel.wallet.fail.api", { error: String(e && e.message || e) });
-      }finally{
-        spinning = false;
+  requestAnimationFrame(() => {
+    measureStep();
+    updateUI();
+  });
+
+  // ---------- cooldown ticker (UI only)
+  let cdTimer = 0;
+  function startCooldownTicker() {
+    if (cdTimer) return;
+    cdTimer = win.setInterval(() => {
+      const st = getMiniState();
+      const ws = st.wheel || (st.wheel = {});
+      const left = Math.max(0, num(ws.claim_cooldown_left_ms, 0) - 1000);
+      ws.claim_cooldown_left_ms = left;
+      refreshClaimBtn();
+      if (left <= 0) {
+        win.clearInterval(cdTimer);
+        cdTimer = 0;
         updateUI();
       }
+    }, 1000);
+  }
+  if (num(getWheelState().claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
+
+  // ---------- actions
+  async function doSpin() {
+    if (spinning) return;
+
+    const costNow = getSpinCost();
+    const coins = getCoins();
+    if (coins < costNow) {
+      haptic("medium");
+      if (pillEl) {
+        pillEl.classList.remove("muted");
+        pillEl.textContent = `Недостаточно монет. Нужно ${costNow} 🪙, у тебя ${coins} 🪙`;
+      }
+      return;
     }
 
-    function startPoll(){
-      if (poll) return;
-      poll = win.setInterval(() => {
-        loadRewards();
-      }, 20000);
-      log("sg.wheel.wallet.poll.start");
-    }
-
-    function stopPoll(){
-      try{ poll && win.clearInterval(poll); }catch(_){}
-      poll = 0;
-      log("sg.wheel.wallet.poll.stop");
-    }
-
-    btnSpin.addEventListener("click", doSpin);
-
-    // init
+    spinning = true;
     updateUI();
-    loadRewards();
-    startPoll();
 
-    // teardown (if your runtime calls destroy)
-    root._bw_destroy = () => {
-      stopPoll();
-    };
+    const MIN_SPIN_MS = num(props.min_spin_ms, 1600);
+    const FINAL_LAPS  = num(props.final_laps, 1);
+    const FINAL_DUR   = num(props.final_dur, 1200);
+
+    const startTs = performance.now();
+
+    // free-run while waiting
+    let free = true;
+    const FREE_RPS = 1;
+    const FREE_SPEED = (FREE_RPS * N) / 1000;
+    let last = performance.now();
+    function freeLoop(now) {
+      if (!free) return;
+      const dt = now - last; last = now;
+      curr = mod(curr + FREE_SPEED * dt, N);
+      updateUI();
+      requestAnimationFrame(freeLoop);
+    }
+    requestAnimationFrame(freeLoop);
+
+    try {
+      let r = null;
+      try {
+        r = await apiCall("wheel.spin", {});
+      } catch (e) {
+        // красиво покажем NOT_ENOUGH_COINS
+        if (e && (e.status === 409 || e.status === 400) && e.payload && e.payload.error === 'NOT_ENOUGH_COINS') {
+          const have = num(e.payload.have, coins);
+          const need = num(e.payload.need, costNow);
+          if (pillEl) {
+            pillEl.classList.remove("muted");
+            pillEl.textContent = `Не хватает монет: нужно ${need} 🪙, у тебя ${have} 🪙`;
+          }
+          haptic("medium");
+          return;
+        }
+        throw e;
+      }
+
+      const elapsed = performance.now() - startTs;
+      if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
+
+      free = false;
+
+      if (!r || r.ok === false) {
+        throw new Error((r && (r.error || r.message)) || "spin_failed");
+      }
+
+      // apply state
+      if (r.fresh_state) applyFreshState(r.fresh_state);
+      else applyFreshState(r);
+
+      // prize index by code
+      const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
+      const its = items();
+      let idx = its.findIndex(n => String(n.dataset.code || "") === code);
+      if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
+
+      await spinTo(idx, FINAL_LAPS, FINAL_DUR);
+
+      const ws = getWheelState();
+      if (pickedEl) pickedEl.textContent = ws.last_prize_title ? `Выпало: ${ws.last_prize_title}` : "";
+
+      if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
+
+    } finally {
+      spinning = false;
+      updateUI();
+    }
   }
 
-  // entrypoint: your runtime env usually provides root element
-  function init(){
-    const root = document.querySelector("[data-bw-root]") || document.body;
-    mount(root);
+  async function doClaim() {
+    if (spinning) return;
+    if (claimBtn.disabled) return;
+
+    spinning = true;
+    updateUI();
+
+    try {
+      const r = await apiCall("wheel.claim", {});
+      if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "claim_failed");
+
+      if (r.fresh_state) applyFreshState(r.fresh_state);
+      else applyFreshState(r);
+
+      if (pickedEl) pickedEl.textContent = "";
+      const ws = getWheelState();
+      if (num(ws.claim_cooldown_left_ms, 0) > 0) startCooldownTicker();
+
+      haptic("selection");
+    } finally {
+      spinning = false;
+      updateUI();
+    }
   }
 
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", init);
-  }else{
-    init();
-  }
-})();
+  const onSpin = (e) => { e.preventDefault(); doSpin(); };
+  const onClaim = (e) => { e.preventDefault(); doClaim(); };
+
+  spinBtn.addEventListener("click", onSpin);
+  claimBtn.addEventListener("click", onClaim);
+
+  // initial UI
+  updateUI();
+
+  // cleanup
+  return () => {
+    try { cdTimer && win.clearInterval(cdTimer); } catch (_) {}
+    spinBtn.removeEventListener("click", onSpin);
+    claimBtn.removeEventListener("click", onClaim);
+  };
+}
