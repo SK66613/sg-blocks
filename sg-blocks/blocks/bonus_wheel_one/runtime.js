@@ -149,7 +149,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const prizes = (Array.isArray(props.prizes) && props.prizes.length)
     ? props.prizes.map(p => ({
         code: str(p.code, ""),
-        name: str(p.name, ""),
+        name: str(p.name ?? p.title, ""),
         img: str(p.img, ""),
         coins: Math.max(0, Math.floor(num(p.coins, 0))),
       }))
