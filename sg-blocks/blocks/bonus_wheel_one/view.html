@@ -1,23 +1,48 @@
-<section class="blk blk-bonus-wheel">
-  <div class="card bonus-card">
-    <div class="h2" data-bw-title>Колесо бонусов</div>
+<div class="bw" data-bw-root>
+  <div class="bw-head">
+    <div class="bw-title" data-bw-title>Колесо бонусов</div>
+    <div class="bw-pill muted" data-picked-pill>Нажми «Крутануть»</div>
+  </div>
 
-    <div class="bonus-head">
-      <div class="picked-pill muted" data-picked-pill>Нажми «Крутануть»</div>
-      <div class="mut" style="margin-left:auto">Монеты: <b data-coins>0</b></div>
+  <div class="bw-wheel" data-bonus-wheel aria-hidden="true"></div>
+
+  <div class="bw-track" data-wheel-track></div>
+
+  <div class="bw-bottom">
+    <div class="bw-coins">
+      <span class="bw-coins-label">Монеты:</span>
+      <span class="bw-coins-val" data-coins>0</span>
     </div>
 
-    <div class="bonus-wheel" data-bonus-wheel>
-      <div class="wheel-track" data-wheel-track>
-        <!-- items injected by runtime -->
-      </div>
-      <div class="wheel-center"></div>
-    </div>
+    <div class="bw-picked" data-picked></div>
 
-    <div class="actions">
-      <button class="btn primary" type="button" data-spin>Крутануть</button>
-      <button class="btn" type="button" data-claim disabled>Нет приза к выдаче</button>
-      <div data-picked class="mut"></div>
+    <div class="bw-actions">
+      <button class="bw-btn bw-btn-primary" data-spin type="button">Крутануть</button>
+      <!-- ВАЖНО: кнопка "призы/забрать" убрана по новой механике -->
     </div>
   </div>
-</section>
+
+  <!-- ===== Wallet under buttons (NOT tight) ===== -->
+  <div class="bw-wallet" data-bw-wallet>
+    <div class="bw-wallet-head">
+      <div class="bw-wallet-title">Ваши призы</div>
+      <div class="bw-wallet-count" data-bw-wallet-count>0</div>
+    </div>
+
+    <div class="bw-wallet-grid" data-bw-wallet-list></div>
+  </div>
+
+  <!-- simple modal for code/QR -->
+  <div class="bw-modal" data-bw-modal hidden>
+    <div class="bw-modal-backdrop" data-bw-modal-close></div>
+    <div class="bw-modal-card">
+      <div class="bw-modal-title" data-bw-modal-title>Приз</div>
+      <div class="bw-modal-code" data-bw-modal-code></div>
+      <div class="bw-modal-qr" data-bw-modal-qr></div>
+      <div class="bw-modal-actions">
+        <button class="bw-btn" type="button" data-bw-copy>Скопировать код</button>
+        <button class="bw-btn bw-btn-primary" type="button" data-bw-modal-close-btn>Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
