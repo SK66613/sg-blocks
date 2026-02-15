@@ -1,23 +1,34 @@
-<section class="blk blk-bonus-wheel">
-  <div class="card bonus-card">
-    <div class="h2" data-bw-title>Колесо бонусов</div>
-
-    <div class="bonus-head">
-      <div class="picked-pill muted" data-picked-pill>Нажми «Крутануть»</div>
-      <div class="mut" style="margin-left:auto">Монеты: <b data-coins>0</b></div>
-    </div>
-
-    <div class="bonus-wheel" data-bonus-wheel>
-      <div class="wheel-track" data-wheel-track>
-        <!-- items injected by runtime -->
-      </div>
-      <div class="wheel-center"></div>
-    </div>
-
-    <div class="actions">
-      <button class="btn primary" type="button" data-spin>Крутануть</button>
-      <button class="btn" type="button" data-claim disabled>Нет приза к выдаче</button>
-      <div data-picked class="mut"></div>
-    </div>
+<div class="bw" data-bw-root>
+  <div class="bw-head">
+    <div class="bw-title" data-bw-title>Колесо бонусов</div>
+    <div class="bw-sub" data-bw-subtitle>Крути и забирай призы у кассира</div>
   </div>
-</section>
+
+  <div class="bw-wheelWrap">
+    <div class="bw-wheel" data-bw-wheel>
+      <!-- здесь твоя текущая графика/канвас колеса; runtime только добавляет класс spinning -->
+      <div class="bw-wheelCenter"></div>
+    </div>
+    <div class="bw-pointer" aria-hidden="true"></div>
+  </div>
+
+  <div class="bw-bar">
+    <div class="bw-coins">
+      <span class="bw-coinsLabel">Монеты</span>
+      <span class="bw-coinsVal" data-bw-coins>0</span>
+    </div>
+
+    <button class="bw-btn bw-btnPrimary" type="button" data-bw-spin>
+      Крутануть
+    </button>
+  </div>
+
+  <!-- ===== Wallet (rewards list) ===== -->
+  <div class="bw-wallet" data-bw-wallet>
+    <div class="bw-walletHead">
+      <div class="bw-walletTitle">Ваши призы</div>
+      <div class="bw-walletCount" data-bw-wallet-count>0</div>
+    </div>
+    <div class="bw-walletGrid" data-bw-wallet-list></div>
+  </div>
+</div>
