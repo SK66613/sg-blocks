@@ -42,33 +42,77 @@ export async function mount(root, props = {}, ctx = {}) {
   const apiFn = (typeof ctx.api === "function") ? ctx.api : (typeof win.api === "function") ? win.api : null;
 
   async function apiCall(method, payload = {}) {
-    if (apiFn) return await apiFn(method, payload);
+  // если есть ctx.api / window.api — отлично, используем
+  if (apiFn) return await apiFn(method, payload);
 
-    const url = `/api/mini/${method}`;
-    const initData = (ctx && ctx.initData) ? ctx.initData : (TG && TG.initData ? TG.initData : "");
-    const body = {
-      ...payload,
-      app_public_id: ctx && ctx.public_id ? String(ctx.public_id) : (payload.app_public_id || ""),
-      init_data: initData,
-      initData: initData,
-    };
+  // 1) public_id (как у /spin)
+  let publicId = "";
+  try{
+    publicId =
+      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "") ||
+      str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "") ||
+      str(props?.public_id || props?.app_public_id || "");
 
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j || j.ok === false) {
-      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
-      err.status = r.status;
-      err.payload = j;
-      throw err;
+    if (!publicId){
+      const u = new URL(win.location.href);
+      publicId = u.searchParams.get("public_id") || "";
     }
-    return j;
+  }catch(_){}
+
+  // 2) init_data (в preview TG.initData часто пустой)
+  let initData = "";
+  try{
+    initData =
+      str(ctx?.initData || ctx?.init_data || "") ||
+      str(win?.SG_INIT_DATA || win?.__SG_INIT_DATA || "") ||
+      str(TG?.initData || "");
+
+    if (!initData){
+      const u = new URL(win.location.href);
+      initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
+    }
+  }catch(_){}
+
+  // 3) URL + public_id query
+  const url = new URL(`/api/mini/${method}`, win.location.origin);
+  if (publicId) url.searchParams.set("public_id", publicId);
+
+  // 4) body
+  const body = {
+    ...payload,
+    // на всякий: иногда воркер читает app_public_id из body
+    app_public_id: publicId || (payload.app_public_id || ""),
+    init_data: initData,
+    initData: initData,
+  };
+
+  const r = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+
+  const j = await r.json().catch(() => null);
+
+  if (!r.ok || !j || j.ok === false) {
+    // 👇 полезно для дебага: покажем код/тело ошибки
+    slog("sg.wheel.wallet.fail.api", {
+      method,
+      status: r.status,
+      publicId,
+      hasInitData: !!initData,
+      error: String((j && (j.error || j.message)) || `API ${method} failed (${r.status})`),
+    });
+    const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
+    err.status = r.status;
+    err.payload = j;
+    throw err;
   }
+
+  return j;
+}
+
 
   // ---------- DOM (matches view.html)
   const titleEl = root.querySelector('[data-bw-title]');
