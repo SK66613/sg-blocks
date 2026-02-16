@@ -1,6 +1,15 @@
-// bonus_wheel_one/runtime.js
-// Wheel-track (cards) runtime — API priority: ctx.api -> window.api -> POST /api/mini/*
-// Wallet: wheel_rewards (issued prizes in wheel_redeems). No wheel.claim. No spin blocking by has_unclaimed.
+// sg-blocks/blocks/bonus_wheel_one/runtime.js
+// Wheel-track (cards) runtime — supports 2 modes:
+// 1) Preview/Demo (constructor): NO API calls, only animation + fake result.
+// 2) Live (real mini-app): calls /api/mini/spin and /api/mini/wheel_rewards (wallet).
+//
+// API priority: ctx.api -> window.api -> POST /api/mini/*
+// Wallet endpoint: wheel_rewards (reads wheel_redeems with status='issued').
+// Spin endpoint: spin (or wheel.spin via apiFn).
+//
+// Notes:
+// - In preview we intentionally DO NOT write to D1 and DO NOT require Telegram initData.
+// - In live we try to provide tg_user (from TG.initDataUnsafe / initData / tg_id param fallback).
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -51,34 +60,39 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  // ---------- API wrapper discovery (важно для preview/движка)
+  // ---------- Preview detection (constructor demo mode)
+  const isPreview = (() => {
+    try {
+      const u = new URL(win.location.href);
+      const p = u.searchParams;
+      const flag = (p.get("preview") || "").toLowerCase();
+      if (flag === "draft" || flag === "1" || flag === "true") return true;
+      // embed preview in panel часто идет без initData
+      if (p.get("embed") === "1" && !String(TG?.initData || "")) return true;
+    } catch (_) {}
+    // если нет initData — почти наверняка превью
+    return !String(TG?.initData || "");
+  })();
+
+  // ---------- API
   const apiFn =
     (typeof ctx.api === "function") ? ctx.api :
     (typeof win.api === "function") ? win.api :
-    (typeof win.miniApi === "function") ? win.miniApi :
-    (typeof win.MiniApi === "function") ? win.MiniApi :
-    (typeof win.sgApi === "function") ? win.sgApi :
-    (win.SG && typeof win.SG.api === "function") ? win.SG.api :
     null;
 
   function resolvePublicId() {
-    // 1) ctx
     let pid = str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
     if (pid) return pid;
 
-    // 2) MiniState
     pid = str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
     if (pid) return pid;
 
-    // 3) globals (как в паспорте/движке)
     pid = str(win?.SG_APP_PUBLIC_ID || win?.APP_PUBLIC_ID || "").trim();
     if (pid) return pid;
 
-    // 4) props
     pid = str(props?.public_id || props?.app_public_id || "").trim();
     if (pid) return pid;
 
-    // 5) url param
     try {
       const u = new URL(win.location.href);
       pid = str(u.searchParams.get("public_id") || "").trim();
@@ -109,7 +123,7 @@ export async function mount(root, props = {}, ctx = {}) {
     if (ctx?.tg_user && ctx.tg_user.id) return ctx.tg_user;
     if (ctx?.tgUser && ctx.tgUser.id) return ctx.tgUser;
 
-    // 1) Telegram initDataUnsafe.user
+    // 1) Telegram initDataUnsafe.user (best)
     try {
       const u = TG?.initDataUnsafe?.user;
       if (u && u.id) return u;
@@ -145,17 +159,19 @@ export async function mount(root, props = {}, ctx = {}) {
     return null;
   }
 
-  function normalizeMethodSlug(method) {
-    // wheel.rewards -> wheel_rewards
-    return String(method || "").trim().replace(/\./g, "_");
-  }
-
   async function apiCall(method, payload = {}) {
-    // ✅ if wrapper exists — use it (она сама подставляет tg/init обычно)
+    // PREVIEW: never call API
+    if (isPreview) {
+      const err = new Error("PREVIEW_MODE_NO_API");
+      err.status = 418;
+      throw err;
+    }
+
+    // If ctx.api / window.api exists — use it
     if (apiFn) return await apiFn(method, payload);
 
-    // ✅ fallback to /api/mini/<slug>
-    const methodSlug = normalizeMethodSlug(method);
+    // fallback endpoints are underscore style: wheel.spin -> wheel_spin
+    const methodSlug = String(method || "").replace(/\./g, "_");
 
     const publicId = resolvePublicId();
     const initData = resolveInitData();
@@ -169,6 +185,7 @@ export async function mount(root, props = {}, ctx = {}) {
       app_public_id: publicId || (payload.app_public_id || ""),
       init_data: initData,
       initData: initData,
+      // tg_user helps mini.ts when initData is empty in some environments
       tg_user: (tgUser && tgUser.id)
         ? {
             id: tgUser.id,
@@ -179,14 +196,9 @@ export async function mount(root, props = {}, ctx = {}) {
         : undefined,
     };
 
-    // 🔎 DEBUG (оставь пока, потом можно убрать)
-    slog("sg.wheel.debug.req", {
-      method,
-      methodSlug,
-      publicId,
-      hasInitData: !!initData,
-      hasTgUser: !!(tgUser && tgUser.id),
-    });
+    // Debug request (keep, but low volume)
+    // uncomment if needed:
+    // slog("sg.wheel.debug.req", { method, methodSlug, publicId, hasInitData: !!initData, hasTgUser: !!(tgUser && tgUser.id) });
 
     const r = await fetch(url.toString(), {
       method: "POST",
@@ -319,7 +331,7 @@ export async function mount(root, props = {}, ctx = {}) {
   // ---------- UI helpers
   function setPillIdle() {
     pillEl.classList.add("muted");
-    pillEl.textContent = 'Нажми «Крутануть»';
+    pillEl.textContent = isPreview ? 'Предпросмотр: демо-прокрутка' : 'Нажми «Крутануть»';
   }
 
   function setPillByIndex(idx) {
@@ -331,7 +343,10 @@ export async function mount(root, props = {}, ctx = {}) {
     pillEl.innerHTML = escapeHtml(name);
   }
 
-  function syncCoins() { coinsEl.textContent = String(getCoins()); }
+  function syncCoins() {
+    if (isPreview) coinsEl.textContent = "999";
+    else coinsEl.textContent = String(getCoins());
+  }
 
   // ---------- wheel-track animation
   let STEP = 114; // px between cards, auto-detect
@@ -368,7 +383,7 @@ export async function mount(root, props = {}, ctx = {}) {
     syncCoins();
 
     const cost = getSpinCost();
-    const canSpin = (getCoins() >= cost) && !spinning;
+    const canSpin = isPreview ? !spinning : ((getCoins() >= cost) && !spinning);
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
   }
@@ -432,6 +447,11 @@ export async function mount(root, props = {}, ctx = {}) {
   function renderWallet() {
     setWalletCount(rewards.length);
 
+    if (isPreview) {
+      walletListEl.innerHTML = `<div class="bw-wallet-empty">Предпросмотр: кошелёк не активен</div>`;
+      return;
+    }
+
     if (!rewards.length) {
       walletListEl.innerHTML = `<div class="bw-wallet-empty">Пока нет призов 😌</div>`;
       return;
@@ -471,13 +491,14 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function loadRewards() {
+    if (isPreview) {
+      rewards = [];
+      renderWallet();
+      return;
+    }
     try {
-      let r = null;
-
-      // ✅ сначала реальный роут
-      try { r = await apiCall("wheel_rewards", {}); }
-      catch (_) { r = await apiCall("wheel.rewards", {}); }
-
+      // main: wheel_rewards (maps to /api/mini/wheel_rewards)
+      const r = await apiCall("wheel_rewards", {});
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
@@ -489,6 +510,7 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   function startPolling() {
+    if (isPreview) return;
     if (pollTimer) return;
     pollTimer = win.setInterval(() => loadRewards(), 20000);
     slog("sg.wheel.wallet.poll.start");
@@ -499,7 +521,7 @@ export async function mount(root, props = {}, ctx = {}) {
     slog("sg.wheel.wallet.poll.stop");
   }
 
-  // ===== Modal + QR (reuse if QR library exists globally)
+  // ===== Modal + QR
   function clearQr() {
     try { modalQrEl.innerHTML = ""; } catch (_) {}
   }
@@ -550,6 +572,20 @@ export async function mount(root, props = {}, ctx = {}) {
   async function doSpin() {
     if (spinning) return;
 
+    // PREVIEW: demo spin only
+    if (isPreview) {
+      const its = items();
+      const idx = Math.floor(Math.random() * Math.max(1, its.length));
+      spinning = true;
+      updateUI();
+      await spinTo(idx, Math.max(1, Math.round(num(props.final_laps, 2))), Math.max(600, Math.round(num(props.final_dur, 1200))));
+      const name = its[idx]?.dataset?.name || "Приз";
+      if (pickedEl) pickedEl.textContent = `Выпало: ${name} (демо)`;
+      spinning = false;
+      updateUI();
+      return;
+    }
+
     const costNow = getSpinCost();
     const coins = getCoins();
     if (coins < costNow) {
@@ -584,11 +620,14 @@ export async function mount(root, props = {}, ctx = {}) {
     requestAnimationFrame(freeLoop);
 
     try {
+      // Spin endpoint
+      // Using /api/mini/spin => apiCall("spin")
       let r = null;
       try {
-        r = await apiCall("wheel.spin", {});
+        r = await apiCall("spin", {});
       } catch (e) {
-        if (e && (e.status === 409 || e.status === 400) && e.payload && e.payload.error === "NOT_ENOUGH_COINS") {
+        const errCode = e && e.payload && e.payload.error;
+        if (e && (e.status === 409 || e.status === 400) && (errCode === "NOT_ENOUGH_COINS" || errCode === "NOT_ENOUGH")) {
           const have = num(e.payload.have, coins);
           const need = num(e.payload.need, costNow);
           pillEl.classList.remove("muted");
@@ -610,19 +649,22 @@ export async function mount(root, props = {}, ctx = {}) {
       else applyFreshState(r);
 
       // prize index by code
-      const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
+      const prizeCode =
+        (r.prize && r.prize.code) ? String(r.prize.code) :
+        String(r.prize_code || "");
       const its = items();
-      let idx = its.findIndex(n => String(n.dataset.code || "") === code);
+      let idx = its.findIndex(n => String(n.dataset.code || "") === prizeCode);
       if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
+
       await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
       const ws = getWheelState();
-      const title2 = str(ws.last_prize_title ?? ws.lastPrizeTitle ?? "");
-      if (pickedEl) pickedEl.textContent = title2 ? `Выпало: ${title2}` : "";
+      const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? r?.prize_title ?? "");
+      const shownTitle = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
+      if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
 
       // refresh wallet after spin
       await loadRewards();
-
     } finally {
       spinning = false;
       updateUI();
