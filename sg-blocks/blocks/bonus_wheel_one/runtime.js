@@ -39,7 +39,7 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s ?? "").replace(/"/g, "&quot;");
   }
 
-  // ---------- detect DEMO mode (constructor/preview/embed)
+// ---------- detect DEMO mode (constructor/preview/embed)
 function isDemoMode() {
   try {
     // explicit override from constructor
@@ -49,27 +49,27 @@ function isDemoMode() {
     const href = String((win.location && win.location.href) || "");
     const u = new URL(href);
 
-    // explicit query flags
-    const preview = String(
-      u.searchParams.get("preview") ||
-      u.searchParams.get("mode") ||
-      ""
-    );
+    // ✅ force switch (handy for prod debug)
+    // ?demo=1 -> DEMO, ?demo=0 -> PROD
+    const force = u.searchParams.get("demo");
+    if (force === "1") return true;
+    if (force === "0") return false;
 
-    // твой конструктор/превью: embed=1 или preview=draft
+    // ✅ your real preview signals
+    const preview = String(u.searchParams.get("preview") || u.searchParams.get("mode") || "");
     if (u.searchParams.get("embed") === "1") return true;
     if (preview.includes("draft")) return true;
 
-    // ✅ ВАЖНО: iframe сам по себе НЕ означает DEMO
-    // Telegram Mini App почти всегда "внутри" WebView/iframe-обвязки.
-    // Поэтому НЕ делаем: if (win.parent !== win) return true;
+    // ❌ IMPORTANT: iframe ≠ demo (Telegram WebView / wrappers may look like iframe)
+    // do NOT use win.parent !== win as a demo signal
 
     return false;
   } catch (_) {
-    // безопасный дефолт: НЕ демо
+    // safest default: NOT demo
     return false;
   }
 }
+
 
 
   const DEMO = isDemoMode();
