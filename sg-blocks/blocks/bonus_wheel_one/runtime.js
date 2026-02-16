@@ -47,7 +47,7 @@ export async function mount(root, props = {}, ctx = {}) {
       if (ctx && ctx.demo === true) return true;
       if (props && props.demo === true) return true;
 
-      const href = String(win.location && win.location.href || "");
+      const href = String((win.location && win.location.href) || "");
       const u = new URL(href);
 
       // common preview signals
@@ -87,8 +87,10 @@ export async function mount(root, props = {}, ctx = {}) {
     let pid =
       str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
     if (pid) return pid;
+
     pid = str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
     if (pid) return pid;
+
     pid = str(props?.public_id || props?.app_public_id || "").trim();
     if (pid) return pid;
 
@@ -97,6 +99,7 @@ export async function mount(root, props = {}, ctx = {}) {
       pid = str(u.searchParams.get("public_id") || "").trim();
       if (pid) return pid;
     } catch (_) {}
+
     return "";
   }
 
@@ -112,165 +115,164 @@ export async function mount(root, props = {}, ctx = {}) {
       initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
       return str(initData);
     } catch (_) {}
+
     return "";
   }
 
-async function apiCall(method, payload = {}) {
-  // DEMO: never call API
-  if (DEMO) {
-    throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
-  }
+  async function apiCall(method, payload = {}) {
+    // DEMO: never call API
+    if (DEMO) {
+      throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
+    }
 
-  // if ctx.api / window.api exists — use it
-  if (apiFn) return await apiFn(method, payload);
+    // if ctx.api / window.api exists — use it
+    if (apiFn) return await apiFn(method, payload);
 
-  const publicId = resolvePublicId();
-  const initData = resolveInitData();
+    const publicId = resolvePublicId();
+    const initData = resolveInitData();
 
-  // 1) method candidates (покрываем разные роутеры)
-  const m0 = String(method || "");
-  const methodCandidates = Array.from(
-    new Set([
-      m0,
-      // если зовём "spin" — пробуем wheel.spin тоже
-      m0 === "spin" ? "wheel.spin" : m0.replace(/^wheel\./, ""),
-      m0 === "spin" ? "wheel_spin" : m0.replace(/\./g, "_"),
-      // rewards варианты
-      m0 === "wheel.rewards" ? "rewards" : null,
-      m0 === "rewards" ? "wheel.rewards" : null,
-      m0 === "wheel.rewards" ? "wheel_rewards" : null,
-      m0 === "wheel_rewards" ? "wheel.rewards" : null,
-    ].filter(Boolean))
-  );
+    // 1) method candidates (покрываем разные роутеры)
+    const m0 = String(method || "");
+    const methodCandidates = Array.from(
+      new Set([
+        m0,
+        // если зовём "spin" — пробуем wheel.spin тоже
+        m0 === "spin" ? "wheel.spin" : m0.replace(/^wheel\./, ""),
+        m0 === "spin" ? "wheel_spin" : m0.replace(/\./g, "_"),
+        // rewards варианты
+        m0 === "wheel.rewards" ? "rewards" : null,
+        m0 === "rewards" ? "wheel.rewards" : null,
+        m0 === "wheel.rewards" ? "wheel_rewards" : null,
+        m0 === "wheel_rewards" ? "wheel.rewards" : null,
+      ].filter(Boolean))
+    );
 
-  // 2) url candidates (покрываем разные схемы роутинга)
-  function urlForPath(m) {
-    const u = new URL(`/api/mini/${m}`, win.location.origin);
-    if (publicId) u.searchParams.set("public_id", publicId);
-    return u.toString();
-  }
-  function urlForMiniRoot() {
-    const u = new URL(`/api/mini`, win.location.origin);
-    if (publicId) u.searchParams.set("public_id", publicId);
-    return u.toString();
-  }
-  function urlForWheelPath(m) {
-    // иногда делают /api/mini/wheel/spin
-    const u = new URL(`/api/mini/wheel/${m}`, win.location.origin);
-    if (publicId) u.searchParams.set("public_id", publicId);
-    return u.toString();
-  }
+    // 2) url candidates (покрываем разные схемы роутинга)
+    function urlForPath(m) {
+      const u = new URL(`/api/mini/${m}`, win.location.origin);
+      if (publicId) u.searchParams.set("public_id", publicId);
+      return u.toString();
+    }
+    function urlForMiniRoot() {
+      const u = new URL(`/api/mini`, win.location.origin);
+      if (publicId) u.searchParams.set("public_id", publicId);
+      return u.toString();
+    }
+    function urlForWheelPath(m) {
+      // иногда делают /api/mini/wheel/spin
+      const u = new URL(`/api/mini/wheel/${m}`, win.location.origin);
+      if (publicId) u.searchParams.set("public_id", publicId);
+      return u.toString();
+    }
 
-  const urlCandidatesBuilder = (m) => [
-    { mode: "path", url: urlForPath(m) },
-    { mode: "wheel_path", url: urlForWheelPath(m) },
-    { mode: "body", url: urlForMiniRoot() },
-  ];
+    const urlCandidatesBuilder = (m) => [
+      { mode: "path", url: urlForPath(m) },
+      { mode: "wheel_path", url: urlForWheelPath(m) },
+      { mode: "body", url: urlForMiniRoot() },
+    ];
 
-  async function postAny(url, bodyObj) {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(bodyObj || {}),
-    });
+    async function postAny(url, bodyObj) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(bodyObj || {}),
+      });
 
-    const ct = (r.headers.get("content-type") || "").toLowerCase();
-    let text = "";
-    let j = null;
+      const ct = (r.headers.get("content-type") || "").toLowerCase();
+      let text = "";
+      let j = null;
 
-    // читаем текст всегда (чтобы залогировать HTML/текстовые ошибки)
+      // читаем текст всегда (чтобы залогировать HTML/текстовые ошибки)
+      try {
+        text = await r.text();
+      } catch (_) {
+        text = "";
+      }
+
+      // пытаемся JSON распарсить
+      if (ct.includes("application/json") || (text && (text[0] === "{" || text[0] === "["))) {
+        try { j = JSON.parse(text); } catch (_) { j = null; }
+      }
+
+      return { r, j, text };
+    }
+
+    function okJson(r, j) {
+      return r && r.ok && j && typeof j === "object" && j.ok !== false;
+    }
+
+    const baseBody = {
+      app_public_id: publicId || (payload.app_public_id || ""),
+      public_id: publicId || (payload.public_id || ""),
+      init_data: initData,
+      initData: initData,
+    };
+
+    const attempts = [];
+
+    // 3) Try all combinations until success
+    for (const m of methodCandidates) {
+      const urlCandidates = urlCandidatesBuilder(m);
+
+      // PATH + WHEEL_PATH
+      for (const uc of urlCandidates.filter(x => x.mode !== "body")) {
+        const body = { ...baseBody, ...payload };
+        const res = await postAny(uc.url, body);
+
+        attempts.push({
+          mode: uc.mode,
+          method: m,
+          status: res.r.status,
+          ok: res.r.ok,
+          hasJson: !!res.j,
+          jsonOk: res.j ? res.j.ok : null,
+          ct: (res.r.headers.get("content-type") || ""),
+          textHead: (res.text || "").slice(0, 180),
+        });
+
+        if (okJson(res.r, res.j)) return res.j;
+      }
+
+      // BODY mode (single endpoint /api/mini)
+      {
+        const uc = urlCandidates.find(x => x.mode === "body");
+        const body = { ...baseBody, type: m, payload: { ...payload } };
+        const res = await postAny(uc.url, body);
+
+        attempts.push({
+          mode: uc.mode,
+          method: m,
+          status: res.r.status,
+          ok: res.r.ok,
+          hasJson: !!res.j,
+          jsonOk: res.j ? res.j.ok : null,
+          ct: (res.r.headers.get("content-type") || ""),
+          textHead: (res.text || "").slice(0, 180),
+        });
+
+        if (okJson(res.r, res.j)) return res.j;
+      }
+    }
+
+    // 4) If all failed — log attempts to help debug instantly
     try {
-      text = await r.text();
-    } catch (_) {
-      text = "";
-    }
-
-    // пытаемся JSON распарсить
-    if (ct.includes("application/json") || (text && (text[0] === "{" || text[0] === "["))) {
-      try { j = JSON.parse(text); } catch (_) { j = null; }
-    }
-
-    return { r, j, text };
-  }
-
-  function okJson(r, j) {
-    return r && r.ok && j && typeof j === "object" && j.ok !== false;
-  }
-
-  const baseBody = {
-    app_public_id: publicId || (payload.app_public_id || ""),
-    public_id: publicId || (payload.public_id || ""),
-    init_data: initData,
-    initData: initData,
-  };
-
-  const attempts = [];
-
-  // 3) Try all combinations until success
-  for (const m of methodCandidates) {
-    const urlCandidates = urlCandidatesBuilder(m);
-
-    // PATH + WHEEL_PATH
-    for (const uc of urlCandidates.filter(x => x.mode !== "body")) {
-      const body = { ...baseBody, ...payload };
-      const res = await postAny(uc.url, body);
-
-      attempts.push({
-        mode: uc.mode,
-        method: m,
-        status: res.r.status,
-        ok: res.r.ok,
-        hasJson: !!res.j,
-        jsonOk: res.j ? res.j.ok : null,
-        ct: (res.r.headers.get("content-type") || ""),
-        textHead: (res.text || "").slice(0, 180),
+      slog("sg.wheel.api.fail.all", {
+        origMethod: method,
+        publicId,
+        hasInitData: !!initData,
+        attempts,
       });
+    } catch (_) {}
 
-      if (okJson(res.r, res.j)) return res.j;
-    }
-
-    // BODY mode (single endpoint /api/mini)
-    {
-      const uc = urlCandidates.find(x => x.mode === "body");
-      const body = { ...baseBody, type: m, payload: { ...payload } };
-      const res = await postAny(uc.url, body);
-
-      attempts.push({
-        mode: uc.mode,
-        method: m,
-        status: res.r.status,
-        ok: res.r.ok,
-        hasJson: !!res.j,
-        jsonOk: res.j ? res.j.ok : null,
-        ct: (res.r.headers.get("content-type") || ""),
-        textHead: (res.text || "").slice(0, 180),
-      });
-
-      if (okJson(res.r, res.j)) return res.j;
-    }
+    const last = attempts[attempts.length - 1];
+    const err = new Error(
+      `API ${String(method)} failed. Last: ${last ? `${last.mode}/${last.method} HTTP ${last.status}` : "no attempts"}`
+    );
+    err.status = last ? last.status : 0;
+    err.payload = { attempts };
+    throw err;
   }
-
-  // 4) If all failed — log attempts to help debug instantly
-  try {
-    slog("sg.wheel.api.fail.all", {
-      origMethod: method,
-      publicId,
-      hasInitData: !!initData,
-      attempts,
-    });
-  } catch (_) {}
-
-  const last = attempts[attempts.length - 1];
-  const err = new Error(
-    `API ${String(method)} failed. Last: ${last ? `${last.mode}/${last.method} HTTP ${last.status}` : "no attempts"}`
-  );
-  err.status = last ? last.status : 0;
-  err.payload = { attempts };
-  throw err;
-}
-
-
 
   // ---------- DOM (matches view.html)
   const titleEl = root.querySelector('[data-bw-title]');
@@ -562,7 +564,7 @@ async function apiCall(method, payload = {}) {
       renderWallet();
     }catch(e){
       rewards = [];
-      slog("sg.wheel.wallet.fail.api", { error: String(e && e.message || e) });
+      slog("sg.wheel.wallet.fail.api", { error: String((e && e.message) || e) });
       renderWallet();
     }
   }
@@ -621,7 +623,7 @@ async function apiCall(method, payload = {}) {
       slog("sg.wheel.wallet.get.copy.ok");
       try{ TG?.HapticFeedback?.notificationOccurred?.("success"); }catch(_){}
     }catch(e){
-      slog("sg.wheel.wallet.get.copy.fail", { error: String(e && e.message || e) });
+      slog("sg.wheel.wallet.get.copy.fail", { error: String((e && e.message) || e) });
       try{ win.prompt("Скопируй код:", code); }catch(_){}
     }
   });
