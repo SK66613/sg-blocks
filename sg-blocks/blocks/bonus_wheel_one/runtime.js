@@ -1,7 +1,6 @@
 // bonus_wheel_one/runtime.js
-// Wheel-track (cards) runtime — PROD via ctx.api/window.api or /api/mini/*
+// Wheel-track runtime — PROD via ctx.api/window.api or /api/mini/*
 // Preview/Constructor: DEMO mode (no API, no D1).
-// Wallet: issued prizes list (demo wallet in preview; real wallet in prod).
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -13,8 +12,16 @@ export async function mount(root, props = {}, ctx = {}) {
     (win.parent && win.parent.Telegram && win.parent.Telegram.WebApp) ||
     null;
 
-  // ---------- logging (single-line, low volume)
+  // ---------- logging
   function slog(code, extra) {
+    try { console.log(code, extra || {}); } catch (_) {}
+  }
+
+  const DBG = (() => {
+    try { return new URL(win.location.href).searchParams.get("dbg") === "1"; } catch (_) { return false; }
+  })();
+  function dbg(code, extra) {
+    if (!DBG) return;
     try { console.log(code, extra || {}); } catch (_) {}
   }
 
@@ -39,36 +46,30 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s ?? "").replace(/"/g, "&quot;");
   }
 
-  // ---------- detect DEMO mode (constructor/preview/embed)
+  // ---------- DEMO detect (IMPORTANT: iframe ≠ demo)
   function isDemoMode() {
     try {
-      // explicit override from constructor
       if (ctx && ctx.demo === true) return true;
       if (props && props.demo === true) return true;
 
-      const href = String((win.location && win.location.href) || "");
-      const u = new URL(href);
+      const u = new URL(String(win.location.href || ""));
 
-      // force switch:
-      // ?demo=1 -> DEMO, ?demo=0 -> PROD
+      // hard force
       const force = u.searchParams.get("demo");
       if (force === "1") return true;
       if (force === "0") return false;
 
-      // real preview signals in your system
       const preview = String(u.searchParams.get("preview") || u.searchParams.get("mode") || "");
       if (u.searchParams.get("embed") === "1") return true;
       if (preview.includes("draft")) return true;
 
-      // IMPORTANT: iframe != demo (TG WebView / wrappers may look like iframe)
       return false;
     } catch (_) {
-      // safest default: NOT demo
       return false;
     }
   }
-
   const DEMO = isDemoMode();
+  dbg("sg.wheel.mode", { DEMO });
 
   // ---------- API
   const apiFn =
@@ -77,8 +78,7 @@ export async function mount(root, props = {}, ctx = {}) {
     null;
 
   function resolvePublicId() {
-    let pid =
-      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
+    let pid = str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
     if (pid) return pid;
 
     pid = str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
@@ -89,7 +89,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
     try {
       const u = new URL(win.location.href);
-      pid = str(u.searchParams.get("public_id") || "").trim();
+      pid = str(u.searchParams.get("public_id") || u.searchParams.get("publicId") || "").trim();
       if (pid) return pid;
     } catch (_) {}
 
@@ -113,40 +113,27 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function apiCall(method, payload = {}) {
-    // DEMO: never call API
     if (DEMO) {
-      try { slog("sg.wheel.api.blocked.demo", { method, href: String(win.location.href || "") }); } catch (_) {}
       throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
     }
 
-    // if ctx.api / window.api exists — use it
+    // ✅ if your shell defines window.api — USE IT (it already knows API_BASE and tg/initData)
     if (apiFn) return await apiFn(method, payload);
 
     const publicId = resolvePublicId();
     const initData = resolveInitData();
 
-    // 1) method candidates (covers different routers)
+    // method candidates
     const m0 = String(method || "");
-    const methodCandidates = Array.from(
-      new Set([
-        m0,
-        m0 === "spin" ? "wheel.spin" : m0.replace(/^wheel\./, ""),
-        m0 === "spin" ? "wheel_spin" : m0.replace(/\./g, "_"),
-        m0 === "wheel.rewards" ? "rewards" : null,
-        m0 === "rewards" ? "wheel.rewards" : null,
-        m0 === "wheel.rewards" ? "wheel_rewards" : null,
-        m0 === "wheel_rewards" ? "wheel.rewards" : null,
-      ].filter(Boolean))
-    );
+    const methodCandidates = Array.from(new Set([
+      m0,
+      m0 === "spin" ? "wheel.spin" : m0.replace(/^wheel\./, ""),
+      m0 === "spin" ? "wheel_spin" : m0.replace(/\./g, "_"),
+    ].filter(Boolean)));
 
-    // 2) url candidates
+    // url candidates
     function urlForPath(m) {
       const u = new URL(`/api/mini/${m}`, win.location.origin);
-      if (publicId) u.searchParams.set("public_id", publicId);
-      return u.toString();
-    }
-    function urlForMiniRoot() {
-      const u = new URL(`/api/mini`, win.location.origin);
       if (publicId) u.searchParams.set("public_id", publicId);
       return u.toString();
     }
@@ -155,27 +142,24 @@ export async function mount(root, props = {}, ctx = {}) {
       if (publicId) u.searchParams.set("public_id", publicId);
       return u.toString();
     }
-
-    const urlCandidatesBuilder = (m) => [
-      { mode: "path", url: urlForPath(m) },
-      { mode: "wheel_path", url: urlForWheelPath(m) },
-      { mode: "body", url: urlForMiniRoot() },
-    ];
+    function urlForMiniRoot() {
+      const u = new URL(`/api/mini`, win.location.origin);
+      if (publicId) u.searchParams.set("public_id", publicId);
+      return u.toString();
+    }
 
     async function postAny(url, bodyObj) {
+      dbg("sg.wheel.api.try", { url, bodyKeys: Object.keys(bodyObj || {}) });
       const r = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // IMPORTANT: keep include for same-origin; your worker can ignore cookies anyway
-        credentials: "include",
+        credentials: "omit",
         body: JSON.stringify(bodyObj || {}),
       });
 
       const ct = (r.headers.get("content-type") || "").toLowerCase();
-      let text = "";
+      const text = await r.text().catch(() => "");
       let j = null;
-
-      try { text = await r.text(); } catch (_) { text = ""; }
 
       if (ct.includes("application/json") || (text && (text[0] === "{" || text[0] === "["))) {
         try { j = JSON.parse(text); } catch (_) { j = null; }
@@ -193,77 +177,53 @@ export async function mount(root, props = {}, ctx = {}) {
       public_id: publicId || (payload.public_id || ""),
       init_data: initData,
       initData: initData,
+      payload: payload || {},
     };
 
     const attempts = [];
 
     for (const m of methodCandidates) {
-      const urlCandidates = urlCandidatesBuilder(m);
-
-      for (const uc of urlCandidates.filter(x => x.mode !== "body")) {
-        const body = { ...baseBody, ...payload };
-        const res = await postAny(uc.url, body);
-
-        attempts.push({
-          mode: uc.mode,
-          method: m,
-          status: res.r.status,
-          ok: res.r.ok,
-          hasJson: !!res.j,
-          jsonOk: res.j ? res.j.ok : null,
-          ct: (res.r.headers.get("content-type") || ""),
-          textHead: (res.text || "").slice(0, 180),
-        });
-
+      // /api/mini/<m>
+      {
+        const res = await postAny(urlForPath(m), { ...baseBody, ...payload });
+        attempts.push({ mode: "path", m, status: res.r.status, ok: res.r.ok, jsonOk: res.j ? res.j.ok : null, head: (res.text || "").slice(0, 120) });
         if (okJson(res.r, res.j)) return res.j;
       }
-
+      // /api/mini/wheel/<m>
       {
-        const uc = urlCandidates.find(x => x.mode === "body");
-        const body = { ...baseBody, type: m, payload: { ...payload } };
-        const res = await postAny(uc.url, body);
-
-        attempts.push({
-          mode: uc.mode,
-          method: m,
-          status: res.r.status,
-          ok: res.r.ok,
-          hasJson: !!res.j,
-          jsonOk: res.j ? res.j.ok : null,
-          ct: (res.r.headers.get("content-type") || ""),
-          textHead: (res.text || "").slice(0, 180),
-        });
-
+        const res = await postAny(urlForWheelPath(m), { ...baseBody, ...payload });
+        attempts.push({ mode: "wheel_path", m, status: res.r.status, ok: res.r.ok, jsonOk: res.j ? res.j.ok : null, head: (res.text || "").slice(0, 120) });
+        if (okJson(res.r, res.j)) return res.j;
+      }
+      // /api/mini (body routing)
+      {
+        const res = await postAny(urlForMiniRoot(), { ...baseBody, type: m, payload: { ...payload } });
+        attempts.push({ mode: "body", m, status: res.r.status, ok: res.r.ok, jsonOk: res.j ? res.j.ok : null, head: (res.text || "").slice(0, 120) });
         if (okJson(res.r, res.j)) return res.j;
       }
     }
 
-    try {
-      slog("sg.wheel.api.fail.all", {
-        origMethod: method,
-        publicId,
-        hasInitData: !!initData,
-        attempts,
-      });
-    } catch (_) {}
-
+    slog("sg.wheel.api.fail.all", { origMethod: method, publicId, hasInitData: !!initData, attempts });
     const last = attempts[attempts.length - 1];
-    const err = new Error(
-      `API ${String(method)} failed. Last: ${last ? `${last.mode}/${last.method} HTTP ${last.status}` : "no attempts"}`
-    );
+    const err = new Error(`API ${String(method)} failed. Last: ${last ? `${last.mode}/${last.m} HTTP ${last.status}` : "no attempts"}`);
     err.status = last ? last.status : 0;
     err.payload = { attempts };
     throw err;
   }
 
-  // ---------- DOM (matches view.html)
+  // ---------- DOM
   const titleEl = root.querySelector('[data-bw-title]');
   const pillEl = root.querySelector('[data-picked-pill]');
   const coinsEl = root.querySelector('[data-coins]');
   const pickedEl = root.querySelector('[data-picked]');
-  const wheelEl = root.querySelector('[data-bonus-wheel]');
   const trackEl = root.querySelector('[data-wheel-track]');
-  const spinBtn = root.querySelector('[data-spin]');
+
+  // ✅ robust spin button resolve:
+  // sometimes data-spin is on wrapper, sometimes on the <button>
+  const spinHost = root.querySelector('[data-spin]');
+  const spinBtn =
+    (spinHost && spinHost.tagName === "BUTTON") ? spinHost :
+    (spinHost ? (spinHost.querySelector("button") || spinHost) : null);
 
   const walletCountEl = root.querySelector('[data-bw-wallet-count]');
   const walletListEl = root.querySelector('[data-bw-wallet-list]');
@@ -275,66 +235,30 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalCopyBtn = root.querySelector('[data-bw-copy]');
   const modalCloseEls = root.querySelectorAll('[data-bw-modal-close], [data-bw-modal-close-btn]');
 
-  if (!trackEl || !wheelEl || !spinBtn || !coinsEl || !pillEl || !walletCountEl || !walletListEl || !modalEl) {
+  if (!trackEl || !spinBtn || !coinsEl || !pillEl || !walletCountEl || !walletListEl || !modalEl || !modalTitleEl || !modalCodeEl || !modalQrEl || !modalCopyBtn) {
     slog("sg.wheel.fail.render", { error: "view.html mismatch / missing elements" });
     return () => {};
   }
 
-  // ===== DEBUG (safe, only if ?dbg=1)
-  const DBG = (() => {
-    try { return new URL(win.location.href).searchParams.get("dbg") === "1"; } catch (_) { return false; }
-  })();
-
-  function dbg(tag, extra) {
-    if (!DBG) return;
-    try { slog(tag, extra || {}); } catch (_) {}
-  }
-
-  function dbgOutline(el, on) {
-    if (!DBG || !el) return;
-    try {
-      if (on) {
-        el.style.outline = "2px solid rgba(124,92,255,.95)";
-        el.style.outlineOffset = "2px";
-      } else {
-        el.style.outline = "";
-        el.style.outlineOffset = "";
-      }
-    } catch (_) {}
-  }
-
-  // show mode in logs
-  dbg("sg.wheel.dbg.boot", {
-    demo: DEMO,
-    href: String(win.location.href || ""),
-    publicId: resolvePublicId(),
-    hasInitData: !!resolveInitData(),
-  });
-
-  try {
-    if (TG && !DEMO) { TG.ready(); TG.expand(); }
-  } catch (_) {}
+  try { if (TG && !DEMO) { TG.ready(); TG.expand(); } } catch (_) {}
 
   // ---------- props
   const title = str(props.title ?? props.h1, "Колесо бонусов");
-
-  // prizes list for visual track
   const prizes = (Array.isArray(props.prizes) && props.prizes.length)
     ? props.prizes.map(p => ({
-        code: str(p.code, ""),
-        name: str(p.name ?? p.title, ""),
-        img: str(p.img, ""),
-        coins: Math.max(0, Math.floor(num(p.coins, 0))),
-      }))
+      code: str(p.code, ""),
+      name: str(p.name ?? p.title, ""),
+      img: str(p.img, ""),
+      coins: Math.max(0, Math.floor(num(p.coins, 0))),
+    }))
     : [];
 
   if (titleEl) titleEl.textContent = title + (DEMO ? " (DEMO)" : "");
 
-  // ---------- state (PROD: from MiniState; DEMO: local)
+  // ---------- state
   const getMiniState = () => (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
   const getWheelState = () => (getMiniState().wheel || {});
 
-  // DEMO state
   const DEMO_DEFAULT_COINS = Math.max(0, Math.round(num(props.demo_coins, 120)));
   const DEMO_SPIN_COST = Math.max(0, Math.round(num(props.spin_cost ?? props.spin_cost_coins, 10)));
   let demoCoins = DEMO_DEFAULT_COINS;
@@ -342,7 +266,6 @@ export async function mount(root, props = {}, ctx = {}) {
   function getCoins() {
     return DEMO ? demoCoins : num(getMiniState().coins, 0);
   }
-
   function getSpinCost() {
     if (DEMO) return DEMO_SPIN_COST;
     const st = getMiniState();
@@ -351,13 +274,9 @@ export async function mount(root, props = {}, ctx = {}) {
     const fromProps = num(props.spin_cost ?? props.spin_cost_coins, 10);
     return Math.max(0, Math.round(fromProps));
   }
-
   function applyFreshState(fresh) {
     if (!fresh || DEMO) return;
-    if (typeof win.applyServerState === "function") {
-      win.applyServerState(fresh);
-      return;
-    }
+    if (typeof win.applyServerState === "function") { win.applyServerState(fresh); return; }
     win.MiniState = win.MiniState || {};
     for (const k in fresh) win.MiniState[k] = fresh[k];
   }
@@ -371,12 +290,10 @@ export async function mount(root, props = {}, ctx = {}) {
         return;
       }
     } catch (_) {}
-    try {
-      win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12);
-    } catch (_) {}
+    try { win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12); } catch (_) {}
   }
 
-  // ---------- render prizes into track (cards)
+  // ---------- render track
   function renderTrack() {
     trackEl.innerHTML = prizes.map(pr => {
       const code = String(pr.code || "");
@@ -398,12 +315,11 @@ export async function mount(root, props = {}, ctx = {}) {
   const items = () => Array.from(trackEl.children);
   let N = items().length || 1;
 
-  // ---------- UI helpers
+  // ---------- UI
   function setPillIdle() {
     pillEl.classList.add("muted");
-    pillEl.textContent = DEMO ? "DEMO: нажми «Крутануть»" : "Нажми «Крутануть»";
+    pillEl.textContent = DEMO ? 'DEMO: нажми «Крутануть»' : 'Нажми «Крутануть»';
   }
-
   function setPillByIndex(idx) {
     const its = items();
     if (!its.length) return;
@@ -412,14 +328,10 @@ export async function mount(root, props = {}, ctx = {}) {
     pillEl.classList.remove("muted");
     pillEl.innerHTML = escapeHtml(name);
   }
+  function syncCoins() { coinsEl.textContent = String(getCoins()); }
 
-  function syncCoins() {
-    coinsEl.textContent = String(getCoins());
-  }
-
-  // ---------- wheel-track animation
-  let STEP = 114; // px between cards, auto-detect
-  let curr = 0;   // float index
+  let STEP = 114;
+  let curr = 0;
   let interacted = false;
   let spinning = false;
 
@@ -498,27 +410,26 @@ export async function mount(root, props = {}, ctx = {}) {
 
   requestAnimationFrame(() => { measureStep(); updateUI(); });
 
-  // ===== Wallet logic =====
-  let rewards = [];      // PROD
-  let demoRewards = [];  // DEMO
+  // ===== Wallet (DEMO only here; PROD wallet endpoint зависит от воркера)
+  let rewards = [];
+  let demoRewards = [];
   let pollTimer = 0;
   let openedReward = null;
 
-  function fmtIssuedAt(v) {
+  function fmtIssuedAt(v){
     if (!v) return "";
     const s = String(v);
-    return s.replace("T", " ").replace("Z", "").slice(0, 16);
+    return s.replace("T"," ").replace("Z","").slice(0, 16);
+  }
+  function setWalletCount(n){
+    walletCountEl.textContent = String(Math.max(0, n|0));
   }
 
-  function setWalletCount(n) {
-    walletCountEl.textContent = String(Math.max(0, n | 0));
-  }
-
-  function renderWallet() {
+  function renderWallet(){
     const list = DEMO ? demoRewards : rewards;
     setWalletCount(list.length);
 
-    if (!list.length) {
+    if (!list.length){
       walletListEl.innerHTML = `<div class="bw-wallet-empty">${DEMO ? "DEMO: пока нет призов 😌" : "Пока нет призов 😌"}</div>`;
       return;
     }
@@ -544,13 +455,13 @@ export async function mount(root, props = {}, ctx = {}) {
 
     walletListEl.querySelectorAll("[data-reward-get]").forEach((btn) => {
       btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
         const card = ev.currentTarget.closest("[data-reward-id]");
         if (!card) return;
         const code = card.getAttribute("data-reward-code") || "";
         const title = card.getAttribute("data-reward-title") || "Приз";
-        const id = card.getAttribute("data-reward-id") || "";
         if (!code) return;
-        slog("sg.wheel.wallet.get.open", { id, demo: DEMO });
         openModal(title, code);
       });
     });
@@ -563,93 +474,75 @@ export async function mount(root, props = {}, ctx = {}) {
     return out;
   }
 
-  async function loadRewards() {
-    if (DEMO) {
-      rewards = [];
-      renderWallet();
-      return;
-    }
-
-    try {
-      let r = null;
-      try { r = await apiCall("wheel.rewards", {}); }
-      catch (_) { r = await apiCall("wheel_rewards", {}); }
-
-      rewards = Array.isArray(r?.rewards) ? r.rewards : [];
-      slog("sg.wheel.wallet.ok", { count: rewards.length });
-      renderWallet();
-    } catch (e) {
-      rewards = [];
-      slog("sg.wheel.wallet.fail.api", { error: String((e && e.message) || e) });
-      renderWallet();
-    }
+  async function loadRewards(){
+    if (DEMO) { rewards = []; renderWallet(); return; }
+    // если у воркера нет rewards — оставляем пусто
+    rewards = [];
+    renderWallet();
   }
 
-  function startPolling() {
+  function startPolling(){
     if (DEMO) return;
     if (pollTimer) return;
     pollTimer = win.setInterval(() => loadRewards(), 20000);
-    slog("sg.wheel.wallet.poll.start");
   }
-  function stopPolling() {
-    try { pollTimer && win.clearInterval(pollTimer); } catch (_) {}
+  function stopPolling(){
+    try{ pollTimer && win.clearInterval(pollTimer); }catch(_){}
     pollTimer = 0;
-    slog("sg.wheel.wallet.poll.stop");
   }
 
   // ===== Modal + QR
-  function clearQr() {
-    try { modalQrEl.innerHTML = ""; } catch (_) {}
+  function clearQr(){
+    try{ modalQrEl.innerHTML = ""; }catch(_){}
   }
-
-  function renderQr(code) {
+  function renderQr(code){
     clearQr();
-    try {
+    try{
       if (win.QRCode) {
         const box = doc.createElement("div");
         modalQrEl.appendChild(box);
         try { new win.QRCode(box, { text: code, width: 160, height: 160 }); return; } catch (_) {}
         try { new win.QRCode(box, code); return; } catch (_) {}
       }
-    } catch (_) {}
+    }catch(_){}
   }
-
-  function openModal(title, code) {
+  function openModal(title, code){
     openedReward = { title, code };
     modalTitleEl.textContent = title + (DEMO ? " (DEMO)" : "");
     modalCodeEl.textContent = code;
     renderQr(code);
     modalEl.hidden = false;
   }
-
-  function closeModal() {
+  function closeModal(){
     modalEl.hidden = true;
     openedReward = null;
     clearQr();
     loadRewards();
   }
+  modalCloseEls.forEach((el) => el.addEventListener("click", (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeModal(); }));
 
-  modalCloseEls.forEach((el) => el.addEventListener("click", closeModal));
-
-  modalCopyBtn.addEventListener("click", async () => {
+  modalCopyBtn.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
     const code = openedReward?.code || "";
     if (!code) return;
-    try {
+    try{
       await win.navigator.clipboard.writeText(code);
-      slog("sg.wheel.wallet.get.copy.ok");
-      try { TG?.HapticFeedback?.notificationOccurred?.("success"); } catch (_) {}
-    } catch (e) {
-      slog("sg.wheel.wallet.get.copy.fail", { error: String((e && e.message) || e) });
-      try { win.prompt("Скопируй код:", code); } catch (_) {}
+      try{ TG?.HapticFeedback?.notificationOccurred?.("success"); }catch(_){}
+    }catch(_){
+      try{ win.prompt("Скопируй код:", code); }catch(_){}
     }
   });
 
-  // ---------- actions
+  // ---------- main action
   async function doSpin() {
     if (spinning) return;
 
     const costNow = getSpinCost();
     const coins = getCoins();
+
+    dbg("sg.wheel.spin.pre", { DEMO, coins, costNow, disabled: !!spinBtn.disabled });
+
     if (coins < costNow) {
       haptic("medium");
       pillEl.classList.remove("muted");
@@ -665,7 +558,6 @@ export async function mount(root, props = {}, ctx = {}) {
     const FINAL_DUR = num(props.final_dur, 1200);
     const startTs = performance.now();
 
-    // free-run while waiting
     let free = true;
     const FREE_RPS = 1;
     const FREE_SPEED = (FREE_RPS * N) / 1000;
@@ -682,26 +574,12 @@ export async function mount(root, props = {}, ctx = {}) {
     requestAnimationFrame(freeLoop);
 
     try {
-      // ---- DEMO spin
       if (DEMO) {
         await new Promise(r => setTimeout(r, 350 + ((Math.random() * 450) | 0)));
         demoCoins = Math.max(0, demoCoins - costNow);
 
         const its = items();
-        const pickIdx = (() => {
-          const w = Array.isArray(props.demo_weights) ? props.demo_weights : null;
-          if (w && w.length === its.length) {
-            const sum = w.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
-            if (sum > 0) {
-              let rr = Math.random() * sum;
-              for (let i = 0; i < w.length; i++) {
-                rr -= Math.max(0, Number(w[i]) || 0);
-                if (rr <= 0) return i;
-              }
-            }
-          }
-          return (Math.random() * Math.max(1, its.length)) | 0;
-        })();
+        const pickIdx = (Math.random() * Math.max(1, its.length)) | 0;
 
         const elapsed = performance.now() - startTs;
         if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
@@ -711,15 +589,15 @@ export async function mount(root, props = {}, ctx = {}) {
 
         const card = its[pickIdx];
         const code = String(card?.dataset?.code || "");
-        const title2 = String(card?.dataset?.name || "Приз");
+        const title = String(card?.dataset?.name || "Приз");
 
-        if (pickedEl) pickedEl.textContent = `Выпало: ${title2}`;
+        if (pickedEl) pickedEl.textContent = `Выпало: ${title}`;
 
         const pr = prizes.find(p => String(p.code) === code) || {};
         demoRewards.unshift({
           id: String(Date.now()) + "-" + String((Math.random() * 1000) | 0),
           prize_code: code,
-          prize_title: title2,
+          prize_title: title,
           redeem_code: demoMakeCode(),
           img: pr.img || "",
           issued_at: new Date().toISOString(),
@@ -729,21 +607,13 @@ export async function mount(root, props = {}, ctx = {}) {
         return;
       }
 
-      // ---- PROD spin
+      // ✅ PROD spin: always call wheel.spin through your shell api if possible
       let r = null;
       try {
+        r = await apiCall("wheel.spin", {});
+      } catch (_) {
+        // fallback if your shell expects "spin"
         r = await apiCall("spin", {});
-      } catch (e) {
-        const errCode = e && e.payload && e.payload.error;
-        if (e && (e.status === 409 || e.status === 400) && (errCode === "NOT_ENOUGH_COINS" || errCode === "NOT_ENOUGH")) {
-          const have = num(e.payload.have, coins);
-          const need = num(e.payload.need, costNow);
-          pillEl.classList.remove("muted");
-          pillEl.textContent = `Не хватает монет: нужно ${need}, у тебя ${have}`;
-          haptic("medium");
-          return;
-        }
-        throw e;
       }
 
       const elapsed = performance.now() - startTs;
@@ -753,7 +623,6 @@ export async function mount(root, props = {}, ctx = {}) {
       if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "spin_failed");
 
       if (r.fresh_state) applyFreshState(r.fresh_state);
-      else applyFreshState(r);
 
       const prizeCode =
         (r.prize && r.prize.code) ? String(r.prize.code) :
@@ -776,50 +645,41 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  // ----- bind events (click + pointer/touch for TG)
-  const onSpin = (e) => { try { e.preventDefault(); } catch (_) {} doSpin(); };
-  spinBtn.addEventListener("click", onSpin);
+  // ✅ CLICK FIX: stop bubbling to parent block onclick (editor) + support pointer/touch
+  function onSpinAny(ev){
+    try { ev.preventDefault(); } catch(_) {}
+    try { ev.stopPropagation(); } catch(_) {}       // <<< IMPORTANT
+    try { ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_) {} // extra safety
 
-  function onSpinAny(ev) {
-    try { ev.preventDefault(); } catch (_) {}
-    dbg("sg.wheel.dbg.spin.fire", {
+    dbg("sg.wheel.spin.fire", {
       type: ev.type,
-      demo: DEMO,
-      publicId: resolvePublicId(),
-      hasInitData: !!resolveInitData(),
       coins: getCoins(),
       cost: getSpinCost(),
-      spinning,
       disabled: !!spinBtn.disabled,
+      locked: spinBtn.classList.contains("is-locked"),
     });
+
     doSpin();
   }
 
-  // only for debug mode to avoid double events in some browsers
-  if (DBG) {
-    dbgOutline(spinBtn, true);
+  // clear any inline click conflicts by ensuring button is clickable
+  try { spinBtn.style.pointerEvents = "auto"; } catch(_) {}
 
-    doc.addEventListener("click", (e) => {
-      const t = e.target;
-      const b = t && t.closest ? t.closest("[data-spin]") : null;
-      const rect = spinBtn.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const topEl = doc.elementFromPoint(cx, cy);
+  spinBtn.addEventListener("pointerdown", onSpinAny, { passive:false });
+  spinBtn.addEventListener("touchstart", onSpinAny, { passive:false });
+  spinBtn.addEventListener("click", onSpinAny, { passive:false });
 
-      dbg("sg.wheel.dbg.click", {
-        target: t ? (t.tagName + (t.id ? "#" + t.id : "") + (t.className ? "." + String(t.className).split(/\s+/).join(".") : "")) : null,
-        hitSpinClosest: !!b,
-        spinDisabled: !!spinBtn.disabled,
-        spinLockedClass: spinBtn.classList.contains("is-locked"),
-        spinRect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
-        topAtSpinCenter: topEl ? (topEl.tagName + (topEl.id ? "#" + topEl.id : "") + (topEl.className ? "." + String(topEl.className).split(/\s+/).join(".") : "")) : null,
-      });
-    }, true);
-
-    spinBtn.addEventListener("pointerdown", onSpinAny, { passive: false });
-    spinBtn.addEventListener("touchstart", onSpinAny, { passive: false });
+  // also: if parent catches events in capture, we can “pre-capture” and redirect
+  function captureGuard(e){
+    const t = e.target;
+    const hit = t && t.closest ? t.closest("[data-spin]") : null;
+    if (hit) {
+      dbg("sg.wheel.spin.capture", { target: t?.tagName });
+      onSpinAny(e);
+    }
   }
+  doc.addEventListener("click", captureGuard, true);
+  doc.addEventListener("touchstart", captureGuard, true);
 
   // initial
   updateUI();
@@ -827,14 +687,13 @@ export async function mount(root, props = {}, ctx = {}) {
   loadRewards();
   startPolling();
 
-  // cleanup
   return () => {
     stopPolling();
-    spinBtn.removeEventListener("click", onSpin);
-    if (DBG) {
-      try { spinBtn.removeEventListener("pointerdown", onSpinAny); } catch (_) {}
-      try { spinBtn.removeEventListener("touchstart", onSpinAny); } catch (_) {}
-    }
+    spinBtn.removeEventListener("pointerdown", onSpinAny);
+    spinBtn.removeEventListener("touchstart", onSpinAny);
+    spinBtn.removeEventListener("click", onSpinAny);
+    doc.removeEventListener("click", captureGuard, true);
+    doc.removeEventListener("touchstart", captureGuard, true);
     try { modalEl.hidden = true; } catch (_) {}
   };
 }
