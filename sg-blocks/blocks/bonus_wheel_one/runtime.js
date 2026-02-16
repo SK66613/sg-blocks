@@ -52,10 +52,14 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   // ---------- API
-  const apiFn =
-    (typeof ctx.api === "function") ? ctx.api :
-    (typeof win.api === "function") ? win.api :
-    null;
+const apiFn =
+  (typeof ctx.api === "function") ? ctx.api :
+  (typeof win.api === "function") ? win.api :
+  (typeof win.miniApi === "function") ? win.miniApi :
+  (typeof win.MiniApi === "function") ? win.MiniApi :
+  (win.SG && typeof win.SG.api === "function") ? win.SG.api :
+  null;
+
 
   function resolvePublicId() {
     // 1) ctx
@@ -450,19 +454,28 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  async function loadRewards() {
+async function loadRewards() {
+  try {
+    let r = null;
+
+    // ✅ сначала underscore (реальный роут)
     try {
-      // основной путь — wheel_rewards
-      const r = await apiCall("wheel.rewards", {});
-      rewards = Array.isArray(r?.rewards) ? r.rewards : [];
-      slog("sg.wheel.wallet.ok", { count: rewards.length });
-      renderWallet();
-    } catch (e) {
-      rewards = [];
-      slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
-      renderWallet();
+      r = await apiCall("wheel_rewards", {});
+    } catch (_) {
+      // ✅ потом dot (на случай если где-то так прокинули)
+      r = await apiCall("wheel.rewards", {});
     }
+
+    rewards = Array.isArray(r?.rewards) ? r.rewards : [];
+    slog("sg.wheel.wallet.ok", { count: rewards.length });
+    renderWallet();
+  } catch (e) {
+    rewards = [];
+    slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
+    renderWallet();
   }
+}
+
 
   function startPolling() {
     if (pollTimer) return;
