@@ -163,14 +163,30 @@ const apiFn =
     const url = new URL(`/api/mini/${methodSlug}`, win.location.origin);
     if (publicId) url.searchParams.set("public_id", publicId);
 
-    const body = {
-      ...payload,
-      app_public_id: publicId || (payload.app_public_id || ""),
-      init_data: initData,
-      initData: initData,
-      // ✅ ключевое: tg_user обязателен для mini.ts (если initData пустой)
-      tg_user: (tgUser && tgUser.id) ? { id: tgUser.id, username: tgUser.username, first_name: tgUser.first_name, last_name: tgUser.last_name } : undefined,
-    };
+const body = {
+  ...payload,
+  app_public_id: publicId || (payload.app_public_id || ""),
+  init_data: initData,
+  initData: initData,
+  tg_user: (tgUser && tgUser.id)
+    ? {
+        id: tgUser.id,
+        username: tgUser.username,
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name
+      }
+    : undefined,
+};
+
+// 🔎 DEBUG — покажет почему wheel_rewards падает
+slog("sg.wheel.debug.req", {
+  method,
+  methodSlug,
+  publicId,
+  hasInitData: !!initData,
+  hasTgUser: !!(tgUser && tgUser.id),
+});
+
 
     const r = await fetch(url.toString(), {
       method: "POST",
