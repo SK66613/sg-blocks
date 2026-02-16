@@ -39,38 +39,34 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s ?? "").replace(/"/g, "&quot;");
   }
 
-// ---------- detect DEMO mode (constructor/preview/embed)
-function isDemoMode() {
-  try {
-    // explicit override from constructor
-    if (ctx && ctx.demo === true) return true;
-    if (props && props.demo === true) return true;
+  // ---------- detect DEMO mode (constructor/preview/embed)
+  function isDemoMode() {
+    try {
+      // explicit override from constructor
+      if (ctx && ctx.demo === true) return true;
+      if (props && props.demo === true) return true;
 
-    const href = String((win.location && win.location.href) || "");
-    const u = new URL(href);
+      const href = String((win.location && win.location.href) || "");
+      const u = new URL(href);
 
-    // ✅ force switch (handy for prod debug)
-    // ?demo=1 -> DEMO, ?demo=0 -> PROD
-    const force = u.searchParams.get("demo");
-    if (force === "1") return true;
-    if (force === "0") return false;
+      // force switch:
+      // ?demo=1 -> DEMO, ?demo=0 -> PROD
+      const force = u.searchParams.get("demo");
+      if (force === "1") return true;
+      if (force === "0") return false;
 
-    // ✅ your real preview signals
-    const preview = String(u.searchParams.get("preview") || u.searchParams.get("mode") || "");
-    if (u.searchParams.get("embed") === "1") return true;
-    if (preview.includes("draft")) return true;
+      // real preview signals in your system
+      const preview = String(u.searchParams.get("preview") || u.searchParams.get("mode") || "");
+      if (u.searchParams.get("embed") === "1") return true;
+      if (preview.includes("draft")) return true;
 
-    // ❌ IMPORTANT: iframe ≠ demo (Telegram WebView / wrappers may look like iframe)
-    // do NOT use win.parent !== win as a demo signal
-
-    return false;
-  } catch (_) {
-    // safest default: NOT demo
-    return false;
+      // IMPORTANT: iframe != demo (TG WebView / wrappers may look like iframe)
+      return false;
+    } catch (_) {
+      // safest default: NOT demo
+      return false;
+    }
   }
-}
-
-
 
   const DEMO = isDemoMode();
 
@@ -119,6 +115,7 @@ function isDemoMode() {
   async function apiCall(method, payload = {}) {
     // DEMO: never call API
     if (DEMO) {
+      try { slog("sg.wheel.api.blocked.demo", { method, href: String(win.location.href || "") }); } catch (_) {}
       throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
     }
 
@@ -128,15 +125,13 @@ function isDemoMode() {
     const publicId = resolvePublicId();
     const initData = resolveInitData();
 
-    // 1) method candidates (покрываем разные роутеры)
+    // 1) method candidates (covers different routers)
     const m0 = String(method || "");
     const methodCandidates = Array.from(
       new Set([
         m0,
-        // если зовём "spin" — пробуем wheel.spin тоже
         m0 === "spin" ? "wheel.spin" : m0.replace(/^wheel\./, ""),
         m0 === "spin" ? "wheel_spin" : m0.replace(/\./g, "_"),
-        // rewards варианты
         m0 === "wheel.rewards" ? "rewards" : null,
         m0 === "rewards" ? "wheel.rewards" : null,
         m0 === "wheel.rewards" ? "wheel_rewards" : null,
@@ -144,7 +139,7 @@ function isDemoMode() {
       ].filter(Boolean))
     );
 
-    // 2) url candidates (покрываем разные схемы роутинга)
+    // 2) url candidates
     function urlForPath(m) {
       const u = new URL(`/api/mini/${m}`, win.location.origin);
       if (publicId) u.searchParams.set("public_id", publicId);
@@ -156,7 +151,6 @@ function isDemoMode() {
       return u.toString();
     }
     function urlForWheelPath(m) {
-      // иногда делают /api/mini/wheel/spin
       const u = new URL(`/api/mini/wheel/${m}`, win.location.origin);
       if (publicId) u.searchParams.set("public_id", publicId);
       return u.toString();
@@ -172,6 +166,7 @@ function isDemoMode() {
       const r = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
+        // IMPORTANT: keep include for same-origin; your worker can ignore cookies anyway
         credentials: "include",
         body: JSON.stringify(bodyObj || {}),
       });
@@ -180,14 +175,8 @@ function isDemoMode() {
       let text = "";
       let j = null;
 
-      // читаем текст всегда (чтобы залогировать HTML/текстовые ошибки)
-      try {
-        text = await r.text();
-      } catch (_) {
-        text = "";
-      }
+      try { text = await r.text(); } catch (_) { text = ""; }
 
-      // пытаемся JSON распарсить
       if (ct.includes("application/json") || (text && (text[0] === "{" || text[0] === "["))) {
         try { j = JSON.parse(text); } catch (_) { j = null; }
       }
@@ -208,11 +197,9 @@ function isDemoMode() {
 
     const attempts = [];
 
-    // 3) Try all combinations until success
     for (const m of methodCandidates) {
       const urlCandidates = urlCandidatesBuilder(m);
 
-      // PATH + WHEEL_PATH
       for (const uc of urlCandidates.filter(x => x.mode !== "body")) {
         const body = { ...baseBody, ...payload };
         const res = await postAny(uc.url, body);
@@ -231,7 +218,6 @@ function isDemoMode() {
         if (okJson(res.r, res.j)) return res.j;
       }
 
-      // BODY mode (single endpoint /api/mini)
       {
         const uc = urlCandidates.find(x => x.mode === "body");
         const body = { ...baseBody, type: m, payload: { ...payload } };
@@ -252,7 +238,6 @@ function isDemoMode() {
       }
     }
 
-    // 4) If all failed — log attempts to help debug instantly
     try {
       slog("sg.wheel.api.fail.all", {
         origMethod: method,
@@ -294,6 +279,37 @@ function isDemoMode() {
     slog("sg.wheel.fail.render", { error: "view.html mismatch / missing elements" });
     return () => {};
   }
+
+  // ===== DEBUG (safe, only if ?dbg=1)
+  const DBG = (() => {
+    try { return new URL(win.location.href).searchParams.get("dbg") === "1"; } catch (_) { return false; }
+  })();
+
+  function dbg(tag, extra) {
+    if (!DBG) return;
+    try { slog(tag, extra || {}); } catch (_) {}
+  }
+
+  function dbgOutline(el, on) {
+    if (!DBG || !el) return;
+    try {
+      if (on) {
+        el.style.outline = "2px solid rgba(124,92,255,.95)";
+        el.style.outlineOffset = "2px";
+      } else {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+      }
+    } catch (_) {}
+  }
+
+  // show mode in logs
+  dbg("sg.wheel.dbg.boot", {
+    demo: DEMO,
+    href: String(win.location.href || ""),
+    publicId: resolvePublicId(),
+    hasInitData: !!resolveInitData(),
+  });
 
   try {
     if (TG && !DEMO) { TG.ready(); TG.expand(); }
@@ -355,7 +371,9 @@ function isDemoMode() {
         return;
       }
     } catch (_) {}
-    try { win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12); } catch (_) {}
+    try {
+      win.navigator.vibrate && win.navigator.vibrate(level === "heavy" ? 30 : level === "medium" ? 20 : 12);
+    } catch (_) {}
   }
 
   // ---------- render prizes into track (cards)
@@ -383,7 +401,7 @@ function isDemoMode() {
   // ---------- UI helpers
   function setPillIdle() {
     pillEl.classList.add("muted");
-    pillEl.textContent = DEMO ? 'DEMO: нажми «Крутануть»' : 'Нажми «Крутануть»';
+    pillEl.textContent = DEMO ? "DEMO: нажми «Крутануть»" : "Нажми «Крутануть»";
   }
 
   function setPillByIndex(idx) {
@@ -395,7 +413,9 @@ function isDemoMode() {
     pillEl.innerHTML = escapeHtml(name);
   }
 
-  function syncCoins() { coinsEl.textContent = String(getCoins()); }
+  function syncCoins() {
+    coinsEl.textContent = String(getCoins());
+  }
 
   // ---------- wheel-track animation
   let STEP = 114; // px between cards, auto-detect
@@ -479,26 +499,26 @@ function isDemoMode() {
   requestAnimationFrame(() => { measureStep(); updateUI(); });
 
   // ===== Wallet logic =====
-  let rewards = [];          // PROD: from API, DEMO: local
-  let demoRewards = [];      // local wallet in DEMO
+  let rewards = [];      // PROD
+  let demoRewards = [];  // DEMO
   let pollTimer = 0;
   let openedReward = null;
 
-  function fmtIssuedAt(v){
+  function fmtIssuedAt(v) {
     if (!v) return "";
     const s = String(v);
-    return s.replace("T"," ").replace("Z","").slice(0, 16);
+    return s.replace("T", " ").replace("Z", "").slice(0, 16);
   }
 
-  function setWalletCount(n){
-    walletCountEl.textContent = String(Math.max(0, n|0));
+  function setWalletCount(n) {
+    walletCountEl.textContent = String(Math.max(0, n | 0));
   }
 
-  function renderWallet(){
+  function renderWallet() {
     const list = DEMO ? demoRewards : rewards;
     setWalletCount(list.length);
 
-    if (!list.length){
+    if (!list.length) {
       walletListEl.innerHTML = `<div class="bw-wallet-empty">${DEMO ? "DEMO: пока нет призов 😌" : "Пока нет призов 😌"}</div>`;
       return;
     }
@@ -543,15 +563,14 @@ function isDemoMode() {
     return out;
   }
 
-  async function loadRewards(){
+  async function loadRewards() {
     if (DEMO) {
       rewards = [];
       renderWallet();
       return;
     }
 
-    try{
-      // prefer modern dot method; fallback to underscore if your router uses it
+    try {
       let r = null;
       try { r = await apiCall("wheel.rewards", {}); }
       catch (_) { r = await apiCall("wheel_rewards", {}); }
@@ -559,43 +578,43 @@ function isDemoMode() {
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
-    }catch(e){
+    } catch (e) {
       rewards = [];
       slog("sg.wheel.wallet.fail.api", { error: String((e && e.message) || e) });
       renderWallet();
     }
   }
 
-  function startPolling(){
+  function startPolling() {
     if (DEMO) return;
     if (pollTimer) return;
     pollTimer = win.setInterval(() => loadRewards(), 20000);
     slog("sg.wheel.wallet.poll.start");
   }
-  function stopPolling(){
-    try{ pollTimer && win.clearInterval(pollTimer); }catch(_){}
+  function stopPolling() {
+    try { pollTimer && win.clearInterval(pollTimer); } catch (_) {}
     pollTimer = 0;
     slog("sg.wheel.wallet.poll.stop");
   }
 
-  // ===== Modal + QR (reuse if QR library exists globally)
-  function clearQr(){
-    try{ modalQrEl.innerHTML = ""; }catch(_){}
+  // ===== Modal + QR
+  function clearQr() {
+    try { modalQrEl.innerHTML = ""; } catch (_) {}
   }
 
-  function renderQr(code){
+  function renderQr(code) {
     clearQr();
-    try{
+    try {
       if (win.QRCode) {
         const box = doc.createElement("div");
         modalQrEl.appendChild(box);
         try { new win.QRCode(box, { text: code, width: 160, height: 160 }); return; } catch (_) {}
         try { new win.QRCode(box, code); return; } catch (_) {}
       }
-    }catch(_){}
+    } catch (_) {}
   }
 
-  function openModal(title, code){
+  function openModal(title, code) {
     openedReward = { title, code };
     modalTitleEl.textContent = title + (DEMO ? " (DEMO)" : "");
     modalCodeEl.textContent = code;
@@ -603,7 +622,7 @@ function isDemoMode() {
     modalEl.hidden = false;
   }
 
-  function closeModal(){
+  function closeModal() {
     modalEl.hidden = true;
     openedReward = null;
     clearQr();
@@ -615,13 +634,13 @@ function isDemoMode() {
   modalCopyBtn.addEventListener("click", async () => {
     const code = openedReward?.code || "";
     if (!code) return;
-    try{
+    try {
       await win.navigator.clipboard.writeText(code);
       slog("sg.wheel.wallet.get.copy.ok");
-      try{ TG?.HapticFeedback?.notificationOccurred?.("success"); }catch(_){}
-    }catch(e){
+      try { TG?.HapticFeedback?.notificationOccurred?.("success"); } catch (_) {}
+    } catch (e) {
       slog("sg.wheel.wallet.get.copy.fail", { error: String((e && e.message) || e) });
-      try{ win.prompt("Скопируй код:", code); }catch(_){}
+      try { win.prompt("Скопируй код:", code); } catch (_) {}
     }
   });
 
@@ -665,23 +684,19 @@ function isDemoMode() {
     try {
       // ---- DEMO spin
       if (DEMO) {
-        // fake “server delay”
         await new Promise(r => setTimeout(r, 350 + ((Math.random() * 450) | 0)));
-
-        // “reserve” cost
         demoCoins = Math.max(0, demoCoins - costNow);
 
-        // pick prize by weights (optional), fallback uniform
         const its = items();
         const pickIdx = (() => {
           const w = Array.isArray(props.demo_weights) ? props.demo_weights : null;
           if (w && w.length === its.length) {
             const sum = w.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
             if (sum > 0) {
-              let r = Math.random() * sum;
+              let rr = Math.random() * sum;
               for (let i = 0; i < w.length; i++) {
-                r -= Math.max(0, Number(w[i]) || 0);
-                if (r <= 0) return i;
+                rr -= Math.max(0, Number(w[i]) || 0);
+                if (rr <= 0) return i;
               }
             }
           }
@@ -696,16 +711,15 @@ function isDemoMode() {
 
         const card = its[pickIdx];
         const code = String(card?.dataset?.code || "");
-        const title = String(card?.dataset?.name || "Приз");
+        const title2 = String(card?.dataset?.name || "Приз");
 
-        if (pickedEl) pickedEl.textContent = `Выпало: ${title}`;
+        if (pickedEl) pickedEl.textContent = `Выпало: ${title2}`;
 
-        // add to demo wallet
         const pr = prizes.find(p => String(p.code) === code) || {};
         demoRewards.unshift({
           id: String(Date.now()) + "-" + String((Math.random() * 1000) | 0),
           prize_code: code,
-          prize_title: title,
+          prize_title: title2,
           redeem_code: demoMakeCode(),
           img: pr.img || "",
           issued_at: new Date().toISOString(),
@@ -718,7 +732,6 @@ function isDemoMode() {
       // ---- PROD spin
       let r = null;
       try {
-        // your worker uses /api/mini/spin (seen in logs)
         r = await apiCall("spin", {});
       } catch (e) {
         const errCode = e && e.payload && e.payload.error;
@@ -739,11 +752,9 @@ function isDemoMode() {
 
       if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "spin_failed");
 
-      // apply state
       if (r.fresh_state) applyFreshState(r.fresh_state);
       else applyFreshState(r);
 
-      // prize index by code
       const prizeCode =
         (r.prize && r.prize.code) ? String(r.prize.code) :
         str(r.prize_code || "", "");
@@ -758,7 +769,6 @@ function isDemoMode() {
         str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? r?.prize?.title ?? r?.prize_title ?? "", "");
       if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
 
-      // refresh wallet after spin (worker should expose rewards endpoint if you want it)
       await loadRewards();
     } finally {
       spinning = false;
@@ -766,98 +776,65 @@ function isDemoMode() {
     }
   }
 
-  const onSpin = (e) => { e.preventDefault(); doSpin(); };
+  // ----- bind events (click + pointer/touch for TG)
+  const onSpin = (e) => { try { e.preventDefault(); } catch (_) {} doSpin(); };
   spinBtn.addEventListener("click", onSpin);
 
-  // ===== DEBUG: why spin button doesn't trigger (safe in prod, verbose only when ?dbg=1)
-const DBG_CLICK = (() => {
-  try { return new URL(win.location.href).searchParams.get("dbg") === "1"; } catch (_) { return false; }
-})();
-
-function dbgClickLog(tag, extra){
-  if (!DBG_CLICK) return;
-  try { slog(tag, extra || {}); } catch(_) {}
-  try { console.log(tag, extra || {}); } catch(_) {}
-}
-
-function dbgOutline(el, on){
-  if (!DBG_CLICK || !el) return;
-  try{
-    if (on) {
-      el.style.outline = "2px solid rgba(124,92,255,.95)";
-      el.style.outlineOffset = "2px";
-    } else {
-      el.style.outline = "";
-      el.style.outlineOffset = "";
-    }
-  }catch(_){}
-}
-
-dbgOutline(spinBtn, true);
-
-// 1) capture ALL clicks and show what element receives it
-doc.addEventListener("click", (e) => {
-  if (!DBG_CLICK) return;
-  const t = e.target;
-  const b = t && t.closest ? t.closest("[data-spin]") : null;
-  const rect = spinBtn.getBoundingClientRect();
-  const cx = rect.left + rect.width/2;
-  const cy = rect.top + rect.height/2;
-  const topEl = doc.elementFromPoint(cx, cy);
-
-  dbgClickLog("sg.wheel.dbg.click", {
-    target: t ? (t.tagName + (t.id ? "#" + t.id : "") + (t.className ? "." + String(t.className).split(/\s+/).join(".") : "")) : null,
-    hitSpinClosest: !!b,
-    spinDisabled: !!spinBtn.disabled,
-    spinLockedClass: spinBtn.classList.contains("is-locked"),
-    spinRect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
-    topAtSpinCenter: topEl ? (topEl.tagName + (topEl.id ? "#" + topEl.id : "") + (topEl.className ? "." + String(topEl.className).split(/\s+/).join(".") : "")) : null,
-  });
-}, true);
-
-// 2) hard-bind pointer events too (some TG cases drop click)
-function onSpinAny(ev){
-  try { ev.preventDefault(); } catch(_) {}
-  dbgClickLog("sg.wheel.dbg.spin.fire", {
-    type: ev.type,
-    demo: DEMO,
-    publicId: resolvePublicId(),
-    hasInitData: !!resolveInitData(),
-    coins: getCoins(),
-    cost: getSpinCost(),
-    spinning,
-    disabled: !!spinBtn.disabled
-  });
-
-  // also show if some overlay blocks pointer events
-  try {
-    const cs = win.getComputedStyle(spinBtn);
-    dbgClickLog("sg.wheel.dbg.spin.css", {
-      pointerEvents: cs.pointerEvents,
-      opacity: cs.opacity,
-      display: cs.display,
-      visibility: cs.visibility
+  function onSpinAny(ev) {
+    try { ev.preventDefault(); } catch (_) {}
+    dbg("sg.wheel.dbg.spin.fire", {
+      type: ev.type,
+      demo: DEMO,
+      publicId: resolvePublicId(),
+      hasInitData: !!resolveInitData(),
+      coins: getCoins(),
+      cost: getSpinCost(),
+      spinning,
+      disabled: !!spinBtn.disabled,
     });
-  } catch(_) {}
+    doSpin();
+  }
 
-  doSpin();
-}
+  // only for debug mode to avoid double events in some browsers
+  if (DBG) {
+    dbgOutline(spinBtn, true);
 
-// add extra listeners, but do not double-call: guard by spinning inside doSpin
-spinBtn.addEventListener("pointerdown", onSpinAny, { passive:false });
-spinBtn.addEventListener("touchstart", onSpinAny, { passive:false });
+    doc.addEventListener("click", (e) => {
+      const t = e.target;
+      const b = t && t.closest ? t.closest("[data-spin]") : null;
+      const rect = spinBtn.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const topEl = doc.elementFromPoint(cx, cy);
 
+      dbg("sg.wheel.dbg.click", {
+        target: t ? (t.tagName + (t.id ? "#" + t.id : "") + (t.className ? "." + String(t.className).split(/\s+/).join(".") : "")) : null,
+        hitSpinClosest: !!b,
+        spinDisabled: !!spinBtn.disabled,
+        spinLockedClass: spinBtn.classList.contains("is-locked"),
+        spinRect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+        topAtSpinCenter: topEl ? (topEl.tagName + (topEl.id ? "#" + topEl.id : "") + (topEl.className ? "." + String(topEl.className).split(/\s+/).join(".") : "")) : null,
+      });
+    }, true);
+
+    spinBtn.addEventListener("pointerdown", onSpinAny, { passive: false });
+    spinBtn.addEventListener("touchstart", onSpinAny, { passive: false });
+  }
 
   // initial
   updateUI();
-  renderWallet();  // show demo wallet instantly
-  loadRewards();   // will no-op in demo
-  startPolling();  // no-op in demo
+  renderWallet();
+  loadRewards();
+  startPolling();
 
   // cleanup
   return () => {
     stopPolling();
     spinBtn.removeEventListener("click", onSpin);
+    if (DBG) {
+      try { spinBtn.removeEventListener("pointerdown", onSpinAny); } catch (_) {}
+      try { spinBtn.removeEventListener("touchstart", onSpinAny); } catch (_) {}
+    }
     try { modalEl.hidden = true; } catch (_) {}
   };
 }
