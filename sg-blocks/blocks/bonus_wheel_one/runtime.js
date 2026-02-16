@@ -40,40 +40,37 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   // ---------- detect DEMO mode (constructor/preview/embed)
-  function isDemoMode() {
-    try {
-      // explicit override from constructor if you want:
-      // ctx.demo === true OR props.demo === true
-      if (ctx && ctx.demo === true) return true;
-      if (props && props.demo === true) return true;
+function isDemoMode() {
+  try {
+    // explicit override from constructor
+    if (ctx && ctx.demo === true) return true;
+    if (props && props.demo === true) return true;
 
-      const href = String((win.location && win.location.href) || "");
-      const u = new URL(href);
+    const href = String((win.location && win.location.href) || "");
+    const u = new URL(href);
 
-      // common preview signals
-      const preview =
-        u.searchParams.get("preview") ||
-        u.searchParams.get("embed") ||
-        u.searchParams.get("mode") ||
-        "";
+    // explicit query flags
+    const preview = String(
+      u.searchParams.get("preview") ||
+      u.searchParams.get("mode") ||
+      ""
+    );
 
-      if (String(preview).includes("draft")) return true;
-      if (u.searchParams.get("embed") === "1") return true;
+    // твой конструктор/превью: embed=1 или preview=draft
+    if (u.searchParams.get("embed") === "1") return true;
+    if (preview.includes("draft")) return true;
 
-      // if we are in an iframe (constructor phone)
-      if (win.parent && win.parent !== win) return true;
+    // ✅ ВАЖНО: iframe сам по себе НЕ означает DEMO
+    // Telegram Mini App почти всегда "внутри" WebView/iframe-обвязки.
+    // Поэтому НЕ делаем: if (win.parent !== win) return true;
 
-      // if Telegram is absent -> usually preview (but not always)
-      // keep it as weak signal, not decisive:
-      // return !TG; // <- not using as hard rule
-
-      return false;
-    } catch (_) {
-      // safest: if uncertain, assume demo in constructor iframe
-      try { return (win.parent && win.parent !== win); } catch (_) {}
-      return false;
-    }
+    return false;
+  } catch (_) {
+    // безопасный дефолт: НЕ демо
+    return false;
   }
+}
+
 
   const DEMO = isDemoMode();
 
