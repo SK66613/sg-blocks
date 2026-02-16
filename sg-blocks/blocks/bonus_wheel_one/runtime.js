@@ -1,15 +1,7 @@
-// sg-blocks/blocks/bonus_wheel_one/runtime.js
-// Wheel-track (cards) runtime — supports 2 modes:
-// 1) Preview/Demo (constructor): NO API calls, only animation + fake result.
-// 2) Live (real mini-app): calls /api/mini/spin and /api/mini/wheel_rewards (wallet).
-//
-// API priority: ctx.api -> window.api -> POST /api/mini/*
-// Wallet endpoint: wheel_rewards (reads wheel_redeems with status='issued').
-// Spin endpoint: spin (or wheel.spin via apiFn).
-//
-// Notes:
-// - In preview we intentionally DO NOT write to D1 and DO NOT require Telegram initData.
-// - In live we try to provide tg_user (from TG.initDataUnsafe / initData / tg_id param fallback).
+// bonus_wheel_one/runtime.js
+// Wheel-track (cards) runtime — PROD via ctx.api/window.api or /api/mini/*
+// Preview/Constructor: DEMO mode (no API, no D1).
+// Wallet: issued prizes list (demo wallet in preview; real wallet in prod).
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -47,32 +39,43 @@ export async function mount(root, props = {}, ctx = {}) {
     return String(s ?? "").replace(/"/g, "&quot;");
   }
 
-  // Parse tg user from initData (initData has user=JSON)
-  function parseTgUserFromInitData(initData) {
+  // ---------- detect DEMO mode (constructor/preview/embed)
+  function isDemoMode() {
     try {
-      const p = new URLSearchParams(String(initData || ""));
-      const userRaw = p.get("user");
-      if (!userRaw) return null;
-      const u = JSON.parse(userRaw);
-      return (u && u.id) ? u : null;
+      // explicit override from constructor if you want:
+      // ctx.demo === true OR props.demo === true
+      if (ctx && ctx.demo === true) return true;
+      if (props && props.demo === true) return true;
+
+      const href = String(win.location && win.location.href || "");
+      const u = new URL(href);
+
+      // common preview signals
+      const preview =
+        u.searchParams.get("preview") ||
+        u.searchParams.get("embed") ||
+        u.searchParams.get("mode") ||
+        "";
+
+      if (String(preview).includes("draft")) return true;
+      if (u.searchParams.get("embed") === "1") return true;
+
+      // if we are in an iframe (constructor phone)
+      if (win.parent && win.parent !== win) return true;
+
+      // if Telegram is absent -> usually preview (but not always)
+      // keep it as weak signal, not decisive:
+      // return !TG; // <- not using as hard rule
+
+      return false;
     } catch (_) {
-      return null;
+      // safest: if uncertain, assume demo in constructor iframe
+      try { return (win.parent && win.parent !== win); } catch (_) {}
+      return false;
     }
   }
 
-  // ---------- Preview detection (constructor demo mode)
-  const isPreview = (() => {
-    try {
-      const u = new URL(win.location.href);
-      const p = u.searchParams;
-      const flag = (p.get("preview") || "").toLowerCase();
-      if (flag === "draft" || flag === "1" || flag === "true") return true;
-      // embed preview in panel часто идет без initData
-      if (p.get("embed") === "1" && !String(TG?.initData || "")) return true;
-    } catch (_) {}
-    // если нет initData — почти наверняка превью
-    return !String(TG?.initData || "");
-  })();
+  const DEMO = isDemoMode();
 
   // ---------- API
   const apiFn =
@@ -81,15 +84,11 @@ export async function mount(root, props = {}, ctx = {}) {
     null;
 
   function resolvePublicId() {
-    let pid = str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
+    let pid =
+      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
     if (pid) return pid;
-
     pid = str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
     if (pid) return pid;
-
-    pid = str(win?.SG_APP_PUBLIC_ID || win?.APP_PUBLIC_ID || "").trim();
-    if (pid) return pid;
-
     pid = str(props?.public_id || props?.app_public_id || "").trim();
     if (pid) return pid;
 
@@ -98,7 +97,6 @@ export async function mount(root, props = {}, ctx = {}) {
       pid = str(u.searchParams.get("public_id") || "").trim();
       if (pid) return pid;
     } catch (_) {}
-
     return "";
   }
 
@@ -114,70 +112,23 @@ export async function mount(root, props = {}, ctx = {}) {
       initData = u.searchParams.get("init_data") || u.searchParams.get("initData") || "";
       return str(initData);
     } catch (_) {}
-
     return "";
   }
 
-  function resolveTgUser(initData) {
-    // 0) ctx explicit
-    if (ctx?.tg_user && ctx.tg_user.id) return ctx.tg_user;
-    if (ctx?.tgUser && ctx.tgUser.id) return ctx.tgUser;
-
-    // 1) Telegram initDataUnsafe.user (best)
-    try {
-      const u = TG?.initDataUnsafe?.user;
-      if (u && u.id) return u;
-    } catch (_) {}
-
-    // 2) MiniState fallbacks
-    try {
-      const st = (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
-      const cand =
-        st?.tg_user ||
-        st?.tgUser ||
-        st?.user ||
-        st?.tg ||
-        (st?.profile && (st.profile.tg_user || st.profile.user)) ||
-        null;
-      if (cand && cand.id) return cand;
-    } catch (_) {}
-
-    // 3) parse initData.user
-    const u2 = parseTgUserFromInitData(initData);
-    if (u2 && u2.id) return u2;
-
-    // 4) preview tg_id fallback (ONLY if explicitly present)
-    try {
-      const u = new URL(win.location.href);
-      const previewTgId = u.searchParams.get("tg_id") || u.searchParams.get("tgId") || "";
-      if (previewTgId) {
-        const idNum = Number(previewTgId);
-        if (Number.isFinite(idNum) && idNum > 0) return { id: idNum, username: "preview" };
-      }
-    } catch (_) {}
-
-    return null;
-  }
-
   async function apiCall(method, payload = {}) {
-    // PREVIEW: never call API
-    if (isPreview) {
-      const err = new Error("PREVIEW_MODE_NO_API");
-      err.status = 418;
-      throw err;
+    // DEMO: never call API
+    if (DEMO) {
+      throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
     }
 
-    // If ctx.api / window.api exists — use it
+    // if ctx.api / window.api exists — use it
     if (apiFn) return await apiFn(method, payload);
 
-    // fallback endpoints are underscore style: wheel.spin -> wheel_spin
-    const methodSlug = String(method || "").replace(/\./g, "_");
-
+    // fallback endpoint: /api/mini/<method> (expects already correct slug in method)
     const publicId = resolvePublicId();
     const initData = resolveInitData();
-    const tgUser = resolveTgUser(initData);
 
-    const url = new URL(`/api/mini/${methodSlug}`, win.location.origin);
+    const url = new URL(`/api/mini/${method}`, win.location.origin);
     if (publicId) url.searchParams.set("public_id", publicId);
 
     const body = {
@@ -185,20 +136,7 @@ export async function mount(root, props = {}, ctx = {}) {
       app_public_id: publicId || (payload.app_public_id || ""),
       init_data: initData,
       initData: initData,
-      // tg_user helps mini.ts when initData is empty in some environments
-      tg_user: (tgUser && tgUser.id)
-        ? {
-            id: tgUser.id,
-            username: tgUser.username,
-            first_name: tgUser.first_name,
-            last_name: tgUser.last_name
-          }
-        : undefined,
     };
-
-    // Debug request (keep, but low volume)
-    // uncomment if needed:
-    // slog("sg.wheel.debug.req", { method, methodSlug, publicId, hasInitData: !!initData, hasTgUser: !!(tgUser && tgUser.id) });
 
     const r = await fetch(url.toString(), {
       method: "POST",
@@ -212,11 +150,9 @@ export async function mount(root, props = {}, ctx = {}) {
     if (!r.ok || !j || j.ok === false) {
       slog("sg.wheel.api.fail", {
         method,
-        methodSlug,
         status: r.status,
         publicId,
         hasInitData: !!initData,
-        hasTgUser: !!(body.tg_user && body.tg_user.id),
         error: String((j && (j.error || j.message)) || `API ${method} failed (${r.status})`),
       });
       const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
@@ -253,7 +189,7 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   try {
-    if (TG) { TG.ready(); TG.expand(); }
+    if (TG && !DEMO) { TG.ready(); TG.expand(); }
   } catch (_) {}
 
   // ---------- props
@@ -269,14 +205,23 @@ export async function mount(root, props = {}, ctx = {}) {
       }))
     : [];
 
-  if (titleEl) titleEl.textContent = title;
+  if (titleEl) titleEl.textContent = title + (DEMO ? " (DEMO)" : "");
 
-  // ---------- state
+  // ---------- state (PROD: from MiniState; DEMO: local)
   const getMiniState = () => (ctx && ctx.state) ? ctx.state : (win.MiniState || {});
   const getWheelState = () => (getMiniState().wheel || {});
-  const getCoins = () => num(getMiniState().coins, 0);
+
+  // DEMO state
+  const DEMO_DEFAULT_COINS = Math.max(0, Math.round(num(props.demo_coins, 120)));
+  const DEMO_SPIN_COST = Math.max(0, Math.round(num(props.spin_cost ?? props.spin_cost_coins, 10)));
+  let demoCoins = DEMO_DEFAULT_COINS;
+
+  function getCoins() {
+    return DEMO ? demoCoins : num(getMiniState().coins, 0);
+  }
 
   function getSpinCost() {
+    if (DEMO) return DEMO_SPIN_COST;
     const st = getMiniState();
     const fromCfg = num(st?.config?.wheel?.spin_cost, NaN);
     if (Number.isFinite(fromCfg)) return Math.max(0, Math.round(fromCfg));
@@ -285,7 +230,7 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   function applyFreshState(fresh) {
-    if (!fresh) return;
+    if (!fresh || DEMO) return;
     if (typeof win.applyServerState === "function") {
       win.applyServerState(fresh);
       return;
@@ -297,7 +242,7 @@ export async function mount(root, props = {}, ctx = {}) {
   // ---------- haptics
   function haptic(level = "light") {
     try {
-      if (TG?.HapticFeedback) {
+      if (!DEMO && TG?.HapticFeedback) {
         if (level === "selection") TG.HapticFeedback.selectionChanged();
         else TG.HapticFeedback.impactOccurred(level);
         return;
@@ -331,7 +276,7 @@ export async function mount(root, props = {}, ctx = {}) {
   // ---------- UI helpers
   function setPillIdle() {
     pillEl.classList.add("muted");
-    pillEl.textContent = isPreview ? 'Предпросмотр: демо-прокрутка' : 'Нажми «Крутануть»';
+    pillEl.textContent = DEMO ? 'DEMO: нажми «Крутануть»' : 'Нажми «Крутануть»';
   }
 
   function setPillByIndex(idx) {
@@ -343,10 +288,7 @@ export async function mount(root, props = {}, ctx = {}) {
     pillEl.innerHTML = escapeHtml(name);
   }
 
-  function syncCoins() {
-    if (isPreview) coinsEl.textContent = "999";
-    else coinsEl.textContent = String(getCoins());
-  }
+  function syncCoins() { coinsEl.textContent = String(getCoins()); }
 
   // ---------- wheel-track animation
   let STEP = 114; // px between cards, auto-detect
@@ -383,7 +325,7 @@ export async function mount(root, props = {}, ctx = {}) {
     syncCoins();
 
     const cost = getSpinCost();
-    const canSpin = isPreview ? !spinning : ((getCoins() >= cost) && !spinning);
+    const canSpin = (getCoins() >= cost) && !spinning;
     spinBtn.classList.toggle("is-locked", !canSpin);
     spinBtn.disabled = !canSpin;
   }
@@ -430,34 +372,31 @@ export async function mount(root, props = {}, ctx = {}) {
   requestAnimationFrame(() => { measureStep(); updateUI(); });
 
   // ===== Wallet logic =====
-  let rewards = [];
+  let rewards = [];          // PROD: from API, DEMO: local
+  let demoRewards = [];      // local wallet in DEMO
   let pollTimer = 0;
   let openedReward = null;
 
-  function fmtIssuedAt(v) {
+  function fmtIssuedAt(v){
     if (!v) return "";
     const s = String(v);
-    return s.replace("T", " ").replace("Z", "").slice(0, 16);
+    return s.replace("T"," ").replace("Z","").slice(0, 16);
   }
 
-  function setWalletCount(n) {
-    walletCountEl.textContent = String(Math.max(0, n | 0));
+  function setWalletCount(n){
+    walletCountEl.textContent = String(Math.max(0, n|0));
   }
 
-  function renderWallet() {
-    setWalletCount(rewards.length);
+  function renderWallet(){
+    const list = DEMO ? demoRewards : rewards;
+    setWalletCount(list.length);
 
-    if (isPreview) {
-      walletListEl.innerHTML = `<div class="bw-wallet-empty">Предпросмотр: кошелёк не активен</div>`;
+    if (!list.length){
+      walletListEl.innerHTML = `<div class="bw-wallet-empty">${DEMO ? "DEMO: пока нет призов 😌" : "Пока нет призов 😌"}</div>`;
       return;
     }
 
-    if (!rewards.length) {
-      walletListEl.innerHTML = `<div class="bw-wallet-empty">Пока нет призов 😌</div>`;
-      return;
-    }
-
-    walletListEl.innerHTML = rewards.map((r) => {
+    walletListEl.innerHTML = list.map((r) => {
       const id = String(r.id ?? "");
       const title = str(r.prize_title ?? r.title ?? "Приз");
       const code = str(r.redeem_code ?? r.code ?? "");
@@ -469,7 +408,7 @@ export async function mount(root, props = {}, ctx = {}) {
           <div class="bw-wallet-thumb">${img ? `<img src="${escapeAttr(img)}" alt="">` : ``}</div>
           <div>
             <div class="bw-wallet-name">${escapeHtml(title)}</div>
-            <div class="bw-wallet-meta">${issuedAt ? `Выдано: ${escapeHtml(issuedAt)}` : ""}</div>
+            <div class="bw-wallet-meta">${issuedAt ? `Выдано: ${escapeHtml(issuedAt)}` : ""}${DEMO ? " · DEMO" : ""}</div>
           </div>
           <button class="bw-wallet-get" type="button" data-reward-get>Получить</button>
         </div>
@@ -484,69 +423,80 @@ export async function mount(root, props = {}, ctx = {}) {
         const title = card.getAttribute("data-reward-title") || "Приз";
         const id = card.getAttribute("data-reward-id") || "";
         if (!code) return;
-        slog("sg.wheel.wallet.get.open", { id });
+        slog("sg.wheel.wallet.get.open", { id, demo: DEMO });
         openModal(title, code);
       });
     });
   }
 
-  async function loadRewards() {
-    if (isPreview) {
+  function demoMakeCode() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "SG-DEMO-";
+    for (let i = 0; i < 8; i++) out += alphabet[(Math.random() * alphabet.length) | 0];
+    return out;
+  }
+
+  async function loadRewards(){
+    if (DEMO) {
       rewards = [];
       renderWallet();
       return;
     }
-    try {
-      // main: wheel_rewards (maps to /api/mini/wheel_rewards)
-      const r = await apiCall("wheel_rewards", {});
+
+    try{
+      // prefer modern dot method; fallback to underscore if your router uses it
+      let r = null;
+      try { r = await apiCall("wheel.rewards", {}); }
+      catch (_) { r = await apiCall("wheel_rewards", {}); }
+
       rewards = Array.isArray(r?.rewards) ? r.rewards : [];
       slog("sg.wheel.wallet.ok", { count: rewards.length });
       renderWallet();
-    } catch (e) {
+    }catch(e){
       rewards = [];
-      slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
+      slog("sg.wheel.wallet.fail.api", { error: String(e && e.message || e) });
       renderWallet();
     }
   }
 
-  function startPolling() {
-    if (isPreview) return;
+  function startPolling(){
+    if (DEMO) return;
     if (pollTimer) return;
     pollTimer = win.setInterval(() => loadRewards(), 20000);
     slog("sg.wheel.wallet.poll.start");
   }
-  function stopPolling() {
-    try { pollTimer && win.clearInterval(pollTimer); } catch (_) {}
+  function stopPolling(){
+    try{ pollTimer && win.clearInterval(pollTimer); }catch(_){}
     pollTimer = 0;
     slog("sg.wheel.wallet.poll.stop");
   }
 
-  // ===== Modal + QR
-  function clearQr() {
-    try { modalQrEl.innerHTML = ""; } catch (_) {}
+  // ===== Modal + QR (reuse if QR library exists globally)
+  function clearQr(){
+    try{ modalQrEl.innerHTML = ""; }catch(_){}
   }
 
-  function renderQr(code) {
+  function renderQr(code){
     clearQr();
-    try {
+    try{
       if (win.QRCode) {
         const box = doc.createElement("div");
         modalQrEl.appendChild(box);
         try { new win.QRCode(box, { text: code, width: 160, height: 160 }); return; } catch (_) {}
         try { new win.QRCode(box, code); return; } catch (_) {}
       }
-    } catch (_) {}
+    }catch(_){}
   }
 
-  function openModal(title, code) {
+  function openModal(title, code){
     openedReward = { title, code };
-    modalTitleEl.textContent = title;
+    modalTitleEl.textContent = title + (DEMO ? " (DEMO)" : "");
     modalCodeEl.textContent = code;
     renderQr(code);
     modalEl.hidden = false;
   }
 
-  function closeModal() {
+  function closeModal(){
     modalEl.hidden = true;
     openedReward = null;
     clearQr();
@@ -558,33 +508,19 @@ export async function mount(root, props = {}, ctx = {}) {
   modalCopyBtn.addEventListener("click", async () => {
     const code = openedReward?.code || "";
     if (!code) return;
-    try {
+    try{
       await win.navigator.clipboard.writeText(code);
       slog("sg.wheel.wallet.get.copy.ok");
-      try { TG?.HapticFeedback?.notificationOccurred?.("success"); } catch (_) {}
-    } catch (e) {
-      slog("sg.wheel.wallet.get.copy.fail", { error: String((e && e.message) || e) });
-      try { win.prompt("Скопируй код:", code); } catch (_) {}
+      try{ TG?.HapticFeedback?.notificationOccurred?.("success"); }catch(_){}
+    }catch(e){
+      slog("sg.wheel.wallet.get.copy.fail", { error: String(e && e.message || e) });
+      try{ win.prompt("Скопируй код:", code); }catch(_){}
     }
   });
 
   // ---------- actions
   async function doSpin() {
     if (spinning) return;
-
-    // PREVIEW: demo spin only
-    if (isPreview) {
-      const its = items();
-      const idx = Math.floor(Math.random() * Math.max(1, its.length));
-      spinning = true;
-      updateUI();
-      await spinTo(idx, Math.max(1, Math.round(num(props.final_laps, 2))), Math.max(600, Math.round(num(props.final_dur, 1200))));
-      const name = its[idx]?.dataset?.name || "Приз";
-      if (pickedEl) pickedEl.textContent = `Выпало: ${name} (демо)`;
-      spinning = false;
-      updateUI();
-      return;
-    }
 
     const costNow = getSpinCost();
     const coins = getCoins();
@@ -620,10 +556,62 @@ export async function mount(root, props = {}, ctx = {}) {
     requestAnimationFrame(freeLoop);
 
     try {
-      // Spin endpoint
-      // Using /api/mini/spin => apiCall("spin")
+      // ---- DEMO spin
+      if (DEMO) {
+        // fake “server delay”
+        await new Promise(r => setTimeout(r, 350 + ((Math.random() * 450) | 0)));
+
+        // “reserve” cost
+        demoCoins = Math.max(0, demoCoins - costNow);
+
+        // pick prize by weights (optional), fallback uniform
+        const its = items();
+        const pickIdx = (() => {
+          const w = Array.isArray(props.demo_weights) ? props.demo_weights : null;
+          if (w && w.length === its.length) {
+            const sum = w.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
+            if (sum > 0) {
+              let r = Math.random() * sum;
+              for (let i = 0; i < w.length; i++) {
+                r -= Math.max(0, Number(w[i]) || 0);
+                if (r <= 0) return i;
+              }
+            }
+          }
+          return (Math.random() * Math.max(1, its.length)) | 0;
+        })();
+
+        const elapsed = performance.now() - startTs;
+        if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
+        free = false;
+
+        await spinTo(pickIdx, FINAL_LAPS, FINAL_DUR);
+
+        const card = its[pickIdx];
+        const code = String(card?.dataset?.code || "");
+        const title = String(card?.dataset?.name || "Приз");
+
+        if (pickedEl) pickedEl.textContent = `Выпало: ${title}`;
+
+        // add to demo wallet
+        const pr = prizes.find(p => String(p.code) === code) || {};
+        demoRewards.unshift({
+          id: String(Date.now()) + "-" + String((Math.random() * 1000) | 0),
+          prize_code: code,
+          prize_title: title,
+          redeem_code: demoMakeCode(),
+          img: pr.img || "",
+          issued_at: new Date().toISOString(),
+          status: "issued",
+        });
+        renderWallet();
+        return;
+      }
+
+      // ---- PROD spin
       let r = null;
       try {
+        // your worker uses /api/mini/spin (seen in logs)
         r = await apiCall("spin", {});
       } catch (e) {
         const errCode = e && e.payload && e.payload.error;
@@ -651,19 +639,19 @@ export async function mount(root, props = {}, ctx = {}) {
       // prize index by code
       const prizeCode =
         (r.prize && r.prize.code) ? String(r.prize.code) :
-        String(r.prize_code || "");
+        str(r.prize_code || "", "");
+
       const its = items();
       let idx = its.findIndex(n => String(n.dataset.code || "") === prizeCode);
       if (idx < 0) idx = Math.floor(Math.random() * Math.max(1, its.length));
-
       await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
       const ws = getWheelState();
-      const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? r?.prize_title ?? "");
-      const shownTitle = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
+      const shownTitle =
+        str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? r?.prize?.title ?? r?.prize_title ?? "", "");
       if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
 
-      // refresh wallet after spin
+      // refresh wallet after spin (worker should expose rewards endpoint if you want it)
       await loadRewards();
     } finally {
       spinning = false;
@@ -676,8 +664,9 @@ export async function mount(root, props = {}, ctx = {}) {
 
   // initial
   updateUI();
-  loadRewards();
-  startPolling();
+  renderWallet();  // show demo wallet instantly
+  loadRewards();   // will no-op in demo
+  startPolling();  // no-op in demo
 
   // cleanup
   return () => {
