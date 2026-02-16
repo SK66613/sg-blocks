@@ -51,35 +51,31 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  // ---------- API
-const apiFn =
-  (typeof ctx.api === "function") ? ctx.api :
-  (typeof win.api === "function") ? win.api :
-  (typeof win.miniApi === "function") ? win.miniApi :
-  (typeof win.MiniApi === "function") ? win.MiniApi :
-  (win.SG && typeof win.SG.api === "function") ? win.SG.api :
-  null;
-
+  // ---------- API wrapper discovery (важно для preview/движка)
+  const apiFn =
+    (typeof ctx.api === "function") ? ctx.api :
+    (typeof win.api === "function") ? win.api :
+    (typeof win.miniApi === "function") ? win.miniApi :
+    (typeof win.MiniApi === "function") ? win.MiniApi :
+    (typeof win.sgApi === "function") ? win.sgApi :
+    (win.SG && typeof win.SG.api === "function") ? win.SG.api :
+    null;
 
   function resolvePublicId() {
     // 1) ctx
-    let pid =
-      str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
+    let pid = str(ctx?.public_id || ctx?.publicId || ctx?.app_public_id || ctx?.appPublicId || "").trim();
     if (pid) return pid;
 
     // 2) MiniState
-    pid =
-      str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
+    pid = str(win?.MiniState?.public_id || win?.MiniState?.app_public_id || "").trim();
     if (pid) return pid;
 
-    // 3) globals (как в паспорте)
-    pid =
-      str(win?.SG_APP_PUBLIC_ID || win?.APP_PUBLIC_ID || "").trim();
+    // 3) globals (как в паспорте/движке)
+    pid = str(win?.SG_APP_PUBLIC_ID || win?.APP_PUBLIC_ID || "").trim();
     if (pid) return pid;
 
     // 4) props
-    pid =
-      str(props?.public_id || props?.app_public_id || "").trim();
+    pid = str(props?.public_id || props?.app_public_id || "").trim();
     if (pid) return pid;
 
     // 5) url param
@@ -113,7 +109,7 @@ const apiFn =
     if (ctx?.tg_user && ctx.tg_user.id) return ctx.tg_user;
     if (ctx?.tgUser && ctx.tgUser.id) return ctx.tgUser;
 
-    // 1) Telegram initDataUnsafe (ВАЖНО — как в паспорте)
+    // 1) Telegram initDataUnsafe.user
     try {
       const u = TG?.initDataUnsafe?.user;
       if (u && u.id) return u;
@@ -149,12 +145,17 @@ const apiFn =
     return null;
   }
 
+  function normalizeMethodSlug(method) {
+    // wheel.rewards -> wheel_rewards
+    return String(method || "").trim().replace(/\./g, "_");
+  }
+
   async function apiCall(method, payload = {}) {
-    // if ctx.api / window.api exists — use it
+    // ✅ if wrapper exists — use it (она сама подставляет tg/init обычно)
     if (apiFn) return await apiFn(method, payload);
 
-    // fallback endpoints are underscore style: /api/mini/wheel_spin, /api/mini/wheel_rewards
-    const methodSlug = String(method || "").replace(/\./g, "_");
+    // ✅ fallback to /api/mini/<slug>
+    const methodSlug = normalizeMethodSlug(method);
 
     const publicId = resolvePublicId();
     const initData = resolveInitData();
@@ -163,30 +164,29 @@ const apiFn =
     const url = new URL(`/api/mini/${methodSlug}`, win.location.origin);
     if (publicId) url.searchParams.set("public_id", publicId);
 
-const body = {
-  ...payload,
-  app_public_id: publicId || (payload.app_public_id || ""),
-  init_data: initData,
-  initData: initData,
-  tg_user: (tgUser && tgUser.id)
-    ? {
-        id: tgUser.id,
-        username: tgUser.username,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name
-      }
-    : undefined,
-};
+    const body = {
+      ...payload,
+      app_public_id: publicId || (payload.app_public_id || ""),
+      init_data: initData,
+      initData: initData,
+      tg_user: (tgUser && tgUser.id)
+        ? {
+            id: tgUser.id,
+            username: tgUser.username,
+            first_name: tgUser.first_name,
+            last_name: tgUser.last_name
+          }
+        : undefined,
+    };
 
-// 🔎 DEBUG — покажет почему wheel_rewards падает
-slog("sg.wheel.debug.req", {
-  method,
-  methodSlug,
-  publicId,
-  hasInitData: !!initData,
-  hasTgUser: !!(tgUser && tgUser.id),
-});
-
+    // 🔎 DEBUG (оставь пока, потом можно убрать)
+    slog("sg.wheel.debug.req", {
+      method,
+      methodSlug,
+      publicId,
+      hasInitData: !!initData,
+      hasTgUser: !!(tgUser && tgUser.id),
+    });
 
     const r = await fetch(url.toString(), {
       method: "POST",
@@ -470,28 +470,23 @@ slog("sg.wheel.debug.req", {
     });
   }
 
-async function loadRewards() {
-  try {
-    let r = null;
-
-    // ✅ сначала underscore (реальный роут)
+  async function loadRewards() {
     try {
-      r = await apiCall("wheel_rewards", {});
-    } catch (_) {
-      // ✅ потом dot (на случай если где-то так прокинули)
-      r = await apiCall("wheel.rewards", {});
+      let r = null;
+
+      // ✅ сначала реальный роут
+      try { r = await apiCall("wheel_rewards", {}); }
+      catch (_) { r = await apiCall("wheel.rewards", {}); }
+
+      rewards = Array.isArray(r?.rewards) ? r.rewards : [];
+      slog("sg.wheel.wallet.ok", { count: rewards.length });
+      renderWallet();
+    } catch (e) {
+      rewards = [];
+      slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
+      renderWallet();
     }
-
-    rewards = Array.isArray(r?.rewards) ? r.rewards : [];
-    slog("sg.wheel.wallet.ok", { count: rewards.length });
-    renderWallet();
-  } catch (e) {
-    rewards = [];
-    slog("sg.wheel.wallet.fail", { error: String((e && e.message) || e) });
-    renderWallet();
   }
-}
-
 
   function startPolling() {
     if (pollTimer) return;
@@ -504,7 +499,7 @@ async function loadRewards() {
     slog("sg.wheel.wallet.poll.stop");
   }
 
-  // ===== Modal + QR
+  // ===== Modal + QR (reuse if QR library exists globally)
   function clearQr() {
     try { modalQrEl.innerHTML = ""; } catch (_) {}
   }
@@ -593,8 +588,7 @@ async function loadRewards() {
       try {
         r = await apiCall("wheel.spin", {});
       } catch (e) {
-        const errCode = e && e.payload && e.payload.error;
-        if (e && (e.status === 409 || e.status === 400) && (errCode === "NOT_ENOUGH_COINS" || errCode === "NOT_ENOUGH")) {
+        if (e && (e.status === 409 || e.status === 400) && e.payload && e.payload.error === "NOT_ENOUGH_COINS") {
           const have = num(e.payload.have, coins);
           const need = num(e.payload.need, costNow);
           pillEl.classList.remove("muted");
@@ -611,9 +605,11 @@ async function loadRewards() {
 
       if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "spin_failed");
 
+      // apply state
       if (r.fresh_state) applyFreshState(r.fresh_state);
       else applyFreshState(r);
 
+      // prize index by code
       const code = (r.prize && r.prize.code) ? String(r.prize.code) : "";
       const its = items();
       let idx = its.findIndex(n => String(n.dataset.code || "") === code);
@@ -621,11 +617,12 @@ async function loadRewards() {
       await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
       const ws = getWheelState();
-      const respTitle = str(r?.prize?.title ?? r?.prize?.prize_title ?? "");
-      const shownTitle = str(ws?.last_prize_title ?? ws?.lastPrizeTitle ?? respTitle, "");
-      if (pickedEl) pickedEl.textContent = shownTitle ? `Выпало: ${shownTitle}` : "";
+      const title2 = str(ws.last_prize_title ?? ws.lastPrizeTitle ?? "");
+      if (pickedEl) pickedEl.textContent = title2 ? `Выпало: ${title2}` : "";
 
+      // refresh wallet after spin
       await loadRewards();
+
     } finally {
       spinning = false;
       updateUI();
