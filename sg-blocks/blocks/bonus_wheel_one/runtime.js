@@ -474,12 +474,46 @@ export async function mount(root, props = {}, ctx = {}) {
     return out;
   }
 
-  async function loadRewards(){
-    if (DEMO) { rewards = []; renderWallet(); return; }
-    // если у воркера нет rewards — оставляем пусто
+async function loadRewards(){
+  if (DEMO) { rewards = []; renderWallet(); return; }
+
+  try{
+    // пробуем “правильный” метод (твой shell уже умеет API_BASE + tg/initData)
+    let r = null;
+    try{
+      r = await apiCall("wheel.rewards", {});
+    }catch(_){
+      // на всякий случай — если где-то осталось старое имя
+      r = await apiCall("wheel_rewards", {});
+    }
+
+    // ожидаем формат: { ok:true, rewards:[...] } или { ok:true, items:[...] }
+    const list =
+      (r && Array.isArray(r.rewards)) ? r.rewards :
+      (r && Array.isArray(r.items)) ? r.items :
+      (r && Array.isArray(r.list)) ? r.list :
+      [];
+
+    rewards = list.map(x => ({
+      id: x.id,
+      prize_code: x.prize_code,
+      prize_title: x.prize_title,
+      redeem_code: x.redeem_code,
+      status: x.status,
+      issued_at: x.issued_at,
+      img: x.img || ""
+    }));
+
+    renderWallet();
+    dbg("sg.wheel.rewards.ok", { n: rewards.length });
+
+  }catch(e){
+    dbg("sg.wheel.rewards.fail", { err: String(e?.message || e), payload: e?.payload || null });
     rewards = [];
     renderWallet();
   }
+}
+
 
   function startPolling(){
     if (DEMO) return;
