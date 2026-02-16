@@ -115,54 +115,120 @@ export async function mount(root, props = {}, ctx = {}) {
     return "";
   }
 
-  async function apiCall(method, payload = {}) {
-    // DEMO: never call API
-    if (DEMO) {
-      throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
-    }
+async function apiCall(method, payload = {}) {
+  // DEMO: never call API (оставляем как есть)
+  if (DEMO) {
+    throw Object.assign(new Error("DEMO_MODE_NO_API"), { status: 0, payload: { error: "DEMO_MODE" } });
+  }
 
-    // if ctx.api / window.api exists — use it
-    if (apiFn) return await apiFn(method, payload);
+  // if ctx.api / window.api exists — use it (оставляем как есть)
+  if (apiFn) return await apiFn(method, payload);
 
-    // fallback endpoint: /api/mini/<method> (expects already correct slug in method)
-    const publicId = resolvePublicId();
-    const initData = resolveInitData();
+  const publicId = resolvePublicId();
+  const initData = resolveInitData();
 
-    const url = new URL(`/api/mini/${method}`, win.location.origin);
-    if (publicId) url.searchParams.set("public_id", publicId);
-
-    const body = {
-      ...payload,
-      app_public_id: publicId || (payload.app_public_id || ""),
-      init_data: initData,
-      initData: initData,
-    };
-
-    const r = await fetch(url.toString(), {
+  async function postJson(url, bodyObj) {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(body),
+      body: JSON.stringify(bodyObj || {}),
     });
+    let j = null;
+    try {
+      j = await r.json();
+    } catch (_) {
+      j = null;
+    }
+    return { r, j };
+  }
 
-    const j = await r.json().catch(() => null);
+  function shouldTryBodyMode(status, j) {
+    // типовые ответы, когда path-роутов нет и роутер ждёт {type} в body
+    if (status === 404 || status === 405 || status === 400) return true;
+    // иногда router отвечает 200, но {ok:false, error:"unknown type"/etc}
+    if (j && typeof j === "object" && j.ok === false) return true;
+    return false;
+  }
 
-    if (!r.ok || !j || j.ok === false) {
-      slog("sg.wheel.api.fail", {
-        method,
-        status: r.status,
-        publicId,
-        hasInitData: !!initData,
-        error: String((j && (j.error || j.message)) || `API ${method} failed (${r.status})`),
-      });
-      const err = new Error((j && (j.error || j.message)) || `API ${method} failed (${r.status})`);
-      err.status = r.status;
-      err.payload = j;
-      throw err;
+  // === Mode A: PATH /api/mini/<method>
+  const urlA = new URL(`/api/mini/${method}`, win.location.origin);
+  if (publicId) urlA.searchParams.set("public_id", publicId);
+
+  const bodyA = {
+    ...payload,
+    app_public_id: publicId || (payload.app_public_id || ""),
+    init_data: initData,
+    initData: initData,
+  };
+
+  const a = await postJson(urlA.toString(), bodyA);
+
+  if (a.r.ok && a.j && typeof a.j === "object" && a.j.ok !== false) {
+    return a.j;
+  }
+
+  // если похоже, что PATH не поддерживается — пробуем body-mode
+  if (shouldTryBodyMode(a.r.status, a.j)) {
+    const urlB = new URL(`/api/mini`, win.location.origin);
+    if (publicId) urlB.searchParams.set("public_id", publicId);
+
+    const bodyB = {
+      app_public_id: publicId || (payload.app_public_id || ""),
+      init_data: initData,
+      initData: initData,
+      type: method,
+      payload: { ...payload },
+    };
+
+    const b = await postJson(urlB.toString(), bodyB);
+
+    if (b.r.ok && b.j && typeof b.j === "object" && b.j.ok !== false) {
+      // optional log: which fallback worked
+      try {
+        slog("sg.wheel.api.fallback.body_ok", {
+          method,
+          publicId,
+          statusA: a.r.status,
+          statusB: b.r.status,
+          hasInitData: !!initData,
+        });
+      } catch (_) {}
+      return b.j;
     }
 
-    return j;
+    // fail after body-mode
+    slog("sg.wheel.api.fail", {
+      method,
+      status: b.r.status,
+      publicId,
+      hasInitData: !!initData,
+      mode: "body",
+      error: String((b.j && (b.j.error || b.j.message)) || `API ${method} failed (${b.r.status})`),
+    });
+    const err = new Error((b.j && (b.j.error || b.j.message)) || `API ${method} failed (${b.r.status})`);
+    err.status = b.r.status;
+    err.payload = b.j;
+    err.mode = "body";
+    throw err;
   }
+
+  // fail path-mode (и не похоже что надо пробовать body)
+  slog("sg.wheel.api.fail", {
+    method,
+    status: a.r.status,
+    publicId,
+    hasInitData: !!initData,
+    mode: "path",
+    error: String((a.j && (a.j.error || a.j.message)) || `API ${method} failed (${a.r.status})`),
+  });
+  const err = new Error((a.j && (a.j.error || a.j.message)) || `API ${method} failed (${a.r.status})`);
+  err.status = a.r.status;
+  err.payload = a.j;
+  err.mode = "path";
+  throw err;
+}
+
 
   // ---------- DOM (matches view.html)
   const titleEl = root.querySelector('[data-bw-title]');
