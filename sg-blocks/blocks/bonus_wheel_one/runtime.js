@@ -772,6 +772,85 @@ export async function mount(root, props = {}, ctx = {}) {
   const onSpin = (e) => { e.preventDefault(); doSpin(); };
   spinBtn.addEventListener("click", onSpin);
 
+  // ===== DEBUG: why spin button doesn't trigger (safe in prod, verbose only when ?dbg=1)
+const DBG_CLICK = (() => {
+  try { return new URL(win.location.href).searchParams.get("dbg") === "1"; } catch (_) { return false; }
+})();
+
+function dbgClickLog(tag, extra){
+  if (!DBG_CLICK) return;
+  try { slog(tag, extra || {}); } catch(_) {}
+  try { console.log(tag, extra || {}); } catch(_) {}
+}
+
+function dbgOutline(el, on){
+  if (!DBG_CLICK || !el) return;
+  try{
+    if (on) {
+      el.style.outline = "2px solid rgba(124,92,255,.95)";
+      el.style.outlineOffset = "2px";
+    } else {
+      el.style.outline = "";
+      el.style.outlineOffset = "";
+    }
+  }catch(_){}
+}
+
+dbgOutline(spinBtn, true);
+
+// 1) capture ALL clicks and show what element receives it
+doc.addEventListener("click", (e) => {
+  if (!DBG_CLICK) return;
+  const t = e.target;
+  const b = t && t.closest ? t.closest("[data-spin]") : null;
+  const rect = spinBtn.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  const topEl = doc.elementFromPoint(cx, cy);
+
+  dbgClickLog("sg.wheel.dbg.click", {
+    target: t ? (t.tagName + (t.id ? "#" + t.id : "") + (t.className ? "." + String(t.className).split(/\s+/).join(".") : "")) : null,
+    hitSpinClosest: !!b,
+    spinDisabled: !!spinBtn.disabled,
+    spinLockedClass: spinBtn.classList.contains("is-locked"),
+    spinRect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+    topAtSpinCenter: topEl ? (topEl.tagName + (topEl.id ? "#" + topEl.id : "") + (topEl.className ? "." + String(topEl.className).split(/\s+/).join(".") : "")) : null,
+  });
+}, true);
+
+// 2) hard-bind pointer events too (some TG cases drop click)
+function onSpinAny(ev){
+  try { ev.preventDefault(); } catch(_) {}
+  dbgClickLog("sg.wheel.dbg.spin.fire", {
+    type: ev.type,
+    demo: DEMO,
+    publicId: resolvePublicId(),
+    hasInitData: !!resolveInitData(),
+    coins: getCoins(),
+    cost: getSpinCost(),
+    spinning,
+    disabled: !!spinBtn.disabled
+  });
+
+  // also show if some overlay blocks pointer events
+  try {
+    const cs = win.getComputedStyle(spinBtn);
+    dbgClickLog("sg.wheel.dbg.spin.css", {
+      pointerEvents: cs.pointerEvents,
+      opacity: cs.opacity,
+      display: cs.display,
+      visibility: cs.visibility
+    });
+  } catch(_) {}
+
+  doSpin();
+}
+
+// add extra listeners, but do not double-call: guard by spinning inside doSpin
+spinBtn.addEventListener("pointerdown", onSpinAny, { passive:false });
+spinBtn.addEventListener("touchstart", onSpinAny, { passive:false });
+
+
   // initial
   updateUI();
   renderWallet();  // show demo wallet instantly
