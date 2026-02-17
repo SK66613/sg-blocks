@@ -6,6 +6,13 @@ export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
   const win = doc.defaultView;
 
+    // --- mount guard: prevent double init (duplicate listeners/polling)
+  if (root.__sg_bonus_wheel_mounted) {
+    try { return root.__sg_bonus_wheel_unmount || (() => {}); } catch (_) {}
+  }
+  try { root.__sg_bonus_wheel_mounted = true; } catch (_) {}
+
+
   const TG =
     ctx.tg ||
     (win.Telegram && win.Telegram.WebApp) ||
@@ -280,6 +287,20 @@ export async function mount(root, props = {}, ctx = {}) {
     win.MiniState = win.MiniState || {};
     for (const k in fresh) win.MiniState[k] = fresh[k];
   }
+
+    // --- refresh server state once on mount (to update spin_cost quickly after publish)
+  async function refreshStateOnce(){
+    if (DEMO) return;
+    try{
+      const r = await apiCall("state", {});
+      if (r && r.ok !== false) {
+        if (r.state) applyFreshState(r.state);
+        else if (r.fresh_state) applyFreshState(r.fresh_state);
+        else if (r.fresh) applyFreshState(r.fresh);
+      }
+    }catch(_){}
+  }
+
 
   // ---------- haptics
   function haptic(level = "light") {
@@ -679,11 +700,17 @@ async function loadRewards(){
     }
   }
 
-  // ✅ CLICK FIX: stop bubbling to parent block onclick (editor) + support pointer/touch
+  // ✅ CLICK FIX: single listener (no duplicates) + debounce
+  let lastFireAt = 0;
+
   function onSpinAny(ev){
     try { ev.preventDefault(); } catch(_) {}
-    try { ev.stopPropagation(); } catch(_) {}       // <<< IMPORTANT
-    try { ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_) {} // extra safety
+    try { ev.stopPropagation(); } catch(_) {}
+    try { ev.stopImmediatePropagation && ev.stopImmediatePropagation(); } catch(_) {}
+
+    const now = Date.now();
+    if (now - lastFireAt < 400) return;
+    lastFireAt = now;
 
     dbg("sg.wheel.spin.fire", {
       type: ev.type,
@@ -696,38 +723,33 @@ async function loadRewards(){
     doSpin();
   }
 
-  // clear any inline click conflicts by ensuring button is clickable
+  // ensure button is clickable
   try { spinBtn.style.pointerEvents = "auto"; } catch(_) {}
 
+  // ONE event channel only
   spinBtn.addEventListener("pointerdown", onSpinAny, { passive:false });
-  spinBtn.addEventListener("touchstart", onSpinAny, { passive:false });
-  spinBtn.addEventListener("click", onSpinAny, { passive:false });
 
-  // also: if parent catches events in capture, we can “pre-capture” and redirect
-  function captureGuard(e){
-    const t = e.target;
-    const hit = t && t.closest ? t.closest("[data-spin]") : null;
-    if (hit) {
-      dbg("sg.wheel.spin.capture", { target: t?.tagName });
-      onSpinAny(e);
-    }
-  }
-  doc.addEventListener("click", captureGuard, true);
-  doc.addEventListener("touchstart", captureGuard, true);
 
   // initial
-  updateUI();
   renderWallet();
   loadRewards();
   startPolling();
 
-  return () => {
+  refreshStateOnce().finally(() => {
+    try { updateUI(); } catch (_) {}
+  });
+
+
+   const unmount = () => {
     stopPolling();
     spinBtn.removeEventListener("pointerdown", onSpinAny);
-    spinBtn.removeEventListener("touchstart", onSpinAny);
-    spinBtn.removeEventListener("click", onSpinAny);
-    doc.removeEventListener("click", captureGuard, true);
-    doc.removeEventListener("touchstart", captureGuard, true);
     try { modalEl.hidden = true; } catch (_) {}
+
+    // release mount guard
+    try { root.__sg_bonus_wheel_mounted = false; } catch (_) {}
+    try { root.__sg_bonus_wheel_unmount = null; } catch (_) {}
   };
-}
+
+  try { root.__sg_bonus_wheel_unmount = unmount; } catch (_) {}
+  return unmount;
+
