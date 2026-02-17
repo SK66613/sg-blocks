@@ -6,12 +6,10 @@ export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
   const win = doc.defaultView;
 
-    // --- mount guard: prevent double init (duplicate listeners/polling)
+  // --- mount guard: prevent double init (duplicate listeners/polling)
   if (root.__sg_bonus_wheel_mounted) {
     try { return root.__sg_bonus_wheel_unmount || (() => {}); } catch (_) {}
   }
-  try { root.__sg_bonus_wheel_mounted = true; } catch (_) {}
-
 
   const TG =
     ctx.tg ||
@@ -242,10 +240,19 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalCopyBtn = root.querySelector('[data-bw-copy]');
   const modalCloseEls = root.querySelectorAll('[data-bw-modal-close], [data-bw-modal-close-btn]');
 
+  // NOTE: do not "mount" if DOM mismatch
   if (!trackEl || !spinBtn || !coinsEl || !pillEl || !walletCountEl || !walletListEl || !modalEl || !modalTitleEl || !modalCodeEl || !modalQrEl || !modalCopyBtn) {
     slog("sg.wheel.fail.render", { error: "view.html mismatch / missing elements" });
+    try { root.__sg_bonus_wheel_mounted = false; } catch (_) {}
+    try { root.__sg_bonus_wheel_unmount = null; } catch (_) {}
     return () => {};
   }
+
+  // mark mounted ONLY after DOM is valid
+  try { root.__sg_bonus_wheel_mounted = true; } catch (_) {}
+
+  // set placeholder unmount immediately (so guard has something to return even if later throws)
+  try { root.__sg_bonus_wheel_unmount = () => {}; } catch (_) {}
 
   try { if (TG && !DEMO) { TG.ready(); TG.expand(); } } catch (_) {}
 
@@ -288,7 +295,7 @@ export async function mount(root, props = {}, ctx = {}) {
     for (const k in fresh) win.MiniState[k] = fresh[k];
   }
 
-    // --- refresh server state once on mount (to update spin_cost quickly after publish)
+  // --- refresh server state once on mount (to update spin_cost quickly after publish)
   async function refreshStateOnce(){
     if (DEMO) return;
     try{
@@ -300,7 +307,6 @@ export async function mount(root, props = {}, ctx = {}) {
       }
     }catch(_){}
   }
-
 
   // ---------- haptics
   function haptic(level = "light") {
@@ -429,9 +435,9 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  requestAnimationFrame(() => { measureStep(); updateUI(); });
+  requestAnimationFrame(() => { measureStep(); });
 
-  // ===== Wallet (DEMO only here; PROD wallet endpoint зависит от воркера)
+  // ===== Wallet
   let rewards = [];
   let demoRewards = [];
   let pollTimer = 0;
@@ -495,46 +501,42 @@ export async function mount(root, props = {}, ctx = {}) {
     return out;
   }
 
-async function loadRewards(){
-  if (DEMO) { rewards = []; renderWallet(); return; }
+  async function loadRewards(){
+    if (DEMO) { rewards = []; renderWallet(); return; }
 
-  try{
-    // пробуем “правильный” метод (твой shell уже умеет API_BASE + tg/initData)
-    let r = null;
     try{
-      r = await apiCall("wheel.rewards", {});
-    }catch(_){
-      // на всякий случай — если где-то осталось старое имя
-      r = await apiCall("wheel_rewards", {});
+      let r = null;
+      try{
+        r = await apiCall("wheel.rewards", {});
+      }catch(_){
+        r = await apiCall("wheel_rewards", {});
+      }
+
+      const list =
+        (r && Array.isArray(r.rewards)) ? r.rewards :
+        (r && Array.isArray(r.items)) ? r.items :
+        (r && Array.isArray(r.list)) ? r.list :
+        [];
+
+      rewards = list.map(x => ({
+        id: x.id,
+        prize_code: x.prize_code,
+        prize_title: x.prize_title,
+        redeem_code: x.redeem_code,
+        status: x.status,
+        issued_at: x.issued_at,
+        img: x.img || ""
+      }));
+
+      renderWallet();
+      dbg("sg.wheel.rewards.ok", { n: rewards.length });
+
+    }catch(e){
+      dbg("sg.wheel.rewards.fail", { err: String(e?.message || e), payload: e?.payload || null });
+      rewards = [];
+      renderWallet();
     }
-
-    // ожидаем формат: { ok:true, rewards:[...] } или { ok:true, items:[...] }
-    const list =
-      (r && Array.isArray(r.rewards)) ? r.rewards :
-      (r && Array.isArray(r.items)) ? r.items :
-      (r && Array.isArray(r.list)) ? r.list :
-      [];
-
-    rewards = list.map(x => ({
-      id: x.id,
-      prize_code: x.prize_code,
-      prize_title: x.prize_title,
-      redeem_code: x.redeem_code,
-      status: x.status,
-      issued_at: x.issued_at,
-      img: x.img || ""
-    }));
-
-    renderWallet();
-    dbg("sg.wheel.rewards.ok", { n: rewards.length });
-
-  }catch(e){
-    dbg("sg.wheel.rewards.fail", { err: String(e?.message || e), payload: e?.payload || null });
-    rewards = [];
-    renderWallet();
   }
-}
-
 
   function startPolling(){
     if (DEMO) return;
@@ -662,12 +664,11 @@ async function loadRewards(){
         return;
       }
 
-      // ✅ PROD spin: always call wheel.spin through your shell api if possible
+      // ✅ PROD spin
       let r = null;
       try {
         r = await apiCall("wheel.spin", {});
       } catch (_) {
-        // fallback if your shell expects "spin"
         r = await apiCall("spin", {});
       }
 
@@ -723,33 +724,31 @@ async function loadRewards(){
     doSpin();
   }
 
-  // ensure button is clickable
   try { spinBtn.style.pointerEvents = "auto"; } catch(_) {}
-
-  // ONE event channel only
   spinBtn.addEventListener("pointerdown", onSpinAny, { passive:false });
-
 
   // initial
   renderWallet();
   loadRewards();
   startPolling();
 
+  // update spin_cost/config fast after publish
   refreshStateOnce().finally(() => {
     try { updateUI(); } catch (_) {}
   });
 
+  // also do first paint immediately (even before state comes)
+  try { updateUI(); } catch (_) {}
 
-   const unmount = () => {
+  const unmount = () => {
     stopPolling();
     spinBtn.removeEventListener("pointerdown", onSpinAny);
     try { modalEl.hidden = true; } catch (_) {}
 
-    // release mount guard
     try { root.__sg_bonus_wheel_mounted = false; } catch (_) {}
     try { root.__sg_bonus_wheel_unmount = null; } catch (_) {}
   };
 
   try { root.__sg_bonus_wheel_unmount = unmount; } catch (_) {}
   return unmount;
-
+}
