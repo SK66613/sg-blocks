@@ -615,9 +615,9 @@ export async function mount(root, props = {}, ctx = {}) {
     const FINAL_DUR = num(props.final_dur, 1200);
     const startTs = performance.now();
 
-    let free = true;
-    const FREE_RPS = 1;
-    const FREE_SPEED = (FREE_RPS * N) / 1000;
+   /* let free = true;
+   const FREE_RPS = 1;
+   const FREE_SPEED = (FREE_RPS * N) / 1000;
     let last = performance.now();
 
     function freeLoop(now) {
@@ -628,7 +628,7 @@ export async function mount(root, props = {}, ctx = {}) {
       updateUI();
       requestAnimationFrame(freeLoop);
     }
-    requestAnimationFrame(freeLoop);
+    requestAnimationFrame(freeLoop); */
 
     try {
       if (DEMO) {
@@ -640,7 +640,7 @@ export async function mount(root, props = {}, ctx = {}) {
 
         const elapsed = performance.now() - startTs;
         if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
-        free = false;
+        // free = false;
 
         await spinTo(pickIdx, FINAL_LAPS, FINAL_DUR);
 
