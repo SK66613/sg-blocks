@@ -5,6 +5,45 @@ function $(root, sel){ return root.querySelector(sel); }
 function setText(el, v){ if (el) el.textContent = (v==null?'':String(v)); }
 function setHidden(el, hid){ if (el) el.hidden = !!hid; }
 
+function trimSlashEnd(s){ return String(s||'').replace(/\/+$/,''); }
+
+function getApiOrigin(ctx){
+  // 1) ctx can provide api origin
+  try{
+    const c = ctx || {};
+    const v = c.apiOrigin || c.api_base || c.apiBase || c.api_root || c.api || '';
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 2) runtime globals (optional)
+  try{
+    const w = globalThis || window;
+    const v = w.SG_API_ORIGIN || w.__SG_API_ORIGIN__ || '';
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 3) query param ?api=
+  try{
+    const sp = new URLSearchParams(String(location.search||''));
+    const v = String(sp.get('api')||'').trim();
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 4) fallback: worker origin
+  return "https://app.salesgenius.ru";
+}
+
+function credsFor(apiOrigin){
+  try{
+    return String(apiOrigin||"") === String(location.origin||"") ? "include" : "omit";
+  }catch(_){}
+  return "omit";
+}
+
+function apiUrl(apiOrigin, path){
+  return trimSlashEnd(apiOrigin) + String(path||'');
+}
+
 function getAppIdFromUrl(){
   try{
     const sp = new URLSearchParams(String(location.search||''));
@@ -43,8 +82,13 @@ async function resolvePublicIdSmart(ctx){
     if (cached) return String(cached);
   }catch(_){}
 
-  // IMPORTANT: /api/app/:id exists in your worker and returns { ok:true, publicId, ... }
-  const r = await fetch(`/api/app/${encodeURIComponent(appId)}`, { credentials:'include' });
+  // /api/app/:id is a cabinet endpoint (cookie session).
+  // On mirror domain cookies won't be shared => include won't help cross-origin.
+  // Still: use absolute worker origin to avoid hitting GH Pages.
+  const apiOrigin = getApiOrigin(ctx);
+  const r = await fetch(apiUrl(apiOrigin, `/api/app/${encodeURIComponent(appId)}`), {
+    credentials: credsFor(apiOrigin),
+  });
   const j = await r.json().catch(()=>null);
 
   const p2 = (j && j.ok && (j.publicId || (j.app && j.app.publicId))) ? String(j.publicId || j.app.publicId) : '';
@@ -66,11 +110,11 @@ function getTgUser(ctx){
   return null;
 }
 
-async function postJSON(url, body){
-  const r = await fetch(url, {
+async function postJSON(apiOrigin, path, body){
+  const r = await fetch(apiUrl(apiOrigin, path), {
     method:'POST',
     headers:{ 'content-type':'application/json' },
-    credentials: 'include',
+    credentials: credsFor(apiOrigin),
     body: JSON.stringify(body || {})
   });
   const j = await r.json().catch(()=>null);
@@ -133,10 +177,12 @@ export function mount(rootEl, props={}, ctx={}){
     const tg = (globalThis.Telegram && globalThis.Telegram.WebApp) ? globalThis.Telegram.WebApp : null;
     if (!tg || typeof tg.openInvoice !== 'function') { setHint('NO_TG_OPEN_INVOICE'); return; }
 
+    const apiOrigin = getApiOrigin(ctx);
+
     try{
       buyBtn && (buyBtn.disabled = true);
 
-      const j = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/stars/create`, {
+      const j = await postJSON(apiOrigin, `/api/public/app/${encodeURIComponent(publicId)}/stars/create`, {
         tg_user: tgUser,
         title,
         description: description || 'Оплата звёздами в Telegram',
