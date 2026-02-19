@@ -3,6 +3,44 @@
 
 function $(root, sel){ return root.querySelector(sel); }
 function safeNum(x, def){ const n = Number(x); return Number.isFinite(n) ? n : def; }
+function trimSlashEnd(s){ return String(s||'').replace(/\/+$/,''); }
+
+function getApiOrigin(ctx){
+  // 1) ctx can provide api origin
+  try{
+    const c = ctx || {};
+    const v = c.apiOrigin || c.api_base || c.apiBase || c.api_root || c.api || '';
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 2) runtime globals (optional)
+  try{
+    const w = globalThis || window;
+    const v = w.SG_API_ORIGIN || w.__SG_API_ORIGIN__ || '';
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 3) query param ?api=
+  try{
+    const sp = new URLSearchParams(String(location.search||''));
+    const v = String(sp.get('api')||'').trim();
+    if (v) return trimSlashEnd(v);
+  }catch(_){}
+
+  // 4) fallback: worker origin
+  return "https://app.salesgenius.ru";
+}
+
+function credsFor(apiOrigin){
+  try{
+    return String(apiOrigin||"") === String(location.origin||"") ? "include" : "omit";
+  }catch(_){}
+  return "omit";
+}
+
+function apiUrl(apiOrigin, path){
+  return trimSlashEnd(apiOrigin) + String(path||'');
+}
 
 function getPublicId(ctx){
   const c = ctx || {};
@@ -71,10 +109,11 @@ async function drawQr(canvas, fallbackEl, text){
   return false;
 }
 
-async function postJSON(url, data){
-  const r = await fetch(url, {
+async function postJSON(apiOrigin, path, data){
+  const r = await fetch(apiUrl(apiOrigin, path), {
     method:'POST',
     headers:{ 'content-type':'application/json' },
+    credentials: credsFor(apiOrigin),
     body: JSON.stringify(data || {})
   });
   const j = await r.json().catch(()=>null);
@@ -139,6 +178,8 @@ export function mount(rootEl, props={}, ctx={}){
   let timer = null;
   let inFlight = false;
 
+  const apiOrigin = getApiOrigin(ctx);
+
   async function refresh(){
     if (inFlight) return;
     inFlight = true;
@@ -162,8 +203,8 @@ export function mount(rootEl, props={}, ctx={}){
 
       setStatus('Обновляем QR…');
 
-      // absolute certainty: call same-origin API on current host (mini.salesgenius.ru in runtime)
-      const r = await postJSON(`/api/public/app/${encodeURIComponent(publicId)}/sales/token`, {
+      // Always call worker origin, not relative /api (GH Pages would 405)
+      const r = await postJSON(apiOrigin, `/api/public/app/${encodeURIComponent(publicId)}/sales/token`, {
         init_data: initData,
         ttl_sec: ttlSec
       });
