@@ -32,7 +32,24 @@
     <div class="bw-wallet-grid" data-bw-wallet-list></div>
   </div>
 
-  <!-- simple modal for code/QR -->
+  <!-- ===== Bottom sheet with QR (Passport-like) ===== -->
+  <div class="bw-sheet" data-bw-sheet hidden>
+    <div class="bw-sheet-backdrop" data-bw-sheet-close></div>
+    <div class="bw-sheet-panel">
+      <div class="bw-sheet-handle" data-bw-sheet-close></div>
+
+      <div class="bw-qr-card">
+        <div class="bw-qr-title" data-bw-qr-title>🎁 Получите приз</div>
+        <div class="bw-qr-text" data-bw-qr-text>Покажите этот QR кассиру, чтобы получить подарок.</div>
+        <div class="bw-qr-imgwrap">
+          <canvas data-bw-qr-canvas width="260" height="260"></canvas>
+        </div>
+        <div class="bw-qr-code" data-bw-qr-code hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- legacy modal (можно оставить, но QR теперь в sheet) -->
   <div class="bw-modal" data-bw-modal hidden>
     <div class="bw-modal-backdrop" data-bw-modal-close></div>
     <div class="bw-modal-card">
