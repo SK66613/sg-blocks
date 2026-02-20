@@ -1,6 +1,11 @@
 // bonus_wheel_one/runtime.js
 // Wheel-track runtime — PROD via ctx.api/window.api or /api/mini/*
 // Preview/Constructor: DEMO mode (no API, no D1).
+//
+// ✅ QR like Passport:
+// - Bottom sheet (data-bw-sheet) with swipe-to-close + TG BackButton
+// - Canvas QR via quickchart.io/qr
+// - Deep link: https://t.me/<bot>?start=redeem_<redeem_code> (fallback: redeem_<code>)
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -224,7 +229,6 @@ export async function mount(root, props = {}, ctx = {}) {
   const trackEl = root.querySelector('[data-wheel-track]');
 
   // ✅ robust spin button resolve:
-  // sometimes data-spin is on wrapper, sometimes on the <button>
   const spinHost = root.querySelector('[data-spin]');
   const spinBtn =
     (spinHost && spinHost.tagName === "BUTTON") ? spinHost :
@@ -233,6 +237,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const walletCountEl = root.querySelector('[data-bw-wallet-count]');
   const walletListEl = root.querySelector('[data-bw-wallet-list]');
 
+  // legacy modal (keep for now, but we won't use it for QR anymore)
   const modalEl = root.querySelector('[data-bw-modal]');
   const modalTitleEl = root.querySelector('[data-bw-modal-title]');
   const modalCodeEl = root.querySelector('[data-bw-modal-code]');
@@ -240,8 +245,23 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalCopyBtn = root.querySelector('[data-bw-copy]');
   const modalCloseEls = root.querySelectorAll('[data-bw-modal-close], [data-bw-modal-close-btn]');
 
+  // ✅ QR bottom sheet (like passport)
+  const sheetEl = root.querySelector('[data-bw-sheet]');
+  const sheetCloseEls = root.querySelectorAll('[data-bw-sheet-close]');
+  const sheetPanel = sheetEl ? sheetEl.querySelector('.bw-sheet-panel') : null;
+
+  const qrTitleEl = root.querySelector('[data-bw-qr-title]');
+  const qrTextEl  = root.querySelector('[data-bw-qr-text]');
+  const qrCanvas  = root.querySelector('[data-bw-qr-canvas]');
+  const qrCodeTextEl = root.querySelector('[data-bw-qr-code]');
+
   // NOTE: do not "mount" if DOM mismatch
-  if (!trackEl || !spinBtn || !coinsEl || !pillEl || !walletCountEl || !walletListEl || !modalEl || !modalTitleEl || !modalCodeEl || !modalQrEl || !modalCopyBtn) {
+  if (
+    !trackEl || !spinBtn || !coinsEl || !pillEl ||
+    !walletCountEl || !walletListEl ||
+    !modalEl || !modalTitleEl || !modalCodeEl || !modalQrEl || !modalCopyBtn ||
+    !sheetEl || !sheetPanel || !qrTitleEl || !qrTextEl || !qrCanvas || !qrCodeTextEl
+  ) {
     slog("sg.wheel.fail.render", { error: "view.html mismatch / missing elements" });
     try { root.__sg_bonus_wheel_mounted = false; } catch (_) {}
     try { root.__sg_bonus_wheel_unmount = null; } catch (_) {}
@@ -250,8 +270,6 @@ export async function mount(root, props = {}, ctx = {}) {
 
   // mark mounted ONLY after DOM is valid
   try { root.__sg_bonus_wheel_mounted = true; } catch (_) {}
-
-  // set placeholder unmount immediately (so guard has something to return even if later throws)
   try { root.__sg_bonus_wheel_unmount = () => {}; } catch (_) {}
 
   try { if (TG && !DEMO) { TG.ready(); TG.expand(); } } catch (_) {}
@@ -441,7 +459,6 @@ export async function mount(root, props = {}, ctx = {}) {
   let rewards = [];
   let demoRewards = [];
   let pollTimer = 0;
-  let openedReward = null;
 
   function fmtIssuedAt(v){
     if (!v) return "";
@@ -469,7 +486,10 @@ export async function mount(root, props = {}, ctx = {}) {
       const issuedAt = fmtIssuedAt(r.issued_at ?? r.issuedAt);
 
       return `
-        <div class="bw-wallet-card" data-reward-id="${escapeAttr(id)}" data-reward-code="${escapeAttr(code)}" data-reward-title="${escapeAttr(title)}">
+        <div class="bw-wallet-card"
+          data-reward-id="${escapeAttr(id)}"
+          data-reward-code="${escapeAttr(code)}"
+          data-reward-title="${escapeAttr(title)}">
           <div class="bw-wallet-thumb">${img ? `<img src="${escapeAttr(img)}" alt="">` : ``}</div>
           <div>
             <div class="bw-wallet-name">${escapeHtml(title)}</div>
@@ -487,9 +507,10 @@ export async function mount(root, props = {}, ctx = {}) {
         const card = ev.currentTarget.closest("[data-reward-id]");
         if (!card) return;
         const code = card.getAttribute("data-reward-code") || "";
-        const title = card.getAttribute("data-reward-title") || "Приз";
         if (!code) return;
-        openModal(title, code);
+
+        // ✅ NEW: open bottom sheet QR like passport
+        renderQrForReward(code).catch(() => {});
       });
     });
   }
@@ -548,40 +569,22 @@ export async function mount(root, props = {}, ctx = {}) {
     pollTimer = 0;
   }
 
-  // ===== Modal + QR
+  // ===== Legacy Modal (keep, but no longer used for QR)
   function clearQr(){
     try{ modalQrEl.innerHTML = ""; }catch(_){}
   }
-  function renderQr(code){
-    clearQr();
-    try{
-      if (win.QRCode) {
-        const box = doc.createElement("div");
-        modalQrEl.appendChild(box);
-        try { new win.QRCode(box, { text: code, width: 160, height: 160 }); return; } catch (_) {}
-        try { new win.QRCode(box, code); return; } catch (_) {}
-      }
-    }catch(_){}
-  }
-  function openModal(title, code){
-    openedReward = { title, code };
-    modalTitleEl.textContent = title + (DEMO ? " (DEMO)" : "");
-    modalCodeEl.textContent = code;
-    renderQr(code);
-    modalEl.hidden = false;
-  }
   function closeModal(){
-    modalEl.hidden = true;
-    openedReward = null;
+    try{ modalEl.hidden = true; }catch(_){}
     clearQr();
-    loadRewards();
   }
-  modalCloseEls.forEach((el) => el.addEventListener("click", (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeModal(); }));
-
+  modalCloseEls.forEach((el) => el.addEventListener("click", (ev)=>{
+    ev.preventDefault(); ev.stopPropagation();
+    closeModal();
+  }));
   modalCopyBtn.addEventListener("click", async (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
-    const code = openedReward?.code || "";
+    const code = str(modalCodeEl && modalCodeEl.textContent, "").trim();
     if (!code) return;
     try{
       await win.navigator.clipboard.writeText(code);
@@ -590,6 +593,309 @@ export async function mount(root, props = {}, ctx = {}) {
       try{ win.prompt("Скопируй код:", code); }catch(_){}
     }
   });
+
+  // ===== QR bottom sheet (Passport-like)
+  const qrTitleText = str(props.qr_title, "🎁 Получите приз");
+  const qrHelpText  = str(props.qr_text, "Покажите этот QR кассиру, чтобы получить подарок.");
+  const qrShowCodeText = !!props.qr_show_code_text;
+
+  const qrService = str(props.qr_service, "https://quickchart.io/qr");
+  const qrSize    = Math.max(120, num(props.qr_size, 260));
+  const qrMargin  = Math.max(0,   num(props.qr_margin, 2));
+
+  const SWIPE_CLOSE_PX = Math.max(50, num(props.sheet_swipe_close_px, 90));
+  const SWIPE_VELOCITY = Math.max(0.3, num(props.sheet_swipe_velocity, 0.6));
+  const SWIPE_EDGE_PX  = Math.max(6, num(props.sheet_swipe_edge_px, 6));
+
+  let sheetOpen = false;
+
+  function lockBodyScroll(locked){
+    try{
+      const b = doc.body;
+      if (!b) return;
+      if (locked){
+        b.dataset.bwSheetLock = "1";
+        b.style.overflow = "hidden";
+      }else{
+        if (b.dataset.bwSheetLock === "1"){
+          delete b.dataset.bwSheetLock;
+          b.style.overflow = "";
+        }
+      }
+    }catch(_){}
+  }
+
+  function tgBackBind(on){
+    try{
+      if (!TG || !TG.BackButton) return;
+      if (on){
+        TG.BackButton.show();
+        TG.BackButton.onClick(closeSheet);
+      }else{
+        try{ TG.BackButton.offClick && TG.BackButton.offClick(closeSheet); }catch(_){}
+        try{ TG.BackButton.hide(); }catch(_){}
+      }
+    }catch(_){}
+  }
+
+  function setSheetTranslate(px){
+    if (!sheetPanel) return;
+    sheetPanel.style.transform = px ? `translateY(${px}px)` : "";
+  }
+
+  function setSheetDragState(on){
+    if (!sheetPanel) return;
+    if (on){
+      sheetPanel.style.transition = "none";
+    }else{
+      sheetPanel.style.transition = "";
+    }
+  }
+
+  function openSheet(){
+    if (!sheetEl) return;
+    sheetEl.hidden = false;
+
+    setSheetDragState(false);
+    setSheetTranslate(0);
+
+    sheetEl.classList.add("is-open");
+    sheetOpen = true;
+
+    lockBodyScroll(true);
+    tgBackBind(true);
+  }
+
+  function closeSheet(){
+    if (!sheetEl) return;
+    sheetEl.classList.remove("is-open");
+    sheetOpen = false;
+
+    tgBackBind(false);
+    lockBodyScroll(false);
+
+    setSheetDragState(false);
+    setSheetTranslate(0);
+
+    setTimeout(()=>{ try{ sheetEl.hidden = true; }catch(_){ } }, 180);
+  }
+
+  // close on backdrop / handle
+  try{
+    sheetCloseEls && sheetCloseEls.forEach && sheetCloseEls.forEach(el=>{
+      el.addEventListener("click", closeSheet);
+    });
+  }catch(_){}
+
+  // Swipe-to-close (drag down on panel)
+  (function setupSheetSwipe(){
+    if (!sheetEl || !sheetPanel) return;
+
+    let dragging = false;
+    let startY = 0, startX = 0;
+    let lastY = 0;
+    let startT = 0;
+
+    let gestureLocked = false;
+    let isVerticalDrag = false;
+
+    function getY(ev){
+      if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientY;
+      if (ev && ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0].clientY;
+      return ev.clientY;
+    }
+    function getX(ev){
+      if (ev && ev.touches && ev.touches[0]) return ev.touches[0].clientX;
+      if (ev && ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0].clientX;
+      return ev.clientX;
+    }
+
+    function canStartDrag(ev){
+      const t = ev.target;
+      const onHandle = !!(t && t.closest && t.closest(".bw-sheet-handle"));
+      if (onHandle) return true;
+      const st = sheetPanel.scrollTop || 0;
+      return st <= 0;
+    }
+
+    function onStart(ev){
+      if (!sheetOpen) return;
+      if (!canStartDrag(ev)) return;
+
+      const y = getY(ev);
+      const x = getX(ev);
+      if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+
+      dragging = true;
+      gestureLocked = false;
+      isVerticalDrag = false;
+
+      startY = y; lastY = y;
+      startX = x;
+      startT = performance.now();
+
+      setSheetDragState(true);
+      sheetPanel.style.willChange = "transform";
+    }
+
+    function onMove(ev){
+      if (!dragging) return;
+
+      const y = getY(ev);
+      const x = getX(ev);
+      if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+
+      const dyRaw = y - startY;
+      const dxRaw = x - startX;
+
+      if (!gestureLocked){
+        const ady = Math.abs(dyRaw);
+        const adx = Math.abs(dxRaw);
+
+        if (ady < SWIPE_EDGE_PX && adx < SWIPE_EDGE_PX) return;
+
+        gestureLocked = true;
+        isVerticalDrag = (ady > adx * 1.2) && dyRaw > 0;
+
+        if (!isVerticalDrag){
+          dragging = false;
+          setSheetDragState(false);
+          sheetPanel.style.willChange = "";
+          return;
+        }
+      }
+
+      const dy = Math.max(0, dyRaw);
+      lastY = y;
+
+      const maxPull = Math.min(420, Math.max(220, sheetPanel.clientHeight * 0.85));
+      const damped = dy <= maxPull ? dy : (maxPull + (dy - maxPull) * 0.25);
+
+      setSheetTranslate(damped);
+
+      try{ ev.preventDefault(); }catch(_){}
+      try{ ev.stopPropagation(); }catch(_){}
+    }
+
+    function onEnd(ev){
+      if (!dragging) return;
+      dragging = false;
+
+      const endT = performance.now();
+      const dt = Math.max(1, endT - startT);
+
+      const y = getY(ev);
+      const dy = Math.max(0, (Number.isFinite(y) ? y : lastY) - startY);
+      const v = dy / dt;
+
+      sheetPanel.style.willChange = "";
+      setSheetDragState(false);
+
+      if (isVerticalDrag && (dy >= SWIPE_CLOSE_PX || v >= SWIPE_VELOCITY)){
+        haptic("light");
+        closeSheet();
+        return;
+      }
+
+      setSheetTranslate(0);
+    }
+
+    const hasPointer = "PointerEvent" in win;
+
+    if (hasPointer){
+      sheetPanel.addEventListener("pointerdown", onStart, { passive:false });
+      win.addEventListener("pointermove", onMove, { passive:false });
+      win.addEventListener("pointerup", onEnd, { passive:false });
+      win.addEventListener("pointercancel", onEnd, { passive:false });
+    }else{
+      sheetPanel.addEventListener("touchstart", onStart, { passive:false });
+      win.addEventListener("touchmove", onMove, { passive:false });
+      win.addEventListener("touchend", onEnd, { passive:false });
+      win.addEventListener("touchcancel", onEnd, { passive:false });
+    }
+
+    win.addEventListener("keydown", (e)=>{
+      try{
+        if (!sheetOpen) return;
+        if (e.key === "Escape") closeSheet();
+      }catch(_){}
+    });
+  })();
+
+  function setQrTextLink(text){
+    if (!qrCodeTextEl) return;
+    if (qrShowCodeText){
+      qrCodeTextEl.hidden = false;
+      qrCodeTextEl.textContent = text || "";
+    }else{
+      qrCodeTextEl.hidden = true;
+      qrCodeTextEl.textContent = "";
+    }
+  }
+
+  function resolveBotUsername(){
+    const botRaw =
+      (getMiniState() && (getMiniState().bot_username || getMiniState().botUsername)) ||
+      (ctx && ctx.state && (ctx.state.bot_username || ctx.state.botUsername)) ||
+      (props && (props.bot_username || props.botUsername)) ||
+      "";
+    return botRaw ? String(botRaw).replace(/^@/,'').trim() : "";
+  }
+
+  function getRedeemDeepLinkFromCode(code){
+    const c = str(code, "").trim();
+    if (!c) return "";
+    const bot = resolveBotUsername();
+    const startPayload = "redeem_" + c;
+    if (bot) return `https://t.me/${bot}?start=${encodeURIComponent(startPayload)}`;
+    return startPayload;
+  }
+
+  async function renderQrForReward(redeemCode){
+    openSheet();
+
+    const link = getRedeemDeepLinkFromCode(redeemCode);
+    if (!link){
+      if (qrTitleEl) qrTitleEl.textContent = qrTitleText;
+      if (qrTextEl)  qrTextEl.textContent  = "Нет redeem_code";
+      setQrTextLink("Нет redeem_code");
+      return;
+    }
+
+    if (qrTitleEl) qrTitleEl.textContent = qrTitleText;
+    if (qrTextEl)  qrTextEl.textContent  = qrHelpText;
+    setQrTextLink(link);
+
+    if (!qrCanvas) return;
+
+    try{
+      qrCanvas.width = qrSize;
+      qrCanvas.height = qrSize;
+    }catch(_){}
+
+    const ctx2 = qrCanvas.getContext("2d");
+    if (!ctx2) return;
+
+    ctx2.fillStyle = "#fff";
+    ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
+
+    const qUrl = `${qrService}?size=${qrSize}&margin=${qrMargin}&text=${encodeURIComponent(link)}`;
+
+    await new Promise((resolve)=>{
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = ()=>{ ctx2.drawImage(img, 0, 0, qrCanvas.width, qrCanvas.height); resolve(true); };
+      img.onerror = ()=>{
+        ctx2.fillStyle = "#fff";
+        ctx2.fillRect(0,0,qrCanvas.width, qrCanvas.height);
+        ctx2.fillStyle = "#000";
+        ctx2.font = "12px ui-monospace, Menlo, Consolas, monospace";
+        ctx2.fillText("QR load error", 10, 20);
+        resolve(false);
+      };
+      img.src = qUrl;
+    });
+  }
 
   // ---------- main action
   async function doSpin() {
@@ -615,21 +921,6 @@ export async function mount(root, props = {}, ctx = {}) {
     const FINAL_DUR = num(props.final_dur, 1200);
     const startTs = performance.now();
 
-   /* let free = true;
-   const FREE_RPS = 1;
-   const FREE_SPEED = (FREE_RPS * N) / 1000;
-    let last = performance.now();
-
-    function freeLoop(now) {
-      if (!free) return;
-      const dt = now - last;
-      last = now;
-      curr = mod(curr + FREE_SPEED * dt, N);
-      updateUI();
-      requestAnimationFrame(freeLoop);
-    }
-    requestAnimationFrame(freeLoop); */
-
     try {
       if (DEMO) {
         await new Promise(r => setTimeout(r, 350 + ((Math.random() * 450) | 0)));
@@ -640,21 +931,20 @@ export async function mount(root, props = {}, ctx = {}) {
 
         const elapsed = performance.now() - startTs;
         if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
-        // free = false;
 
         await spinTo(pickIdx, FINAL_LAPS, FINAL_DUR);
 
         const card = its[pickIdx];
         const code = String(card?.dataset?.code || "");
-        const title = String(card?.dataset?.name || "Приз");
+        const title2 = String(card?.dataset?.name || "Приз");
 
-        if (pickedEl) pickedEl.textContent = `Выпало: ${title}`;
+        if (pickedEl) pickedEl.textContent = `Выпало: ${title2}`;
 
         const pr = prizes.find(p => String(p.code) === code) || {};
         demoRewards.unshift({
           id: String(Date.now()) + "-" + String((Math.random() * 1000) | 0),
           prize_code: code,
-          prize_title: title,
+          prize_title: title2,
           redeem_code: demoMakeCode(),
           img: pr.img || "",
           issued_at: new Date().toISOString(),
@@ -674,7 +964,6 @@ export async function mount(root, props = {}, ctx = {}) {
 
       const elapsed = performance.now() - startTs;
       if (elapsed < MIN_SPIN_MS) await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
-      // free = false;
 
       if (!r || r.ok === false) throw new Error((r && (r.error || r.message)) || "spin_failed");
 
@@ -737,13 +1026,18 @@ export async function mount(root, props = {}, ctx = {}) {
     try { updateUI(); } catch (_) {}
   });
 
-  // also do first paint immediately (even before state comes)
+  // first paint
   try { updateUI(); } catch (_) {}
 
   const unmount = () => {
     stopPolling();
     spinBtn.removeEventListener("pointerdown", onSpinAny);
+
+    // close legacy modal
     try { modalEl.hidden = true; } catch (_) {}
+
+    // close sheet
+    try { closeSheet(); } catch (_) {}
 
     try { root.__sg_bonus_wheel_mounted = false; } catch (_) {}
     try { root.__sg_bonus_wheel_unmount = null; } catch (_) {}
