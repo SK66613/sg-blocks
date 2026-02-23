@@ -1,9 +1,17 @@
 // stylesPassport/runtime.js
 // Passport (tiers + stamps) — SG blocks format.
-// Uses window.api()/ctx.api if available, otherwise POST /api/mini/*?public_id=...
+// Works with legacy window.api('state') / window.api('style.collect') AND with fetch fallback to /api/mini/*?public_id=...
+//
 // Data source priority:
-// 1) state.passport.stamps (from D1 via state.ts)
-// 2) props.styles (legacy / preview)
+// 1) state.passport (from worker state.ts -> loadPassportSnapshot())
+// 2) props.tiers (constructor preview / legacy)
+// 3) props.styles (legacy flat)
+//
+// Key behaviors:
+// - Marks collected stamps visually (✓) based on state.passport.stamps[].collected OR legacy collected sets
+// - Reward card appears when passport is complete AND (passport_reward exists OR tiers have rewards configured)
+// - QR bottom sheet uses state.passport_reward.redeem_code + state.bot_username
+// - DEMO mode in constructor preview (no apiFn + no publicId): local-only progress + fake reward
 
 export async function mount(root, props = {}, ctx = {}) {
   const doc = root.ownerDocument;
@@ -19,6 +27,11 @@ export async function mount(root, props = {}, ctx = {}) {
   const num = (v, d) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : d;
+  };
+  const toInt = (v, d = 0) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return d;
+    return Math.trunc(n);
   };
   const str = (v, d = "") => (v === undefined || v === null ? d : String(v));
   const clamp01 = (v) => {
@@ -65,12 +78,14 @@ export async function mount(root, props = {}, ctx = {}) {
     str(props.app_public_id || props.public_id || props.publicId, "").trim() ||
     str(win.SG_APP_PUBLIC_ID || win.APP_PUBLIC_ID, "").trim();
 
+  const IS_DEMO = !apiFn && !publicId;
+
   async function apiCall(pathSeg, body = {}) {
     // If legacy api exists — use it directly
     if (apiFn) return await apiFn(pathSeg, body);
 
     if (!publicId) {
-      // Studio/preview mode: no api + no publicId => can't call backend, just return stub
+      // Studio/preview mode
       return { ok: false, error: "NO_PUBLIC_ID" };
     }
 
@@ -123,7 +138,7 @@ export async function mount(root, props = {}, ctx = {}) {
     return j;
   }
 
-  // Our internal wrappers
+  // wrappers
   async function apiState() {
     return await apiCall("state", {});
   }
@@ -146,6 +161,7 @@ export async function mount(root, props = {}, ctx = {}) {
   const rewardTitle = root.querySelector("[data-pp-reward-title]");
   const rewardText = root.querySelector("[data-pp-reward-text]");
   const rewardCode = root.querySelector("[data-pp-reward-code]");
+  const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
   // QR bottom sheet
   const sheetEl = root.querySelector("[data-pp-sheet]");
@@ -156,7 +172,6 @@ export async function mount(root, props = {}, ctx = {}) {
   const qrText = root.querySelector("[data-pp-qr-text]");
   const qrCanvas = root.querySelector("[data-pp-qr-canvas]");
   const qrCodeText = root.querySelector("[data-pp-qr-code]");
-  const openQrBtn = root.querySelector("[data-pp-open-qr]");
 
   const modalEl = root.querySelector("[data-pp-modal]");
   const pinInp = root.querySelector("[data-pp-pin-inp]");
@@ -167,26 +182,22 @@ export async function mount(root, props = {}, ctx = {}) {
   const modalSub = root.querySelector("[data-pp-modal-sub]");
   const modalErr = root.querySelector("[data-pp-modal-err]");
 
-  // ---------- props (only as fallback)
+  // ---------- props
   const P = props || {};
-  const gridColsFallback = Math.max(1, Math.min(6, num(P.grid_cols, 3)));
-  const requirePin = !!P.require_pin;
-
-  // IMPORTANT: direct_pin is the working mode
-  const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin
-  const btnCollect = str(P.btn_collect, "Отметить");
-  const btnDone = str(P.btn_done, "Получено");
-
-  function getStyleId(st) {
-    return str(st && (st.code || st.style_id || st.styleId), "").trim();
-  }
+  const requirePin = P.require_pin === undefined ? true : !!P.require_pin; // you said always true
+  const collectMode = str(P.collect_mode, "direct_pin"); // direct_pin | bot_pin (bot_pin not used)
+  const gridColsFallback = Math.max(1, Math.min(6, toInt(P.grid_cols ?? 3, 3)));
 
   // ---------- state
-  let state = null; // keep the latest server state (needed for passport_reward + tiers)
+  let state = null;
   let collected = new Set();
   let busy = new Set();
+
   let selectedStyleId = "";
   let selectedStyleName = "";
+
+  // DEMO local progress
+  const demoCollected = new Set();
 
   // derived passport model for render
   let passportModel = {
@@ -194,24 +205,100 @@ export async function mount(root, props = {}, ctx = {}) {
     subtitle: str(P.subtitle, ""),
     cover_url: str(P.cover_url, ""),
     grid_cols: gridColsFallback,
-    collect_coins: Math.max(0, Math.floor(num(P.collect_coins, 0))),
-    btn_collect: btnCollect,
-    btn_done: btnDone,
+    collect_coins: Math.max(0, toInt(P.collect_coins ?? 0, 0)),
+    btn_collect: str(P.btn_collect, "Отметить"),
+    btn_done: str(P.btn_done, "Получено"),
 
     active_tier_id: null,
-    tiers: [], // [{tier_id,title,subtitle,enabled,stamps_total,stamps_collected,progress_pct,reward{...}}]
-    stamps: [], // [{tier_id,code,name,desc,image,collected}]
+    tiers: [], // [{tier_id,enabled,title,subtitle,stamps_total,stamps_collected,progress_pct,reward{enabled}}]
+    stamps: [], // [{tier_id,idx,code,name,desc,image,collected}]
     progress: { total: 0, collected: 0, pct: 0 },
   };
 
-  function isDone(styleId) {
-    return collected.has(String(styleId));
+  // ----- normalize collected (supports NEW state.passport.stamps[].collected)
+  function normalizeCollected(st) {
+    const out = new Set();
+    if (!st) return out;
+
+    // ✅ NEW: passport.stamps array with collected flag
+    const ps = st.passport && Array.isArray(st.passport.stamps) ? st.passport.stamps : null;
+    if (ps) {
+      for (const it of ps) {
+        if (!it) continue;
+        const code = it.code || it.style_id || it.styleId;
+        if (!code) continue;
+        if (it.collected === true || Number(it.collected) === 1) out.add(String(code).trim());
+      }
+    }
+
+    // legacy candidates
+    const candidates = [
+      st.styles,
+      st.styles_collected,
+      st.collected_styles,
+      st.stamps,
+      st.done_styles,
+      st.passport && st.passport.styles,
+      st.passport && st.passport.collected,
+
+      // sometimes backends put stamps list here
+      st.passport && st.passport.stamps,
+    ];
+
+    let arr = null;
+    for (const c of candidates) {
+      if (Array.isArray(c)) {
+        arr = c;
+        break;
+      }
+    }
+
+    if (arr) {
+      for (const it of arr) {
+        if (it === null || it === undefined) continue;
+
+        if (typeof it === "string" || typeof it === "number") {
+          out.add(String(it).trim());
+          continue;
+        }
+
+        if (typeof it === "object") {
+          // ✅ if it's a stamp object with collected flag
+          if (
+            (it.code || it.style_id || it.styleId) &&
+            (it.collected === true || Number(it.collected) === 1)
+          ) {
+            out.add(String(it.code || it.style_id || it.styleId).trim());
+            continue;
+          }
+
+          const v = it.code || it.style_id || it.styleId || it.id || it.key;
+          if (v !== undefined && v !== null) out.add(String(v).trim());
+        }
+      }
+    }
+
+    const map = st.styles_map || st.collected_map || st.stamps_map;
+    if (map && typeof map === "object") {
+      for (const k of Object.keys(map)) {
+        if (map[k]) out.add(String(k).trim());
+      }
+    }
+
+    return out;
+  }
+
+  function isDone(code) {
+    if (!code) return false;
+    const k = String(code);
+    if (IS_DEMO) return demoCollected.has(k);
+    return collected.has(k);
   }
 
   function isComplete() {
     const p = passportModel && passportModel.progress ? passportModel.progress : null;
     const total = p ? Number(p.total || 0) : 0;
-    const got = p ? Number(p.collected || 0) : collected.size;
+    const got = p ? Number(p.collected || 0) : 0;
     return total > 0 && got >= total;
   }
 
@@ -236,67 +323,157 @@ export async function mount(root, props = {}, ctx = {}) {
   function buildPassportModelFromState(st) {
     const pass = st && st.passport ? st.passport : null;
 
-    // Prefer server-provided passport snapshot (new)
-    if (pass && Array.isArray(pass.stamps)) {
+    // ✅ Prefer server passport snapshot
+    if (pass && (Array.isArray(pass.stamps) || Array.isArray(pass.tiers))) {
+      const stampsRaw = Array.isArray(pass.stamps) ? pass.stamps : [];
+      const tiersRaw = Array.isArray(pass.tiers) ? pass.tiers : [];
+
       passportModel = {
         title: str(pass.title, str(P.title, "Паспорт")),
         subtitle: str(pass.subtitle, str(P.subtitle, "")),
         cover_url: str(pass.cover_url, str(P.cover_url, "")),
-        grid_cols: Math.max(1, Math.min(6, num(pass.grid_cols, gridColsFallback))),
-        collect_coins: Math.max(0, Math.floor(num(pass.collect_coins, num(P.collect_coins, 0)))),
-        btn_collect: str(pass.btn_collect, btnCollect),
-        btn_done: str(pass.btn_done, btnDone),
+        grid_cols: Math.max(1, Math.min(6, toInt(pass.grid_cols ?? gridColsFallback, gridColsFallback))),
+        collect_coins: Math.max(0, toInt(pass.collect_coins ?? toInt(P.collect_coins ?? 0, 0), 0)),
+        btn_collect: str(pass.btn_collect, str(P.btn_collect, "Отметить")),
+        btn_done: str(pass.btn_done, str(P.btn_done, "Получено")),
 
         active_tier_id:
           pass.active_tier_id === undefined || pass.active_tier_id === null
             ? null
             : Number(pass.active_tier_id),
 
-        tiers: Array.isArray(pass.tiers) ? pass.tiers : [],
-        stamps: pass.stamps.map((x) => ({
+        tiers: tiersRaw.map((t) => ({
+          tier_id: Number(t.tier_id || 1),
+          enabled: t.enabled === undefined ? true : !!t.enabled,
+          title: str(t.title, ""),
+          subtitle: str(t.subtitle, ""),
+          stamps_total: toInt(t.stamps_total ?? 0, 0),
+          stamps_collected: toInt(t.stamps_collected ?? 0, 0),
+          progress_pct: toInt(t.progress_pct ?? 0, 0),
+          reward: t.reward && typeof t.reward === "object" ? t.reward : { enabled: false },
+        })),
+
+        stamps: stampsRaw.map((x) => ({
           tier_id: Number(x.tier_id || 1),
-          code: str(x.code, ""),
+          idx: toInt(x.idx ?? 0, 0),
+          code: str(x.code, "").trim(),
           name: str(x.name, ""),
           desc: str(x.desc, ""),
           image: str(x.image, ""),
           collected: !!x.collected,
-        })),
+        })).filter((x) => x.code),
 
         progress: pass.progress
           ? {
-              total: Math.max(0, Math.floor(num(pass.progress.total, 0))),
-              collected: Math.max(0, Math.floor(num(pass.progress.collected, 0))),
-              pct: Math.max(0, Math.min(100, Math.floor(num(pass.progress.pct, 0)))),
+              total: Math.max(0, toInt(pass.progress.total ?? 0, 0)),
+              collected: Math.max(0, toInt(pass.progress.collected ?? 0, 0)),
+              pct: Math.max(0, Math.min(100, toInt(pass.progress.pct ?? 0, 0))),
             }
           : { total: 0, collected: 0, pct: 0 },
+      };
+
+      // If server didn't fill progress (just in case)
+      if (!passportModel.progress || !passportModel.progress.total) {
+        const enabledTiers = passportModel.tiers.filter((t) => t.enabled !== false);
+        const enabledTierIds = new Set(enabledTiers.map((t) => Number(t.tier_id)));
+        const enabledStamps = passportModel.stamps.filter((s) => enabledTierIds.has(Number(s.tier_id)));
+        const total = enabledStamps.length;
+        const got = enabledStamps.reduce((a, s) => a + (s.collected ? 1 : 0), 0);
+        passportModel.progress = { total, collected: got, pct: total ? Math.round((got / total) * 100) : 0 };
+      }
+
+      return;
+    }
+
+    // ✅ DEMO/preview fallback: props.tiers
+    const pt = Array.isArray(P.tiers) ? P.tiers : [];
+    if (pt.length) {
+      const tiers = pt.map((t) => ({
+        tier_id: Number(t?.tier_id || 1),
+        enabled: t?.enabled === false ? false : true,
+        title: str(t?.title, ""),
+        subtitle: str(t?.subtitle, ""),
+        stamps_total: Array.isArray(t?.stamps) ? t.stamps.length : 0,
+        stamps_collected: 0,
+        progress_pct: 0,
+        reward: { enabled: !!t?.reward_enabled },
+      }));
+
+      const stamps = [];
+      for (const t of pt) {
+        const tid = Number(t?.tier_id || 1);
+        const list = Array.isArray(t?.stamps) ? t.stamps : [];
+        for (let i = 0; i < list.length; i++) {
+          const s = list[i] || {};
+          const code = str(s.code, "").trim();
+          if (!code) continue;
+          stamps.push({
+            tier_id: tid,
+            idx: i,
+            code,
+            name: str(s.name, ""),
+            desc: str(s.desc, ""),
+            image: str(s.image, ""),
+            collected: IS_DEMO ? demoCollected.has(code) : false,
+          });
+        }
+      }
+
+      const enabledTierIds = new Set(tiers.filter((t) => t.enabled !== false).map((t) => Number(t.tier_id)));
+      const enabledStamps = stamps.filter((s) => enabledTierIds.has(Number(s.tier_id)));
+      const total = enabledStamps.length;
+      const got = enabledStamps.reduce((a, s) => a + (IS_DEMO ? (demoCollected.has(s.code) ? 1 : 0) : 0), 0);
+      const pct = total ? Math.round((got / total) * 100) : 0;
+
+      // active tier = first enabled where not done; else last enabled
+      let activeTierId = null;
+      const enabledTiers = tiers.filter((t) => t.enabled !== false);
+      for (const t of enabledTiers) {
+        const tid = Number(t.tier_id);
+        const tierStamps = enabledStamps.filter((s) => Number(s.tier_id) === tid);
+        const done = tierStamps.length > 0 && tierStamps.every((s) => demoCollected.has(s.code));
+        if (!done && tierStamps.length > 0) {
+          activeTierId = tid;
+          break;
+        }
+      }
+      if (activeTierId === null && enabledTiers.length) activeTierId = Number(enabledTiers[enabledTiers.length - 1].tier_id);
+
+      passportModel = {
+        title: str(P.title, "Паспорт"),
+        subtitle: str(P.subtitle, ""),
+        cover_url: str(P.cover_url, ""),
+        grid_cols: Math.max(1, Math.min(6, toInt(P.grid_cols ?? 3, 3))),
+        collect_coins: Math.max(0, toInt(P.collect_coins ?? 0, 0)),
+        btn_collect: str(P.btn_collect, "Отметить"),
+        btn_done: str(P.btn_done, "Получено"),
+        active_tier_id: activeTierId,
+        tiers,
+        stamps,
+        progress: { total, collected: got, pct },
       };
       return;
     }
 
-    // Fallback legacy: props.styles list
-    const styles = Array.isArray(P.styles) ? P.styles : [];
-    const stamps = styles.map((s) => ({
-      tier_id: 1,
-      code: getStyleId(s),
-      name: str(s && (s.name || s.title), ""),
-      desc: str(s && (s.desc || s.subtitle), ""),
-      image: str(s && s.image, ""),
-      collected: false,
-    }));
-
+    // legacy last fallback: props.styles flat
+    const legacy = Array.isArray(P.styles) ? P.styles : [];
     passportModel = {
       ...passportModel,
-      title: str(P.title, passportModel.title),
-      subtitle: str(P.subtitle, passportModel.subtitle),
-      cover_url: str(P.cover_url, passportModel.cover_url),
+      title: str(P.title, "Паспорт"),
+      subtitle: str(P.subtitle, ""),
+      cover_url: str(P.cover_url, ""),
       grid_cols: gridColsFallback,
-      collect_coins: Math.max(0, Math.floor(num(P.collect_coins, passportModel.collect_coins))),
-      btn_collect: btnCollect,
-      btn_done: btnDone,
-      active_tier_id: 1,
-      tiers: [{ tier_id: 1, enabled: true, title: "", subtitle: "", stamps_total: styles.length, stamps_collected: 0, progress_pct: 0, reward: { enabled: false } }],
-      stamps,
-      progress: { total: styles.length, collected: 0, pct: 0 },
+      tiers: [{ tier_id: 1, enabled: true, title: "", subtitle: "", stamps_total: legacy.length, stamps_collected: 0, progress_pct: 0, reward: { enabled: false } }],
+      stamps: legacy.map((s, i) => ({
+        tier_id: 1,
+        idx: i,
+        code: str(s?.code || s?.style_id || s?.styleId, "").trim(),
+        name: str(s?.name || s?.title, ""),
+        desc: str(s?.desc || s?.subtitle, ""),
+        image: str(s?.image, ""),
+        collected: false,
+      })).filter((x) => x.code),
+      progress: { total: legacy.length, collected: 0, pct: 0 },
     };
   }
 
@@ -320,8 +497,8 @@ export async function mount(root, props = {}, ctx = {}) {
     if (!progWrap || !progBar || !progTxt) return;
 
     const p = passportModel.progress || { total: 0, collected: 0 };
-    const total = Math.max(0, Math.floor(num(p.total, 0)));
-    const got = Math.max(0, Math.floor(num(p.collected, collected.size)));
+    const total = Math.max(0, toInt(p.total ?? 0, 0));
+    const got = Math.max(0, toInt(p.collected ?? 0, 0));
 
     if (!total) {
       progWrap.hidden = true;
@@ -593,12 +770,27 @@ export async function mount(root, props = {}, ctx = {}) {
     }
   }
 
-  function getRedeemDeepLink() {
+  function getPassportReward() {
     const pr =
       state && (state.passport_reward || state.reward || state.pass_reward)
         ? state.passport_reward || state.reward || state.pass_reward
         : null;
 
+    // DEMO fallback: when complete, fake redeem code
+    if (!pr && IS_DEMO && isComplete()) {
+      return {
+        redeem_code: "DEMO-REDEEM-0001",
+        status: "issued",
+        prize_title: "Демо приз",
+        prize_code: "demo_prize",
+        coins: 0,
+      };
+    }
+    return pr;
+  }
+
+  function getRedeemDeepLink() {
+    const pr = getPassportReward();
     const code =
       pr && (pr.redeem_code || pr.code || pr.redeemCode)
         ? String(pr.redeem_code || pr.code || pr.redeemCode).trim()
@@ -609,7 +801,6 @@ export async function mount(root, props = {}, ctx = {}) {
       (state && (state.bot_username || state.botUsername)) ||
       (P && (P.bot_username || P.botUsername)) ||
       "";
-
     const bot = botRaw ? String(botRaw).replace(/^@/, "").trim() : "";
 
     const startPayload = "redeem_" + code;
@@ -694,22 +885,30 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   function renderReward() {
-    // legacy flag in props; reward issuance is still server-side
-    const enabled = !!P.reward_enabled;
     if (!rewardWrap) return;
 
-    if (!enabled || !isComplete()) {
+    const pr = getPassportReward();
+
+    const anyTierRewardEnabled =
+      passportModel &&
+      Array.isArray(passportModel.tiers) &&
+      passportModel.tiers.some(
+        (t) => t && (t.reward && t.reward.enabled === true) // from state.ts reward: {enabled:false} now, but keep
+      );
+
+    // ✅ show reward if completed AND (reward exists OR tiers configured rewards in props)
+    const tiersFromProps = Array.isArray(P.tiers) ? P.tiers : [];
+    const anyRewardInProps = tiersFromProps.some((t) => t && (t.reward_enabled === true || Number(t.reward_enabled) === 1));
+
+    const show = isComplete() && (!!pr || anyTierRewardEnabled || anyRewardInProps);
+
+    if (!show) {
       rewardWrap.hidden = true;
       return;
     }
 
     rewardWrap.hidden = false;
     if (rewardTitle) rewardTitle.textContent = str(P.reward_title, "🎁 Приз");
-
-    const pr =
-      state && (state.passport_reward || state.reward || state.pass_reward)
-        ? state.passport_reward || state.reward || state.pass_reward
-        : null;
 
     let codeToShow = "";
     let hint = "";
@@ -738,54 +937,14 @@ export async function mount(root, props = {}, ctx = {}) {
         rewardCode.textContent = "";
       }
     }
+
+    if (openQrBtn) {
+      const hasCode = !!(pr && (pr.redeem_code || pr.code || pr.redeemCode));
+      openQrBtn.style.display = hasCode ? "" : "none";
+    }
   }
 
-  // ----- normalize collected (worker formats)
-  function normalizeCollected(st) {
-    const out = new Set();
-    if (!st) return out;
-
-    const candidates = [
-      st.styles,
-      st.styles_collected,
-      st.collected_styles,
-      st.stamps,
-      st.done_styles,
-      st.passport && st.passport.styles,
-      st.passport && st.passport.collected,
-    ];
-
-    let arr = null;
-    for (const c of candidates) {
-      if (Array.isArray(c)) {
-        arr = c;
-        break;
-      }
-    }
-
-    if (arr) {
-      for (const it of arr) {
-        if (it === null || it === undefined) continue;
-        if (typeof it === "string" || typeof it === "number") out.add(String(it));
-        else if (typeof it === "object") {
-          const v = it.code || it.style_id || it.styleId || it.id || it.key;
-          if (v !== undefined && v !== null) out.add(String(v));
-        }
-      }
-      return out;
-    }
-
-    const map = st.styles_map || st.collected_map || st.stamps_map;
-    if (map && typeof map === "object") {
-      for (const k of Object.keys(map)) {
-        if (map[k]) out.add(String(k));
-      }
-    }
-
-    return out;
-  }
-
-  function stampCardHtml(st, idx, globalIndex) {
+  function stampCardHtml(st, globalIndex) {
     const sid = str(st && st.code, "").trim();
     const done = sid && isDone(sid);
     const img = str(st && st.image, "").trim();
@@ -796,7 +955,7 @@ export async function mount(root, props = {}, ctx = {}) {
     const badge = done ? "✓" : String(globalIndex + 1);
 
     return `
-      <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
+      <button class="pp-card ${disabled ? "is-disabled" : ""} ${done ? "is-done" : ""}" type="button"
         data-sid="${escapeHtml(sid)}"
         data-done="${done ? 1 : 0}"
         ${disabled ? "disabled" : ""}>
@@ -819,7 +978,7 @@ export async function mount(root, props = {}, ctx = {}) {
   function renderGrid() {
     if (!gridEl) return;
 
-    const cols = Math.max(1, Math.min(6, num(passportModel.grid_cols, gridColsFallback)));
+    const cols = Math.max(1, Math.min(6, toInt(passportModel.grid_cols ?? gridColsFallback, gridColsFallback)));
     const stamps = Array.isArray(passportModel.stamps) ? passportModel.stamps : [];
 
     // group stamps by tier
@@ -831,16 +990,15 @@ export async function mount(root, props = {}, ctx = {}) {
     }
 
     // choose tier order
-    const tiers = Array.isArray(passportModel.tiers) && passportModel.tiers.length
-      ? passportModel.tiers.map((t) => Number(t.tier_id || 1))
-      : Array.from(byTier.keys()).sort((a, b) => a - b);
+    const tiersOrder =
+      Array.isArray(passportModel.tiers) && passportModel.tiers.length
+        ? passportModel.tiers.map((t) => Number(t.tier_id || 1))
+        : Array.from(byTier.keys()).sort((a, b) => a - b);
 
-    // compute global index for numbering across tiers (nice)
     let global = 0;
-
-    // build html sections
     const htmlParts = [];
-    for (const tid of tiers) {
+
+    for (const tid of tiersOrder) {
       const list = byTier.get(tid) || [];
       if (!list.length) continue;
 
@@ -849,22 +1007,25 @@ export async function mount(root, props = {}, ctx = {}) {
           ? passportModel.tiers.find((x) => Number(x.tier_id || 0) === Number(tid))
           : null;
 
-      const enabled = tierMeta ? !!tierMeta.enabled : true;
-
-      // show disabled tiers too (owner might want to see), but in client just render as normal
-      const isActive = passportModel.active_tier_id !== null && Number(passportModel.active_tier_id) === Number(tid);
+      const enabled = tierMeta ? tierMeta.enabled !== false : true;
+      const isActive =
+        passportModel.active_tier_id !== null && Number(passportModel.active_tier_id) === Number(tid);
 
       const tTitle = tierMeta && tierMeta.title ? String(tierMeta.title) : `Круг ${tid}`;
       const tSub = tierMeta && tierMeta.subtitle ? String(tierMeta.subtitle) : "";
 
-      const got = tierMeta && tierMeta.stamps_collected !== undefined ? Number(tierMeta.stamps_collected || 0) : null;
-      const total = tierMeta && tierMeta.stamps_total !== undefined ? Number(tierMeta.stamps_total || 0) : null;
+      const got =
+        tierMeta && tierMeta.stamps_collected !== undefined ? Number(tierMeta.stamps_collected || 0) : null;
+      const total =
+        tierMeta && tierMeta.stamps_total !== undefined ? Number(tierMeta.stamps_total || 0) : null;
+
+      const isDoneTier = total !== null && total > 0 && got !== null && got >= total;
 
       htmlParts.push(`
-        <div class="pp-tier ${isActive ? "is-active" : ""} ${enabled ? "" : "is-disabled"}">
+        <div class="pp-tier ${isActive ? "is-active" : ""} ${enabled ? "" : "is-disabled"} ${isDoneTier ? "is-done" : ""}">
           <div class="pp-tier-h">
             <div class="pp-tier-t">
-              <div class="pp-tier-title">${escapeHtml(tTitle)}</div>
+              <div class="pp-tier-title">${escapeHtml(tTitle || `Круг ${tid}`)}</div>
               ${tSub ? `<div class="pp-tier-sub">${escapeHtml(tSub)}</div>` : ``}
             </div>
             ${
@@ -876,8 +1037,8 @@ export async function mount(root, props = {}, ctx = {}) {
 
           <div class="pp-tier-grid" style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:10px;">
             ${list
-              .map((s, i) => {
-                const card = stampCardHtml(s, i, global);
+              .map((s) => {
+                const card = stampCardHtml(s, global);
                 global++;
                 return card;
               })
@@ -887,38 +1048,10 @@ export async function mount(root, props = {}, ctx = {}) {
       `);
     }
 
-    // If no tiers in state -> fallback legacy render as one grid
+    // Fallback: no tiers
     if (!htmlParts.length) {
-      const legacy = Array.isArray(P.styles) ? P.styles : [];
       gridEl.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-      gridEl.innerHTML = legacy
-        .map((st, idx) => {
-          const sid = getStyleId(st);
-          const done = sid && isDone(sid);
-          const img = str(st && st.image, "").trim();
-          const name = str(st && (st.name || st.title), sid || `#${idx + 1}`);
-          const desc = str(st && (st.desc || st.subtitle), "");
-
-          const disabled = !sid || done || busy.has(sid);
-          const badge = done ? "✓" : `${idx + 1}`;
-
-          return `
-            <button class="pp-card ${disabled ? "is-disabled" : ""}" type="button"
-              data-sid="${escapeHtml(sid)}" data-done="${done ? 1 : 0}" ${disabled ? "disabled" : ""}>
-              <div class="pp-badge">${escapeHtml(badge)}</div>
-              <div class="pp-card-top">
-                <div class="pp-ico">
-                  ${img ? `<img alt="" src="${escapeHtml(img)}">` : `<span class="pp-ico-ph">★</span>`}
-                </div>
-                <div class="pp-txt">
-                  <div class="pp-name">${escapeHtml(name)}</div>
-                  ${desc ? `<div class="pp-desc">${escapeHtml(desc)}</div>` : ``}
-                </div>
-              </div>
-            </button>
-          `;
-        })
-        .join("");
+      gridEl.innerHTML = stamps.map((s) => stampCardHtml(s, global++)).join("");
     } else {
       gridEl.innerHTML = htmlParts.join("");
     }
@@ -936,33 +1069,29 @@ export async function mount(root, props = {}, ctx = {}) {
     });
   }
 
-  async function refreshFromServer() {
-    const j = await apiState();
-    const st =
-      j && (j.state || j.fresh_state || j.fresh || j.data || j.result)
-        ? j.state || j.fresh_state || j.fresh || j.data || j.result
-        : j;
-    await applyState(st);
-  }
-
   async function applyState(st) {
     state = st || {};
     collected = normalizeCollected(state);
 
-    // build passport model from state snapshot
     buildPassportModelFromState(state);
 
-    // reconcile collected flags inside stamps (only for local render)
+    // reconcile collected flags inside stamps for render
     if (passportModel && Array.isArray(passportModel.stamps)) {
       passportModel.stamps = passportModel.stamps.map((s) => ({
         ...s,
-        collected: collected.has(String(s.code || "")),
+        collected: isDone(String(s.code || "")),
       }));
 
-      // refresh progress if server didn't send
+      // If progress missing, compute on enabled tiers
       if (!passportModel.progress || !passportModel.progress.total) {
-        const total = passportModel.stamps.length;
-        const got = passportModel.stamps.reduce((a, x) => a + (x.collected ? 1 : 0), 0);
+        const enabledTierIds = new Set(
+          (passportModel.tiers || [])
+            .filter((t) => t && t.enabled !== false)
+            .map((t) => Number(t.tier_id))
+        );
+        const enabledStamps = passportModel.stamps.filter((s) => enabledTierIds.has(Number(s.tier_id)));
+        const total = enabledStamps.length;
+        const got = enabledStamps.reduce((a, x) => a + (x.collected ? 1 : 0), 0);
         passportModel.progress = {
           total,
           collected: got,
@@ -980,7 +1109,100 @@ export async function mount(root, props = {}, ctx = {}) {
     } catch (_) {}
   }
 
+  async function refreshFromServer() {
+    // ✅ DEMO mode: no apiFn + no publicId => local-only state from props
+    if (IS_DEMO) {
+      const fake = {
+        bot_username: "",
+        passport_reward: null,
+        passport: {
+          title: str(P.title, "Паспорт"),
+          subtitle: str(P.subtitle, ""),
+          cover_url: str(P.cover_url, ""),
+          grid_cols: toInt(P.grid_cols ?? 3, 3),
+          collect_coins: toInt(P.collect_coins ?? 0, 0),
+          active_tier_id: null,
+          tiers: [],
+          stamps: [],
+          progress: { total: 0, collected: 0, pct: 0 },
+        },
+      };
+
+      const tiers = Array.isArray(P.tiers) ? P.tiers : [];
+      if (tiers.length) {
+        fake.passport.tiers = tiers.map((t) => ({
+          tier_id: Number(t?.tier_id || 1),
+          enabled: t?.enabled === false ? false : true,
+          title: str(t?.title, ""),
+          subtitle: str(t?.subtitle, ""),
+          stamps_total: Array.isArray(t?.stamps) ? t.stamps.length : 0,
+          stamps_collected: 0,
+          progress_pct: 0,
+          reward: { enabled: !!t?.reward_enabled },
+        }));
+
+        for (const t of tiers) {
+          const tid = Number(t?.tier_id || 1);
+          const list = Array.isArray(t?.stamps) ? t.stamps : [];
+          for (let i = 0; i < list.length; i++) {
+            const s = list[i] || {};
+            const code = str(s?.code, "").trim();
+            if (!code) continue;
+            fake.passport.stamps.push({
+              tier_id: tid,
+              idx: i,
+              code,
+              name: str(s?.name, ""),
+              desc: str(s?.desc, ""),
+              image: str(s?.image, ""),
+              collected: demoCollected.has(code),
+            });
+          }
+        }
+
+        // compute progress on enabled tiers
+        const enabledTierIds = new Set(fake.passport.tiers.filter((t) => t.enabled !== false).map((t) => Number(t.tier_id)));
+        const enabledStamps = fake.passport.stamps.filter((s) => enabledTierIds.has(Number(s.tier_id)));
+        const total = enabledStamps.length;
+        const got = enabledStamps.reduce((a, s) => a + (demoCollected.has(s.code) ? 1 : 0), 0);
+        fake.passport.progress = { total, collected: got, pct: total ? Math.round((got / total) * 100) : 0 };
+
+        // active tier
+        const enabledTiers = fake.passport.tiers.filter((t) => t.enabled !== false);
+        let activeTierId = null;
+        for (const t of enabledTiers) {
+          const tid = Number(t.tier_id);
+          const tierStamps = enabledStamps.filter((s) => Number(s.tier_id) === tid);
+          const done = tierStamps.length > 0 && tierStamps.every((s) => demoCollected.has(s.code));
+          if (!done && tierStamps.length > 0) {
+            activeTierId = tid;
+            break;
+          }
+        }
+        if (activeTierId === null && enabledTiers.length) activeTierId = Number(enabledTiers[enabledTiers.length - 1].tier_id);
+        fake.passport.active_tier_id = activeTierId;
+      }
+
+      await applyState(fake);
+      return;
+    }
+
+    const j = await apiState();
+    const st =
+      j && (j.state || j.fresh_state || j.fresh || j.data || j.result)
+        ? j.state || j.fresh_state || j.fresh || j.data || j.result
+        : j;
+    await applyState(st);
+  }
+
   async function collectDirectPin(styleId, pin) {
+    if (IS_DEMO) {
+      // any PIN ok in demo
+      demoCollected.add(String(styleId));
+      await refreshFromServer();
+      return;
+    }
+
     const res = await apiCollect(styleId, pin);
     const st = res && (res.fresh_state || res.state || res.result) ? res.fresh_state || res.state || res.result : res;
     if (st) await applyState(st);
@@ -988,14 +1210,20 @@ export async function mount(root, props = {}, ctx = {}) {
   }
 
   async function collectNoPin(styleId) {
+    if (IS_DEMO) {
+      demoCollected.add(String(styleId));
+      await refreshFromServer();
+      return;
+    }
+
     const res = await apiCollect(styleId, "");
     const st = res && (res.fresh_state || res.state || res.result) ? res.fresh_state || res.state || res.result : res;
     if (st) await applyState(st);
     else await refreshFromServer();
   }
 
-  async function collectBotPin(styleId) {
-    await uiAlert("⚠️ Режим bot_pin пока не включён в воркере. Используй direct_pin (модалка).");
+  async function collectBotPin() {
+    await uiAlert("⚠️ Режим bot_pin пока не включён. Используй direct_pin (модалка).");
   }
 
   async function onCollectClick(styleId) {
@@ -1038,6 +1266,7 @@ export async function mount(root, props = {}, ctx = {}) {
   if (modalOk) {
     modalOk.addEventListener("click", async () => {
       const pin = str(pinInp && pinInp.value, "").trim();
+
       if (requirePin && !pin) {
         if (modalErr) {
           modalErr.hidden = false;
@@ -1079,10 +1308,9 @@ export async function mount(root, props = {}, ctx = {}) {
   if (modalCancel) modalCancel.addEventListener("click", () => setModalVisible(false));
   if (modalClose) modalClose.addEventListener("click", () => setModalVisible(false));
 
-  // ---------- init
+  // init
   setQrVisible(false);
 
-  // ✅ Open QR bottom sheet from reward card button (ONLY HERE)
   if (openQrBtn) {
     openQrBtn.addEventListener("click", async () => {
       openSheet();
