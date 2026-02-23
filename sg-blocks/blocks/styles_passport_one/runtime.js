@@ -302,6 +302,58 @@ export async function mount(root, props = {}, ctx = {}) {
     return total > 0 && got >= total;
   }
 
+
+
+    function getActiveTierIdSafe() {
+    const v = passportModel && passportModel.active_tier_id != null ? Number(passportModel.active_tier_id) : null;
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function isTierComplete(tierId) {
+    tierId = Number(tierId || 0);
+    if (!tierId || !passportModel || !Array.isArray(passportModel.tiers)) return false;
+    const t = passportModel.tiers.find((x) => Number(x.tier_id) === tierId);
+    if (!t) return false;
+    const total = Number(t.stamps_total || 0);
+    const got = Number(t.stamps_collected || 0);
+    return total > 0 && got >= total;
+  }
+
+  function isAnyTierJustCompleted() {
+    // если сервер уже переключил active_tier_id на следующий, то "закрытый" — это предыдущий.
+    // Поэтому проверяем: есть ли хотя бы один enabled tier, который completed.
+    if (!passportModel || !Array.isArray(passportModel.tiers)) return false;
+    return passportModel.tiers.some((t) => t && t.enabled !== false && Number(t.stamps_total || 0) > 0 && Number(t.stamps_collected || 0) >= Number(t.stamps_total || 0));
+  }
+
+  function hasIssuedReward() {
+    const pr = getPassportReward();
+    if (!pr) return false;
+    const st = String(pr.status || "issued").toLowerCase();
+    const code = pr.redeem_code || pr.code || pr.redeemCode;
+    return st === "issued" && !!String(code || "").trim();
+  }
+
+  function shouldShowRewardCard() {
+    // ✅ главный критерий: приз уже создан (issued) — показываем сразу, даже если не весь паспорт закрыт
+    if (hasIssuedReward()) return true;
+
+    // DEMO: как раньше — показываем на complete
+    if (IS_DEMO && isComplete()) return true;
+
+    // опционально: если хочешь показывать карточку "Приз готовится…" сразу после закрытия tier
+    // (даже если redeem_code ещё не успел появиться в state)
+    const active = getActiveTierIdSafe();
+    if (active != null) {
+      // если active tier уже COMPLETE — значит сервер ещё не переключил tier, можно показать
+      if (isTierComplete(active)) return true;
+      // если active tier НЕ complete — возможно мы уже перешли на следующий, а предыдущий был закрыт
+      if (isAnyTierJustCompleted()) return true;
+    }
+
+    return false;
+  }
+
   function setModalVisible(v) {
     if (!modalEl) return;
     modalEl.hidden = !v;
@@ -812,7 +864,8 @@ export async function mount(root, props = {}, ctx = {}) {
   async function renderQr() {
     if (!sheetEl) return;
 
-    if (!completeShowQr || !isComplete()) {
+    // ✅ QR доступен когда есть issued reward (redeem_code), а не когда complete весь паспорт
+    if (!completeShowQr || !hasIssuedReward()) {
       setQrVisible(false);
       return;
     }
@@ -867,11 +920,12 @@ export async function mount(root, props = {}, ctx = {}) {
 
   async function renderMode() {
     const done = isComplete();
+    const rewardReady = hasIssuedReward();
 
-    // hide cards after completion (QR is shown via bottom sheet)
-    if (gridEl) gridEl.hidden = !!(completeShowQr && done);
+    // ✅ прячем грид только когда реально есть приз (QR), иначе пусть остаётся видимым (следующий tier)
+    if (gridEl) gridEl.hidden = !!(completeShowQr && rewardReady);
 
-    if (completeShowQr && done && completeHideHeader) {
+        if (completeShowQr && rewardReady && completeHideHeader) {
       const head = root.querySelector(".pp-head");
       const prog = root.querySelector(".pp-progress");
       if (head) head.style.display = "none";
@@ -900,7 +954,8 @@ export async function mount(root, props = {}, ctx = {}) {
     const tiersFromProps = Array.isArray(P.tiers) ? P.tiers : [];
     const anyRewardInProps = tiersFromProps.some((t) => t && (t.reward_enabled === true || Number(t.reward_enabled) === 1));
 
-    const show = isComplete() && (!!pr || anyTierRewardEnabled || anyRewardInProps);
+        // ✅ теперь показываем награду по tier (когда reward issued), а не только когда весь паспорт complete
+    const show = shouldShowRewardCard() && (!!pr || anyTierRewardEnabled || anyRewardInProps);
 
     if (!show) {
       rewardWrap.hidden = true;
